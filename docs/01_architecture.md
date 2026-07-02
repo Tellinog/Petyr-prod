@@ -160,7 +160,7 @@ platform internally.
 Accepted routing model:
 
 ```txt
-Production: https://petyr.draftapps.it
+Production: https://petyr.unguess-internal.net
   /forecasting      -> forecasting-app
   /petyr-admin      -> forecasting-app
   /api/petyr/*      -> forecasting-app
@@ -168,7 +168,7 @@ Production: https://petyr.draftapps.it
   /redash-ingestor/api/* -> redash-ingestor technical APIs, internal/operator access
 ```
 
-The accepted production Petyr host is `petyr.draftapps.it`, not a
+The accepted production Petyr host is `petyr.unguess-internal.net`, not a
 `/petyr` subpath under `unguess-internal.net`. For local Docker, the gateway is
 the existing `platform-home` Nginx service adapted from static launcher to
 reverse proxy. For production, the gateway should sit in front of both web

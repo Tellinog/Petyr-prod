@@ -171,9 +171,9 @@ Project-specific backlog items should be placed in the most specific backlog ava
 
 - **Area:** Platform / Access Control / Deployment
 - **Problem/question:** The exact public/internal domains for OAuth2 Proxy, Auth API and admin/access-control surfaces are not yet fully defined. Petyr unified access is accepted as one user-facing Petyr host/domain routed through a gateway.
-- **Impact:** Resolved for current Petyr, Redash Ingestor and Access Layer production routing: Petyr uses `https://petyr.draftapps.it` with callback `https://petyr.draftapps.it/auth/callback`; Redash Ingestor uses `https://petyr.draftapps.it/redash-ingestor` with callback `https://petyr.draftapps.it/redash-ingestor/auth/callback`; Access Layer uses `https://access-layer.draftapps.it`.
+- **Impact:** Resolved for current Petyr, Redash Ingestor and Access Layer production routing: Petyr uses `https://petyr.unguess-internal.net` with callback `https://petyr.unguess-internal.net/auth/callback`; Redash Ingestor uses `https://petyr.unguess-internal.net/redash-ingestor` with callback `https://petyr.unguess-internal.net/redash-ingestor/auth/callback`; Access Layer uses `https://access-layer.draftapps.it`.
 - **Status:** Resolved on 2026-06-22 for the current Petyr/Redash Ingestor/Access Layer host contract.
-- **Proposal / next action:** Configure DNS/proxy so `petyr.draftapps.it` routes `/forecasting`, `/petyr-admin`, `/api/petyr/*` and `/redash-ingestor/*` through the gateway, configure `access-layer.draftapps.it` for Access Layer, and update both Access Layer tool registrations with the documented callback URLs.
+- **Proposal / next action:** Configure DNS/proxy so `petyr.unguess-internal.net` routes `/forecasting`, `/petyr-admin`, `/api/petyr/*` and `/redash-ingestor/*` through the gateway, configure `access-layer.draftapps.it` for Access Layer, and update both Access Layer tool registrations with the documented callback URLs.
 
 ## Confirm first protected tool
 

@@ -70,12 +70,12 @@ Confirmed target URLs:
 
 ```txt
 Access Layer: https://access-layer.draftapps.it
-Petyr:        https://petyr.draftapps.it
-Callback:     https://petyr.draftapps.it/auth/callback
+Petyr:        https://petyr.unguess-internal.net
+Callback:     https://petyr.unguess-internal.net/auth/callback
 Redash Ingestor operator path:
-              https://petyr.draftapps.it/redash-ingestor
+              https://petyr.unguess-internal.net/redash-ingestor
 Redash Ingestor callback:
-              https://petyr.draftapps.it/redash-ingestor/auth/callback
+              https://petyr.unguess-internal.net/redash-ingestor/auth/callback
 ```
 
 For local development, Petyr authentication defaults to disabled when `NODE_ENV=development`. Production must set:
@@ -84,7 +84,7 @@ For local development, Petyr authentication defaults to disabled when `NODE_ENV=
 PETYR_AUTH_MODE=access-layer
 PETYR_ACCESS_LAYER_PUBLIC_BASE_URL=https://access-layer.draftapps.it
 PETYR_ACCESS_LAYER_INTERNAL_BASE_URL=https://access-layer.draftapps.it
-PETYR_ACCESS_LAYER_CALLBACK_URL=https://petyr.draftapps.it/auth/callback
+PETYR_ACCESS_LAYER_CALLBACK_URL=https://petyr.unguess-internal.net/auth/callback
 PETYR_ACCESS_LAYER_TOOL_SLUG=petyr
 PETYR_ACCESS_LAYER_CLIENT_ID=replace_with_petyr_tool_client_id
 PETYR_ACCESS_LAYER_CLIENT_SECRET=replace_with_petyr_tool_client_secret
@@ -111,7 +111,7 @@ Production Redash Ingestor Access Layer values:
 REDASH_INGESTOR_AUTH_MODE=access-layer
 REDASH_INGESTOR_ACCESS_LAYER_PUBLIC_BASE_URL=https://access-layer.draftapps.it
 REDASH_INGESTOR_ACCESS_LAYER_INTERNAL_BASE_URL=https://access-layer.draftapps.it
-REDASH_INGESTOR_ACCESS_LAYER_CALLBACK_URL=https://petyr.draftapps.it/redash-ingestor/auth/callback
+REDASH_INGESTOR_ACCESS_LAYER_CALLBACK_URL=https://petyr.unguess-internal.net/redash-ingestor/auth/callback
 REDASH_INGESTOR_ACCESS_LAYER_TOOL_SLUG=redash-ingestor
 REDASH_INGESTOR_ACCESS_LAYER_CLIENT_ID=replace_with_redash_ingestor_tool_client_id
 REDASH_INGESTOR_ACCESS_LAYER_CLIENT_SECRET=replace_with_redash_ingestor_tool_client_secret
@@ -133,14 +133,14 @@ Non-secret onboarding descriptors for both tools live in `petyr/access-layer-too
 
 ## Coolify deployment guardrails
 
-For the Coolify deployment at `https://petyr.draftapps.it`, route the public domain to the `platform-home` service on internal/container port `8080`. Do not publish `postgres`, `forecasting-app`, `redash-ingestor`, workers or one-shot bootstrap services directly. The public URL must remain `https://petyr.draftapps.it`, without `:8080`.
+For the Coolify deployment at `https://petyr.unguess-internal.net`, route the public domain to the `platform-home` service on internal/container port `8080`. Do not publish `postgres`, `forecasting-app`, `redash-ingestor`, workers or one-shot bootstrap services directly. The public URL must remain `https://petyr.unguess-internal.net`, without `:8080`.
 
 Coolify should target:
 
 ```txt
 Service: platform-home
 Container port: 8080
-Public domain: https://petyr.draftapps.it
+Public domain: https://petyr.unguess-internal.net
 ```
 
 Root `docker-compose.yml` intentionally exposes `platform-home:8080` only to the Docker network. Host binding such as `8080:8080` belongs in local overrides, not in Coolify production compose.
@@ -171,11 +171,11 @@ Production auth variables must point to:
 PETYR_AUTH_MODE=access-layer
 PETYR_ACCESS_LAYER_PUBLIC_BASE_URL=https://access-layer.draftapps.it
 PETYR_ACCESS_LAYER_INTERNAL_BASE_URL=https://access-layer.draftapps.it
-PETYR_ACCESS_LAYER_CALLBACK_URL=https://petyr.draftapps.it/auth/callback
+PETYR_ACCESS_LAYER_CALLBACK_URL=https://petyr.unguess-internal.net/auth/callback
 REDASH_INGESTOR_AUTH_MODE=access-layer
 REDASH_INGESTOR_ACCESS_LAYER_PUBLIC_BASE_URL=https://access-layer.draftapps.it
 REDASH_INGESTOR_ACCESS_LAYER_INTERNAL_BASE_URL=https://access-layer.draftapps.it
-REDASH_INGESTOR_ACCESS_LAYER_CALLBACK_URL=https://petyr.draftapps.it/redash-ingestor/auth/callback
+REDASH_INGESTOR_ACCESS_LAYER_CALLBACK_URL=https://petyr.unguess-internal.net/redash-ingestor/auth/callback
 ```
 
 Keep all generated client secrets, session secrets, Redash API keys, OpenRouter keys and database passwords in Coolify environment variables only.
@@ -210,7 +210,7 @@ Production uses Strategy A: Next.js owns `basePath=/redash-ingestor`, and `platf
 
 ```env
 REDASH_INGESTOR_BASE_PATH=/redash-ingestor
-REDASH_INGESTOR_ACCESS_LAYER_CALLBACK_URL=https://petyr.draftapps.it/redash-ingestor/auth/callback
+REDASH_INGESTOR_ACCESS_LAYER_CALLBACK_URL=https://petyr.unguess-internal.net/redash-ingestor/auth/callback
 ```
 
 Do not configure Nginx/Coolify to rewrite `/redash-ingestor/...` to `/...`, or links and callbacks can become `/redash-ingestor/redash-ingestor/...`.
@@ -220,11 +220,11 @@ Do not configure Nginx/Coolify to rewrite `/redash-ingestor/...` to `/...`, or l
 After deploy, verify:
 
 ```txt
-https://petyr.draftapps.it                  -> redirects to /forecasting
-https://petyr.draftapps.it/forecasting      -> redirects anonymous users to /auth/login
-https://petyr.draftapps.it/auth/login       -> starts Access Layer login, not 404
-https://petyr.draftapps.it/auth/callback    -> finishes with /forecasting, not 0.0.0.0:3000
-https://petyr.draftapps.it/redash-ingestor  -> reaches Redash Ingestor login/dashboard
+https://petyr.unguess-internal.net                  -> redirects to /forecasting
+https://petyr.unguess-internal.net/forecasting      -> redirects anonymous users to /auth/login
+https://petyr.unguess-internal.net/auth/login       -> starts Access Layer login, not 404
+https://petyr.unguess-internal.net/auth/callback    -> finishes with /forecasting, not 0.0.0.0:3000
+https://petyr.unguess-internal.net/redash-ingestor  -> reaches Redash Ingestor login/dashboard
 ```
 
 ## Deployment rule

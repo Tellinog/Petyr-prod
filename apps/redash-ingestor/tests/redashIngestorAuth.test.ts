@@ -43,7 +43,7 @@ test("access-layer mode reads required Redash Ingestor tool settings", () => {
     REDASH_INGESTOR_AUTH_MODE: "access-layer",
     ACCESS_LAYER_PUBLIC_BASE_URL: "https://access-layer.draftapps.it",
     ACCESS_LAYER_INTERNAL_BASE_URL: "https://access-layer.draftapps.it",
-      ACCESS_LAYER_CALLBACK_URL: "https://petyr.draftapps.it/redash-ingestor/auth/callback",
+    ACCESS_LAYER_CALLBACK_URL: "https://petyr.unguess-internal.net/redash-ingestor/auth/callback",
     ACCESS_LAYER_TOOL_SLUG: "redash-ingestor",
     ACCESS_LAYER_CLIENT_ID: "tlc_redash_ingestor",
     ACCESS_LAYER_CLIENT_SECRET: "tls_redash_ingestor",
@@ -51,7 +51,7 @@ test("access-layer mode reads required Redash Ingestor tool settings", () => {
   });
 
   assert.equal(config.mode, "access-layer");
-    assert.equal(config.callbackUrl, "https://petyr.draftapps.it/redash-ingestor/auth/callback");
+  assert.equal(config.callbackUrl, "https://petyr.unguess-internal.net/redash-ingestor/auth/callback");
   assert.equal(config.toolSlug, "redash-ingestor");
 });
 
@@ -61,7 +61,7 @@ test("public Redash Ingestor redirects use callback origin and preserve one base
     REDASH_INGESTOR_AUTH_MODE: "access-layer",
     ACCESS_LAYER_PUBLIC_BASE_URL: "https://access-layer.draftapps.it",
     ACCESS_LAYER_INTERNAL_BASE_URL: "https://access-layer.draftapps.it",
-    ACCESS_LAYER_CALLBACK_URL: "https://petyr.draftapps.it/redash-ingestor/auth/callback",
+    ACCESS_LAYER_CALLBACK_URL: "https://petyr.unguess-internal.net/redash-ingestor/auth/callback",
     ACCESS_LAYER_TOOL_SLUG: "redash-ingestor",
     ACCESS_LAYER_CLIENT_ID: "tlc_redash_ingestor",
     ACCESS_LAYER_CLIENT_SECRET: "tls_redash_ingestor",
@@ -74,7 +74,7 @@ test("public Redash Ingestor redirects use callback origin and preserve one base
     config
   );
 
-  assert.equal(redirectUrl.toString(), "https://petyr.draftapps.it/redash-ingestor/");
+  assert.equal(redirectUrl.toString(), "https://petyr.unguess-internal.net/redash-ingestor/");
 });
 
 test("callback state validation rejects missing or mismatched values", () => {

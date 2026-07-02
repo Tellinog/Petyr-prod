@@ -18,6 +18,16 @@ Each entry must include:
 
 ---
 
+## 2026-07-02
+
+- **Area:** Platform / Petyr production domain
+- **Change:** Changed the active Petyr production host contract from `https://petyr.draftapps.it` to `https://petyr.unguess-internal.net`, including Petyr and Redash Ingestor Access Layer callback defaults, Docker Compose fallbacks, env examples, Access Layer tool descriptors, deployment runbook, architecture notes, auth tests and Next.js Server Actions allowed origins.
+- **Reason:** User requested that the application work on `https://petyr.unguess-internal.net/` instead of `https://petyr.draftapps.it/`.
+- **Impact:** Petyr must be exposed through the gateway on `petyr.unguess-internal.net`; Access Layer tool registrations and deployed environment variables must use the new callback URLs before production login succeeds. The external Access Layer base URL remains `https://access-layer.draftapps.it`. No database schema, Redash source, forecast logic, permissions or app route base paths changed.
+- **Files/documents involved:** `.env.example`, `.env - Copia.example`, `docker-compose.yml`, `docker-compose.local.yml`, `DEPLOY.md`, `docs/01_architecture.md`, `BACKLOG.md`, `DECISIONS.md`, `apps/forecasting-app/.env.example`, `apps/forecasting-app/next.config.ts`, `apps/forecasting-app/README.md`, `apps/forecasting-app/tests/petyrAuth.test.ts`, `apps/redash-ingestor/.env.example`, `apps/redash-ingestor/README.md`, `apps/redash-ingestor/tests/redashIngestorAuth.test.ts`, `petyr/access-layer-tools/*`.
+- **Validation:** Validation status is listed in the task handoff.
+- **Follow-up:** Update Coolify variables, DNS/proxy routing and the real Access Layer tool allowed return URLs to the new `petyr.unguess-internal.net` callbacks.
+
 ## 2026-06-30
 
 - **Area:** Petyr / Forecast Entry / Monthly sticky scroll context

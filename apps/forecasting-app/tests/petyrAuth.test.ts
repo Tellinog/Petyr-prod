@@ -45,7 +45,7 @@ test("access-layer mode reads required URLs and tool credentials", () => {
     PETYR_AUTH_MODE: "access-layer",
     ACCESS_LAYER_PUBLIC_BASE_URL: "https://access-layer.draftapps.it",
     ACCESS_LAYER_INTERNAL_BASE_URL: "https://access-layer.draftapps.it",
-    ACCESS_LAYER_CALLBACK_URL: "https://petyr.draftapps.it/auth/callback",
+    ACCESS_LAYER_CALLBACK_URL: "https://petyr.unguess-internal.net/auth/callback",
     ACCESS_LAYER_TOOL_SLUG: "petyr",
     ACCESS_LAYER_CLIENT_ID: "tlc_petyr",
     ACCESS_LAYER_CLIENT_SECRET: "tls_petyr",
@@ -55,7 +55,7 @@ test("access-layer mode reads required URLs and tool credentials", () => {
   assert.equal(config.mode, "access-layer");
   assert.equal(config.publicBaseUrl, "https://access-layer.draftapps.it");
   assert.equal(config.internalBaseUrl, "https://access-layer.draftapps.it");
-  assert.equal(config.callbackUrl, "https://petyr.draftapps.it/auth/callback");
+  assert.equal(config.callbackUrl, "https://petyr.unguess-internal.net/auth/callback");
   assert.equal(config.toolSlug, "petyr");
 });
 
@@ -65,7 +65,7 @@ test("public Petyr redirects use callback origin instead of internal request ori
     PETYR_AUTH_MODE: "access-layer",
     ACCESS_LAYER_PUBLIC_BASE_URL: "https://access-layer.draftapps.it",
     ACCESS_LAYER_INTERNAL_BASE_URL: "https://access-layer.draftapps.it",
-    ACCESS_LAYER_CALLBACK_URL: "https://petyr.draftapps.it/auth/callback",
+    ACCESS_LAYER_CALLBACK_URL: "https://petyr.unguess-internal.net/auth/callback",
     ACCESS_LAYER_TOOL_SLUG: "petyr",
     ACCESS_LAYER_CLIENT_ID: "tlc_petyr",
     ACCESS_LAYER_CLIENT_SECRET: "tls_petyr",
@@ -78,7 +78,7 @@ test("public Petyr redirects use callback origin instead of internal request ori
     config
   );
 
-  assert.equal(redirectUrl.toString(), "https://petyr.draftapps.it/forecasting");
+  assert.equal(redirectUrl.toString(), "https://petyr.unguess-internal.net/forecasting");
 });
 
 test("callback state is random enough for local validation", () => {

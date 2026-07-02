@@ -13,6 +13,17 @@ Each decision should include:
 
 ---
 
+## 2026-07-02 - Run Petyr on petyr.unguess-internal.net
+
+- **Status:** Accepted.
+- **Context:** Petyr production routing was previously documented for `https://petyr.draftapps.it`, but the current deployment must run on `https://petyr.unguess-internal.net` instead. Petyr and Redash Ingestor continue to share the Petyr gateway host, while the external Access Layer host remains separately configured as `https://access-layer.draftapps.it`.
+- **Decision:** Production Petyr must use `https://petyr.unguess-internal.net` as the public host, with Petyr callback `https://petyr.unguess-internal.net/auth/callback` and Redash Ingestor callback `https://petyr.unguess-internal.net/redash-ingestor/auth/callback`. The gateway continues to route `/forecasting`, `/petyr-admin`, `/api/petyr/*` and `/redash-ingestor/*` to the existing services. Next.js Server Actions allow the new Petyr host and no longer list `petyr.draftapps.it` as an accepted production origin.
+- **Alternatives discarded:** Keeping `petyr.draftapps.it` as the production public host; changing the external Access Layer host in the same task without an explicit request; adding a `/petyr` base path.
+- **Reason:** The user explicitly requested that the application work on `https://petyr.unguess-internal.net/` instead of `https://petyr.draftapps.it/`.
+- **Consequences:** Coolify/DNS, deployed environment variables and Access Layer tool registrations must be updated to the `petyr.unguess-internal.net` return URLs before production login works on the new host. No Redash source, database schema, forecast calculation, permission key or Access Layer base URL changes are introduced.
+- **Supersedes:** The production host portions of `2026-06-22 - Deploy Petyr on draftapps.it through Coolify`.
+- **Related docs:** `DEPLOY.md`, `docs/01_architecture.md`, `.env.example`, `docker-compose.yml`, `docker-compose.local.yml`, `apps/forecasting-app/README.md`, `apps/redash-ingestor/README.md`, `petyr/access-layer-tools/*`, `DEVLOG.md`.
+
 ## 2026-06-29 - Use recent workspace associations for Petyr CSM company lists
 
 - **Status:** Accepted.

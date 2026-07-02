@@ -62,7 +62,7 @@ Production must fail closed through Access Layer:
 REDASH_INGESTOR_AUTH_MODE=access-layer
 ACCESS_LAYER_PUBLIC_BASE_URL=https://access-layer.draftapps.it
 ACCESS_LAYER_INTERNAL_BASE_URL=https://access-layer.draftapps.it
-ACCESS_LAYER_CALLBACK_URL=https://petyr.draftapps.it/redash-ingestor/auth/callback
+ACCESS_LAYER_CALLBACK_URL=https://petyr.unguess-internal.net/redash-ingestor/auth/callback
 ACCESS_LAYER_TOOL_SLUG=redash-ingestor
 ACCESS_LAYER_CLIENT_ID=replace_with_redash_ingestor_tool_client_id
 ACCESS_LAYER_CLIENT_SECRET=replace_with_redash_ingestor_tool_client_secret

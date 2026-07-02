@@ -13,8 +13,8 @@ These files are operational handoff/config references only. Do not add generated
 
 ```txt
 Access Layer:    https://access-layer.draftapps.it
-Petyr:           https://petyr.draftapps.it
-Redash Ingestor: https://petyr.draftapps.it/redash-ingestor
+Petyr:           https://petyr.unguess-internal.net
+Redash Ingestor: https://petyr.unguess-internal.net/redash-ingestor
 ```
 
 After creating each tool in Access Layer, copy the generated client ID and one-time client secret into the target service environment variables in Coolify only.
