@@ -1,0 +1,31 @@
+unguess-data-platform/
+├─ AGENTS.md
+├─ README_CODEX_SETUP.md
+├─ docker-compose.yml
+├─ .env
+├─ .env.example
+├─ apps/
+│  ├─ redash-ingestor/
+│  │  ├─ AGENTS.md
+│  │  ├─ Dockerfile
+│  │  ├─ package.json
+│  │  ├─ prisma/
+│  │  └─ src/
+│  └─ forecasting-app/
+│     ├─ AGENTS.md
+│     ├─ Dockerfile
+│     ├─ package.json
+│     └─ src/
+├─ packages/
+│  └─ shared/
+└─ docs/
+   ├─ 00_start_here.md
+   ├─ 01_architecture.md
+   ├─ 02_migration_plan.md
+   ├─ 03_redash_sources.md
+   ├─ 04_data_model.md
+   ├─ 05_forecasting_product_spec.md
+   ├─ 06_codex_workflow.md
+   ├─ 07_codex_prompts.md
+   ├─ 08_operational_commands.md
+   └─ tasks/

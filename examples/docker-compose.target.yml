@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: unguess-postgres
+    environment:
+      POSTGRES_DB: unguess_redash
+      POSTGRES_USER: unguess
+      POSTGRES_PASSWORD: unguess_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redash-ingestor:
+    build:
+      context: ./apps/redash-ingestor
+      dockerfile: Dockerfile
+    container_name: unguess-redash-ingestor
+    command: npm run start
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://unguess:unguess_password@postgres:5432/unguess_redash?schema=public
+    depends_on:
+      - postgres
+    ports:
+      - "3000:3000"
+
+  redash-worker:
+    build:
+      context: ./apps/redash-ingestor
+      dockerfile: Dockerfile
+    container_name: unguess-redash-worker
+    command: npm run worker:sync
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://unguess:unguess_password@postgres:5432/unguess_redash?schema=public
+    depends_on:
+      - postgres
+
+  forecasting-app:
+    build:
+      context: ./apps/forecasting-app
+      dockerfile: Dockerfile
+    container_name: unguess-forecasting-app
+    command: npm run start
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://unguess:unguess_password@postgres:5432/unguess_redash?schema=public
+    depends_on:
+      - postgres
+    ports:
+      - "3001:3000"
+
+volumes:
+  postgres_data:

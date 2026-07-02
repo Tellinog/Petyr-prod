@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "noEmit": false,
+    "outDir": ".tmp/auth-test",
+    "rootDir": ".",
+    "isolatedModules": false,
+    "incremental": false,
+    "tsBuildInfoFile": ".tmp/auth-test/tsconfig.tsbuildinfo"
+  },
+  "include": [
+    "src/lib/authCore.ts",
+    "tests/redashIngestorAuth.test.ts"
+  ]
+}

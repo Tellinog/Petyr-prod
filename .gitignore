@@ -1,0 +1,44 @@
+# dependencies
+node_modules
+**/node_modules
+
+# env/secrets
+.env
+.env.*
+.env*
+!.env.example
+
+# next/build outputs
+.next
+**/.next
+out
+**/out
+dist
+**/dist
+build
+**/build
+.tmp
+**/.tmp
+
+# caches/reports
+.cache
+**/.cache
+.turbo
+**/.turbo
+coverage
+**/coverage
+.vercel
+**/.vercel
+*.tsbuildinfo
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS/editor
+.DS_Store
+.vscode
+.idea
+NUL

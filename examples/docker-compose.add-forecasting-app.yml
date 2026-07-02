@@ -1,0 +1,17 @@
+# Add this service to the root docker-compose.yml.
+# Do not remove postgres/redash-ingestor/redash-worker.
+
+  forecasting-app:
+    build:
+      context: ./apps/forecasting-app
+      dockerfile: Dockerfile
+    container_name: unguess-forecasting-app
+    command: npm run start
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://unguess:unguess_password@postgres:5432/unguess_redash?schema=public
+    depends_on:
+      - postgres
+    ports:
+      - "3001:3000"

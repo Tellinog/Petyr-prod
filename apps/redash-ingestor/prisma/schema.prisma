@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SyncStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+model RedashSource {
+  id             String           @id @default(uuid())
+  key            String           @unique
+  name           String
+  redashQueryId  Int
+  apiKey         String?
+  parameters     Json             @default("{}")
+  maxAgeSeconds  Int              @default(0)
+  enabled        Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  runs           RedashSyncRun[]
+  snapshots      RedashSnapshot[]
+
+  @@index([enabled])
+}
+
+model RedashSyncRun {
+  id             String           @id @default(uuid())
+  sourceId       String
+  source         RedashSource     @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  status         SyncStatus       @default(RUNNING)
+  triggeredBy    String           @default("worker")
+  startedAt      DateTime         @default(now())
+  finishedAt     DateTime?
+  errorMessage   String?
+  rowsCount      Int?
+  queryResultId  Int?
+  createdAt      DateTime         @default(now())
+
+  snapshot       RedashSnapshot?
+
+  @@index([sourceId, startedAt])
+  @@index([status])
+}
+
+model RedashSyncLock {
+  key         String   @id
+  owner       String
+  acquiredAt  DateTime @default(now())
+  expiresAt   DateTime
+  updatedAt   DateTime @updatedAt
+
+  @@index([expiresAt])
+}
+
+model RedashSnapshot {
+  id             String           @id @default(uuid())
+  sourceId       String
+  source         RedashSource     @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  runId          String           @unique
+  run            RedashSyncRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  fetchedAt      DateTime         @default(now())
+  queryResultId  Int?
+  rowsCount      Int?
+  payloadHash    String
+  payload        Json
+  createdAt      DateTime         @default(now())
+
+  @@index([sourceId, fetchedAt])
+  @@index([payloadHash])
+}
+
+model RedashColumnMapping {
+  id                String   @id @default(uuid())
+  sourceKey         String   @map("source_key")
+  redashColumnName  String   @map("redash_column_name")
+  dbColumnName      String   @map("db_column_name")
+  position          Int
+  detectedType      String   @map("detected_type")
+  lastSeenAt        DateTime @map("last_seen_at")
+
+  @@unique([sourceKey, redashColumnName], map: "redash_column_mapping_source_column_key")
+  @@index([sourceKey], map: "redash_column_mapping_source_key_idx")
+  @@map("redash_column_mapping")
+}
+
+model PetyrPerformanceMeasurement {
+  id         String   @id @default(cuid())
+  service    String
+  operation  String
+  status     String   @default("measured")
+  durationMs Int?     @map("duration_ms")
+  rowCount   Int?     @map("row_count")
+  metadata   Json     @default("{}")
+  measuredAt DateTime @default(now()) @map("measured_at")
+
+  @@index([service, operation, measuredAt], map: "petyr_performance_measurement_service_op_time_idx")
+  @@index([measuredAt], map: "petyr_performance_measurement_measured_at_idx")
+  @@map("petyr_performance_measurement")
+}

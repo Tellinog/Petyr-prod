@@ -1,0 +1,33 @@
+# Example only. Do not merge into root docker-compose.yml without an explicit task.
+
+services:
+  auth-api:
+    build:
+      context: ./services/auth-api
+    env_file:
+      - .env
+    environment:
+      AUTH_API_PORT: ${AUTH_API_PORT:-4000}
+      AUTH_API_DATABASE_URL: ${AUTH_API_DATABASE_URL}
+      AUTH_API_SECRET: ${AUTH_API_SECRET}
+      AUTH_ALLOWED_EMAIL_DOMAIN: ${AUTH_ALLOWED_EMAIL_DOMAIN:-unguess.io}
+    depends_on:
+      - postgres
+    ports:
+      - "4000:4000"
+
+  oauth2-proxy-petyr:
+    image: quay.io/oauth2-proxy/oauth2-proxy:latest
+    env_file:
+      - .env
+    command:
+      - --provider=google
+      - --email-domain=${OAUTH2_PROXY_EMAIL_DOMAINS:-unguess.io}
+      - --http-address=0.0.0.0:4180
+      - --upstream=http://forecasting-app:3001
+      - --set-xauthrequest=true
+      - --pass-user-headers=true
+    ports:
+      - "4180:4180"
+    depends_on:
+      - forecasting-app

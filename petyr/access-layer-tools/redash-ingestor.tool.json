@@ -1,0 +1,25 @@
+{
+  "tool_slug": "redash-ingestor",
+  "display_name": "Redash Ingestor",
+  "description": "Technical/operator tool that syncs approved Redash query results into PostgreSQL raw snapshots and materialized latest tables for downstream services such as Petyr.",
+  "production_url": "https://petyr.draftapps.it/redash-ingestor",
+  "allowed_return_urls": [
+    "https://petyr.draftapps.it/redash-ingestor/auth/callback"
+  ],
+  "permission_keys": [
+    "redash-ingestor:read",
+    "redash-ingestor:sync",
+    "redash-ingestor:sources:write",
+    "redash-ingestor:admin"
+  ],
+  "recommended_environment": {
+    "REDASH_INGESTOR_AUTH_MODE": "access-layer",
+    "ACCESS_LAYER_PUBLIC_BASE_URL": "https://access-layer.draftapps.it",
+    "ACCESS_LAYER_INTERNAL_BASE_URL": "https://access-layer.draftapps.it",
+    "ACCESS_LAYER_CALLBACK_URL": "https://petyr.draftapps.it/redash-ingestor/auth/callback",
+    "ACCESS_LAYER_TOOL_SLUG": "redash-ingestor",
+    "ACCESS_LAYER_CLIENT_ID": "set_in_coolify",
+    "ACCESS_LAYER_CLIENT_SECRET": "set_in_coolify",
+    "REDASH_INGESTOR_SESSION_SECRET": "set_in_coolify"
+  }
+}

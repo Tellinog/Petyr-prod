@@ -1,0 +1,387 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SyncStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum ForecastType {
+  previous_month
+  ongoing
+}
+
+enum ForecastMonthlyStatus {
+  draft
+  saved
+  locked
+}
+
+enum ForecastAnnualStatus {
+  draft
+  consolidated
+}
+
+enum ForecastAnnualSnapshotType {
+  // Deprecated: Initial Forecast now comes from Annual Forecast Entry.
+  initial
+}
+
+enum ForecastAnnualSnapshotSource {
+  // Deprecated: legacy Initial Forecast snapshot import/consolidation sources.
+  manual_excel_2026
+  year_end_consolidation
+  admin
+}
+
+enum ManagementObjectiveScopeType {
+  branch
+  business_unit
+}
+
+// Read model for the tables owned by apps/redash-ingestor.
+// Forecasting must not call Redash directly: it reads these snapshots from PostgreSQL.
+model RedashSource {
+  id             String           @id @default(uuid())
+  key            String           @unique
+  name           String
+  redashQueryId  Int
+  apiKey         String?
+  parameters     Json             @default("{}")
+  maxAgeSeconds  Int              @default(0)
+  enabled        Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  runs           RedashSyncRun[]
+  snapshots      RedashSnapshot[]
+
+  @@index([enabled])
+}
+
+model RedashSyncRun {
+  id             String           @id @default(uuid())
+  sourceId       String
+  source         RedashSource     @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  status         SyncStatus       @default(RUNNING)
+  triggeredBy    String           @default("worker")
+  startedAt      DateTime         @default(now())
+  finishedAt     DateTime?
+  errorMessage   String?
+  rowsCount      Int?
+  queryResultId  Int?
+  createdAt      DateTime         @default(now())
+
+  snapshot       RedashSnapshot?
+
+  @@index([sourceId, startedAt])
+  @@index([status])
+}
+
+model RedashSyncLock {
+  key         String   @id
+  owner       String
+  acquiredAt  DateTime @default(now())
+  expiresAt   DateTime
+  updatedAt   DateTime @updatedAt
+
+  @@index([expiresAt])
+}
+
+model RedashSnapshot {
+  id             String           @id @default(uuid())
+  sourceId       String
+  source         RedashSource     @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  runId          String           @unique
+  run            RedashSyncRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  fetchedAt      DateTime         @default(now())
+  queryResultId  Int?
+  rowsCount      Int?
+  payloadHash    String
+  payload        Json
+  createdAt      DateTime         @default(now())
+
+  @@index([sourceId, fetchedAt])
+  @@index([payloadHash])
+}
+
+model RedashColumnMapping {
+  id                String   @id @default(uuid())
+  sourceKey         String   @map("source_key")
+  redashColumnName  String   @map("redash_column_name")
+  dbColumnName      String   @map("db_column_name")
+  position          Int
+  detectedType      String   @map("detected_type")
+  lastSeenAt        DateTime @map("last_seen_at")
+
+  @@unique([sourceKey, redashColumnName], map: "redash_column_mapping_source_column_key")
+  @@index([sourceKey], map: "redash_column_mapping_source_key_idx")
+  @@map("redash_column_mapping")
+}
+
+model ForecastMonthly {
+  id              String                @id @default(cuid())
+  companyName     String                @map("company_name")
+  csmName         String                @map("csm_name")
+  businessUnit    String                @map("business_unit")
+  year            Int
+  month           Int
+  forecastType    ForecastType          @map("forecast_type")
+  value           Decimal               @db.Decimal(14, 2)
+  aiForecastValue Decimal?              @map("ai_forecast_value") @db.Decimal(14, 2)
+  status          ForecastMonthlyStatus @default(draft)
+  createdBy       String                @map("created_by")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedBy       String?               @map("updated_by")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  @@unique([companyName, businessUnit, year, month, forecastType], map: "forecast_monthly_company_bu_year_month_type_key")
+  @@index([companyName, year, month], map: "forecast_monthly_company_year_month_idx")
+  @@index([csmName, year, month], map: "forecast_monthly_csm_year_month_idx")
+  @@index([status], map: "forecast_monthly_status_idx")
+  @@map("forecast_monthly")
+}
+
+model ForecastAnnual {
+  id              String               @id @default(cuid())
+  companyName     String               @map("company_name")
+  csmName         String               @map("csm_name")
+  businessUnit    String               @map("business_unit")
+  year            Int
+  value           Decimal              @db.Decimal(14, 2)
+  initialForecast Decimal?             @map("initial_forecast") @db.Decimal(14, 2)
+  aiForecastValue Decimal?             @map("ai_forecast_value") @db.Decimal(14, 2)
+  valueSource     String               @default("manual") @map("value_source")
+  status          ForecastAnnualStatus @default(draft)
+  note            String?              @db.Text
+  createdBy       String               @map("created_by")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedBy       String?              @map("updated_by")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  consolidatedBy  String?              @map("consolidated_by")
+  consolidatedAt  DateTime?            @map("consolidated_at")
+
+  @@unique([companyName, businessUnit, year], map: "forecast_annual_company_bu_year_key")
+  @@index([companyName, year], map: "forecast_annual_company_year_idx")
+  @@index([csmName, year], map: "forecast_annual_csm_year_idx")
+  @@index([valueSource], map: "forecast_annual_value_source_idx")
+  @@index([status], map: "forecast_annual_status_idx")
+  @@map("forecast_annual")
+}
+
+model ForecastAnnualEntry {
+  id                String   @id @default(cuid())
+  companyName       String   @map("company_name")
+  csmName           String   @map("csm_name")
+  year              Int
+  initialForecast   Decimal? @map("initial_forecast") @db.Decimal(14, 2)
+  ongoingConfidence String?  @map("ongoing_confidence")
+  createdBy         String   @map("created_by")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedBy         String?  @map("updated_by")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@unique([companyName, year], map: "forecast_annual_entry_company_year_key")
+  @@index([csmName, year], map: "forecast_annual_entry_csm_year_idx")
+  @@index([ongoingConfidence], map: "forecast_annual_entry_confidence_idx")
+  @@map("forecast_annual_entry")
+}
+
+/// Deprecated: legacy Initial Forecast snapshot storage. Product read paths now use
+/// ForecastAnnualEntry.initialForecast and ForecastAnnual.initialForecast.
+model ForecastAnnualSnapshot {
+  id           String                         @id @default(cuid())
+  companyName  String                         @map("company_name")
+  csmName      String                         @map("csm_name")
+  businessUnit String                         @map("business_unit")
+  year         Int
+  snapshotType ForecastAnnualSnapshotType     @default(initial) @map("snapshot_type")
+  value        Decimal                        @db.Decimal(14, 2)
+  source       ForecastAnnualSnapshotSource
+  note         String?                        @db.Text
+  createdBy    String                         @map("created_by")
+  createdAt    DateTime                       @default(now()) @map("created_at")
+  lockedAt     DateTime?                      @map("locked_at")
+  changeLogs   ForecastAnnualSnapshotChangeLog[]
+
+  @@unique([companyName, businessUnit, year, snapshotType], map: "forecast_annual_snapshot_company_bu_year_type_key")
+  @@index([companyName, year], map: "forecast_annual_snapshot_company_year_idx")
+  @@index([csmName, year], map: "forecast_annual_snapshot_csm_year_idx")
+  @@index([snapshotType, year], map: "forecast_annual_snapshot_type_year_idx")
+  @@index([source], map: "forecast_annual_snapshot_source_idx")
+  @@index([lockedAt], map: "forecast_annual_snapshot_locked_at_idx")
+  @@map("forecast_annual_snapshot")
+}
+
+/// Deprecated: audit log for legacy Initial Forecast snapshots.
+model ForecastAnnualSnapshotChangeLog {
+  id             String                       @id @default(cuid())
+  snapshotId     String                       @map("snapshot_id")
+  snapshot       ForecastAnnualSnapshot       @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  companyName    String                       @map("company_name")
+  csmName        String                       @map("csm_name")
+  businessUnit   String                       @map("business_unit")
+  year           Int
+  snapshotType   ForecastAnnualSnapshotType   @map("snapshot_type")
+  previousValue  Decimal?                     @map("previous_value") @db.Decimal(14, 2)
+  newValue       Decimal                      @map("new_value") @db.Decimal(14, 2)
+  previousSource ForecastAnnualSnapshotSource? @map("previous_source")
+  newSource      ForecastAnnualSnapshotSource  @map("new_source")
+  note           String?                      @db.Text
+  changedBy      String                       @map("changed_by")
+  changedAt      DateTime                     @default(now()) @map("changed_at")
+
+  @@index([snapshotId], map: "forecast_annual_snapshot_change_log_snapshot_idx")
+  @@index([companyName, businessUnit, year], map: "forecast_annual_snapshot_change_log_company_bu_year_idx")
+  @@index([snapshotType, year], map: "forecast_annual_snapshot_change_log_type_year_idx")
+  @@index([changedAt], map: "forecast_annual_snapshot_change_log_changed_at_idx")
+  @@map("forecast_annual_snapshot_change_log")
+}
+
+model ForecastSaveSession {
+  id                  String              @id @default(cuid())
+  companyName         String              @map("company_name")
+  csmName             String              @map("csm_name")
+  source              String
+  year                Int
+  month               Int
+  forecastType        ForecastType        @map("forecast_type")
+  note                String?             @db.Text
+  companyActiveStatus Boolean             @map("company_active_status")
+  createdBy           String              @map("created_by")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  changeLogs          ForecastChangeLog[]
+
+  @@index([companyName, year, month], map: "forecast_save_session_company_year_month_idx")
+  @@index([csmName, year, month], map: "forecast_save_session_csm_year_month_idx")
+  @@index([createdAt], map: "forecast_save_session_created_at_idx")
+  @@map("forecast_save_session")
+}
+
+model ForecastChangeLog {
+  id                    String              @id @default(cuid())
+  saveSessionId         String              @map("save_session_id")
+  saveSession           ForecastSaveSession @relation(fields: [saveSessionId], references: [id], onDelete: Cascade)
+  companyName           String              @map("company_name")
+  businessUnit          String              @map("business_unit")
+  fieldName             String              @map("field_name")
+  previousValue         String?             @map("previous_value") @db.Text
+  newValue              String?             @map("new_value") @db.Text
+  aiForecastValueAtSave Decimal?            @map("ai_forecast_value_at_save") @db.Decimal(14, 2)
+  createdBy             String              @map("created_by")
+  createdAt             DateTime            @default(now()) @map("created_at")
+
+  @@index([saveSessionId], map: "forecast_change_log_save_session_idx")
+  @@index([companyName, businessUnit], map: "forecast_change_log_company_bu_idx")
+  @@index([createdAt], map: "forecast_change_log_created_at_idx")
+  @@map("forecast_change_log")
+}
+
+model CompanyForecastStatus {
+  id          String   @id @default(cuid())
+  companyName String   @unique(map: "company_forecast_status_company_key") @map("company_name")
+  isActive    Boolean  @default(true) @map("is_active")
+  reason      String?  @db.Text
+  updatedBy   String   @map("updated_by")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("company_forecast_status")
+}
+
+model AppSetting {
+  settingKey   String   @id @map("setting_key")
+  settingValue String   @map("setting_value") @db.Text
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("app_setting")
+}
+
+model PetyrPerformanceMeasurement {
+  id         String   @id @default(cuid())
+  service    String
+  operation  String
+  status     String   @default("measured")
+  durationMs Int?     @map("duration_ms")
+  rowCount   Int?     @map("row_count")
+  metadata   Json     @default("{}")
+  measuredAt DateTime @default(now()) @map("measured_at")
+
+  @@index([service, operation, measuredAt], map: "petyr_performance_measurement_service_op_time_idx")
+  @@index([measuredAt], map: "petyr_performance_measurement_measured_at_idx")
+  @@map("petyr_performance_measurement")
+}
+
+model AiForecastCache {
+  id                    String   @id @default(cuid())
+  companyName           String   @map("company_name")
+  businessUnit          String   @map("business_unit")
+  year                  Int
+  month                 Int
+  forecastValue         Decimal  @map("forecast_value") @db.Decimal(14, 2)
+  confidenceScore       Decimal? @map("confidence_score") @db.Decimal(5, 4)
+  modelVersion          String   @map("model_version")
+  explanation           String?  @db.Text
+  generatedAt           DateTime @default(now()) @map("generated_at")
+  provider              String?  @default("openrouter")
+  providerModel         String?  @map("model")
+  promptVersion         String?  @map("prompt_version")
+  inputHash             String?  @map("input_hash")
+  requestPayloadSummary Json?    @map("request_payload_summary")
+  validatedOutput       Json?    @map("validated_output")
+  status                String   @default("success")
+  errorMessage          String?  @map("error_message") @db.Text
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@unique([companyName, businessUnit, year, month, modelVersion], map: "ai_forecast_cache_company_bu_year_month_model_key")
+  @@index([companyName, year, month], map: "ai_forecast_cache_company_year_month_idx")
+  @@index([companyName, year, promptVersion, inputHash], map: "ai_forecast_cache_company_year_prompt_hash_idx")
+  @@index([status], map: "ai_forecast_cache_status_idx")
+  @@index([generatedAt], map: "ai_forecast_cache_generated_at_idx")
+  @@map("ai_forecast_cache")
+}
+
+model ManagementObjective {
+  id          String                         @id @default(cuid())
+  scopeType   ManagementObjectiveScopeType   @map("scope_type")
+  scopeKey    String                         @map("scope_key")
+  year        Int
+  value       Decimal                        @db.Decimal(14, 2)
+  note        String?                        @db.Text
+  createdBy   String                         @map("created_by")
+  createdAt   DateTime                       @default(now()) @map("created_at")
+  updatedBy   String?                        @map("updated_by")
+  updatedAt   DateTime                       @updatedAt @map("updated_at")
+  changeLogs  ManagementObjectiveChangeLog[]
+
+  @@unique([scopeType, scopeKey, year], map: "management_objective_scope_key_year_key")
+  @@index([scopeType, year], map: "management_objective_scope_year_idx")
+  @@index([updatedAt], map: "management_objective_updated_at_idx")
+  @@map("management_objective")
+}
+
+model ManagementObjectiveChangeLog {
+  id             String                       @id @default(cuid())
+  objectiveId    String                       @map("objective_id")
+  objective      ManagementObjective          @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  scopeType      ManagementObjectiveScopeType @map("scope_type")
+  scopeKey       String                       @map("scope_key")
+  year           Int
+  previousValue  Decimal?                     @map("previous_value") @db.Decimal(14, 2)
+  newValue       Decimal                      @map("new_value") @db.Decimal(14, 2)
+  note           String?                      @db.Text
+  updatedBy      String                       @map("updated_by")
+  updatedAt      DateTime                     @default(now()) @map("updated_at")
+
+  @@index([objectiveId], map: "management_objective_change_log_objective_idx")
+  @@index([scopeType, scopeKey, year], map: "management_objective_change_log_scope_key_year_idx")
+  @@index([updatedAt], map: "management_objective_change_log_updated_at_idx")
+  @@map("management_objective_change_log")
+}

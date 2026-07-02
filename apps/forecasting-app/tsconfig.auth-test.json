@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "noEmit": false,
+    "outDir": ".tmp/auth-test",
+    "rootDir": ".",
+    "isolatedModules": false,
+    "incremental": false,
+    "tsBuildInfoFile": ".tmp/auth-test/tsconfig.tsbuildinfo"
+  },
+  "include": [
+    "src/lib/petyr/authCore.ts",
+    "src/lib/petyr/csmIdentity.ts",
+    "tests/petyrAuth.test.ts"
+  ]
+}

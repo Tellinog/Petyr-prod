@@ -1,0 +1,29 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "jsx": "react-jsx",
+    "noEmit": false,
+    "outDir": ".tmp/ai-preview-backtest",
+    "rootDir": ".",
+    "isolatedModules": false,
+    "incremental": false,
+    "tsBuildInfoFile": ".tmp/ai-preview-backtest/tsconfig.tsbuildinfo"
+  },
+  "include": [
+    "scripts/backtest-ai-preview.ts",
+    "src/config/redashFieldMapping.ts",
+    "src/lib/db.ts",
+    "src/lib/forecastEntryMode.ts",
+    "src/lib/petyr/constants.ts",
+    "src/lib/petyr/formatters.ts",
+    "src/lib/petyr/performance.ts",
+    "src/services/petyrAiForecastStrategyService.ts",
+    "src/services/petyrAiPreviewBacktestService.ts",
+    "src/services/petyrDataService.ts",
+    "src/services/petyrInitialAnnualForecastService.ts",
+    "src/services/petyrManagementObjectiveService.ts"
+  ]
+}

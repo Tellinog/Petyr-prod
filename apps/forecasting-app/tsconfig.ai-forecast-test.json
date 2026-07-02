@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "jsx": "react-jsx",
+    "noEmit": false,
+    "outDir": ".tmp/ai-forecast-test",
+    "rootDir": ".",
+    "isolatedModules": false,
+    "incremental": false,
+    "tsBuildInfoFile": ".tmp/ai-forecast-test/tsconfig.tsbuildinfo"
+  },
+  "include": [
+    "src/lib/petyr/constants.ts",
+    "src/lib/petyr/nightlyDeterministicAiForecastCore.ts",
+    "src/services/petyrForecastIntelligenceService.ts",
+    "src/services/petyrAiModelSettingsService.ts",
+    "src/lib/db.ts",
+    "tests/aiForecastIntelligence.test.ts"
+  ]
+}

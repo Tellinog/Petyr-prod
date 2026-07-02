@@ -1,0 +1,231 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB must be set}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -U "${POSTGRES_USER:?POSTGRES_USER must be set}" -d "${POSTGRES_DB:?POSTGRES_DB must be set}"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redash-bootstrap:
+    build:
+      context: ./apps/redash-ingestor
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_REDASH_INGESTOR_BASE_PATH: ${REDASH_INGESTOR_BASE_PATH:-/redash-ingestor}
+    restart: "no"
+    command: npm run db:seed
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set and must match POSTGRES_DB, POSTGRES_USER and POSTGRES_PASSWORD}
+      SYNC_MAX_AGE_SECONDS: ${SYNC_MAX_AGE_SECONDS:-0}
+      NEXT_PUBLIC_REDASH_INGESTOR_BASE_PATH: ${REDASH_INGESTOR_BASE_PATH:-/redash-ingestor}
+    depends_on:
+      forecasting-db-sync:
+        condition: service_completed_successfully
+
+  forecasting-db-sync:
+    image: ${COOLIFY_RESOURCE_UUID:-petyr}-forecasting-app
+    restart: "no"
+    command: npm run db:sync
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set and must match POSTGRES_DB, POSTGRES_USER and POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redash-initial-sync:
+    build:
+      context: ./apps/redash-ingestor
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_REDASH_INGESTOR_BASE_PATH: ${REDASH_INGESTOR_BASE_PATH:-/redash-ingestor}
+    restart: "no"
+    command: >-
+      sh -c 'if [ "${REDASH_INITIAL_SYNC_ON_BOOTSTRAP:-false}" = "true" ]; then npm run worker:sync; else echo "REDASH_INITIAL_SYNC_ON_BOOTSTRAP is not true; skipping initial Redash sync."; fi'
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set and must match POSTGRES_DB, POSTGRES_USER and POSTGRES_PASSWORD}
+      REDASH_BASE_URL: ${REDASH_BASE_URL:?REDASH_BASE_URL must be set}
+      REDASH_API_KEY: ${REDASH_API_KEY:?REDASH_API_KEY must be set}
+      REDASH_AUTH_MODE: ${REDASH_AUTH_MODE:-header}
+      APP_INTERNAL_SECRET: ${APP_INTERNAL_SECRET:-}
+      TZ: ${TZ:-Europe/Rome}
+      SYNC_MAX_AGE_SECONDS: ${SYNC_MAX_AGE_SECONDS:-0}
+      SYNC_POLL_INTERVAL_MS: ${SYNC_POLL_INTERVAL_MS:-2000}
+      SYNC_JOB_TIMEOUT_MS: ${SYNC_JOB_TIMEOUT_MS:-120000}
+      SYNC_DAILY_TIME: ${SYNC_DAILY_TIME:-01:30}
+      SYNC_LOCK_TTL_SECONDS: ${SYNC_LOCK_TTL_SECONDS:-3600}
+      FORECASTING_APP_INTERNAL_URL: ${FORECASTING_APP_INTERNAL_URL:-http://forecasting-app:3000}
+      AI_FORECAST_AFTER_SYNC_ENABLED: ${AI_FORECAST_AFTER_SYNC_ENABLED:-false}
+      AI_FORECAST_AFTER_SYNC_BATCH_SIZE: ${AI_FORECAST_AFTER_SYNC_BATCH_SIZE:-3}
+      AI_FORECAST_AFTER_SYNC_DELAY_MS: ${AI_FORECAST_AFTER_SYNC_DELAY_MS:-1200}
+      AI_FORECAST_AFTER_SYNC_DRY_RUN: ${AI_FORECAST_AFTER_SYNC_DRY_RUN:-false}
+      PETYR_PERF_LOGS: ${PETYR_PERF_LOGS:-false}
+      NEXT_PUBLIC_REDASH_INGESTOR_BASE_PATH: ${REDASH_INGESTOR_BASE_PATH:-/redash-ingestor}
+      REDASH_INITIAL_SYNC_ON_BOOTSTRAP: ${REDASH_INITIAL_SYNC_ON_BOOTSTRAP:-false}
+    depends_on:
+      redash-bootstrap:
+        condition: service_completed_successfully
+
+  redash-ingestor:
+    build:
+      context: ./apps/redash-ingestor
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_REDASH_INGESTOR_BASE_PATH: ${REDASH_INGESTOR_BASE_PATH:-/redash-ingestor}
+    restart: unless-stopped
+    command: npm run start
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set and must match POSTGRES_DB, POSTGRES_USER and POSTGRES_PASSWORD}
+      REDASH_BASE_URL: ${REDASH_BASE_URL:?REDASH_BASE_URL must be set}
+      REDASH_API_KEY: ${REDASH_API_KEY:?REDASH_API_KEY must be set}
+      REDASH_AUTH_MODE: ${REDASH_AUTH_MODE:-header}
+      APP_INTERNAL_SECRET: ${APP_INTERNAL_SECRET:-}
+      TZ: ${TZ:-Europe/Rome}
+      SYNC_MAX_AGE_SECONDS: ${SYNC_MAX_AGE_SECONDS:-0}
+      SYNC_POLL_INTERVAL_MS: ${SYNC_POLL_INTERVAL_MS:-2000}
+      SYNC_JOB_TIMEOUT_MS: ${SYNC_JOB_TIMEOUT_MS:-120000}
+      SYNC_DAILY_TIME: ${SYNC_DAILY_TIME:-01:30}
+      SYNC_LOCK_TTL_SECONDS: ${SYNC_LOCK_TTL_SECONDS:-3600}
+      FORECASTING_APP_INTERNAL_URL: ${FORECASTING_APP_INTERNAL_URL:-http://forecasting-app:3000}
+      AI_FORECAST_AFTER_SYNC_ENABLED: ${AI_FORECAST_AFTER_SYNC_ENABLED:-false}
+      AI_FORECAST_AFTER_SYNC_BATCH_SIZE: ${AI_FORECAST_AFTER_SYNC_BATCH_SIZE:-3}
+      AI_FORECAST_AFTER_SYNC_DELAY_MS: ${AI_FORECAST_AFTER_SYNC_DELAY_MS:-1200}
+      AI_FORECAST_AFTER_SYNC_DRY_RUN: ${AI_FORECAST_AFTER_SYNC_DRY_RUN:-false}
+      PETYR_PERF_LOGS: ${PETYR_PERF_LOGS:-false}
+      NEXT_PUBLIC_REDASH_INGESTOR_BASE_PATH: ${REDASH_INGESTOR_BASE_PATH:-/redash-ingestor}
+      REDASH_INGESTOR_AUTH_MODE: ${REDASH_INGESTOR_AUTH_MODE:-access-layer}
+      ACCESS_LAYER_PUBLIC_BASE_URL: ${REDASH_INGESTOR_ACCESS_LAYER_PUBLIC_BASE_URL:-https://access-layer.draftapps.it}
+      ACCESS_LAYER_INTERNAL_BASE_URL: ${REDASH_INGESTOR_ACCESS_LAYER_INTERNAL_BASE_URL:-https://access-layer.draftapps.it}
+      ACCESS_LAYER_CALLBACK_URL: ${REDASH_INGESTOR_ACCESS_LAYER_CALLBACK_URL:-https://petyr.draftapps.it/redash-ingestor/auth/callback}
+      ACCESS_LAYER_TOOL_SLUG: ${REDASH_INGESTOR_ACCESS_LAYER_TOOL_SLUG:-redash-ingestor}
+      ACCESS_LAYER_CLIENT_ID: ${REDASH_INGESTOR_ACCESS_LAYER_CLIENT_ID:-}
+      ACCESS_LAYER_CLIENT_SECRET: ${REDASH_INGESTOR_ACCESS_LAYER_CLIENT_SECRET:-}
+      REDASH_INGESTOR_SESSION_SECRET: ${REDASH_INGESTOR_SESSION_SECRET:-}
+    depends_on:
+      redash-bootstrap:
+        condition: service_completed_successfully
+      forecasting-db-sync:
+        condition: service_completed_successfully
+      redash-initial-sync:
+        condition: service_completed_successfully
+
+  redash-worker:
+    build:
+      context: ./apps/redash-ingestor
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_REDASH_INGESTOR_BASE_PATH: ${REDASH_INGESTOR_BASE_PATH:-/redash-ingestor}
+    restart: unless-stopped
+    command: npm run worker:loop
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set and must match POSTGRES_DB, POSTGRES_USER and POSTGRES_PASSWORD}
+      REDASH_BASE_URL: ${REDASH_BASE_URL:?REDASH_BASE_URL must be set}
+      REDASH_API_KEY: ${REDASH_API_KEY:?REDASH_API_KEY must be set}
+      REDASH_AUTH_MODE: ${REDASH_AUTH_MODE:-header}
+      APP_INTERNAL_SECRET: ${APP_INTERNAL_SECRET:-}
+      TZ: ${TZ:-Europe/Rome}
+      SYNC_MAX_AGE_SECONDS: ${SYNC_MAX_AGE_SECONDS:-0}
+      SYNC_POLL_INTERVAL_MS: ${SYNC_POLL_INTERVAL_MS:-2000}
+      SYNC_JOB_TIMEOUT_MS: ${SYNC_JOB_TIMEOUT_MS:-120000}
+      SYNC_DAILY_TIME: ${SYNC_DAILY_TIME:-01:30}
+      SYNC_LOCK_TTL_SECONDS: ${SYNC_LOCK_TTL_SECONDS:-3600}
+      FORECASTING_APP_INTERNAL_URL: ${FORECASTING_APP_INTERNAL_URL:-http://forecasting-app:3000}
+      AI_FORECAST_AFTER_SYNC_ENABLED: ${AI_FORECAST_AFTER_SYNC_ENABLED:-false}
+      AI_FORECAST_AFTER_SYNC_BATCH_SIZE: ${AI_FORECAST_AFTER_SYNC_BATCH_SIZE:-3}
+      AI_FORECAST_AFTER_SYNC_DELAY_MS: ${AI_FORECAST_AFTER_SYNC_DELAY_MS:-1200}
+      AI_FORECAST_AFTER_SYNC_DRY_RUN: ${AI_FORECAST_AFTER_SYNC_DRY_RUN:-false}
+      PETYR_PERF_LOGS: ${PETYR_PERF_LOGS:-false}
+    depends_on:
+      redash-bootstrap:
+        condition: service_completed_successfully
+      forecasting-db-sync:
+        condition: service_completed_successfully
+      redash-initial-sync:
+        condition: service_completed_successfully
+
+  forecasting-app:
+    image: ${COOLIFY_RESOURCE_UUID:-petyr}-forecasting-app
+    build:
+      context: ./apps/forecasting-app
+      dockerfile: Dockerfile
+    command: npm run start
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set and must match POSTGRES_DB, POSTGRES_USER and POSTGRES_PASSWORD}
+      APP_INTERNAL_SECRET: ${APP_INTERNAL_SECRET:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_DEFAULT_MODEL: ${OPENROUTER_DEFAULT_MODEL:-openai/gpt-4.1-mini}
+      PETYR_DEFAULT_YEAR: ${PETYR_DEFAULT_YEAR:-current}
+      PETYR_TIMEZONE: ${PETYR_TIMEZONE:-Europe/Rome}
+      PETYR_PERF_LOGS: ${PETYR_PERF_LOGS:-false}
+      PETYR_AUTH_MODE: ${PETYR_AUTH_MODE:-access-layer}
+      ACCESS_LAYER_PUBLIC_BASE_URL: ${PETYR_ACCESS_LAYER_PUBLIC_BASE_URL:-https://access-layer.draftapps.it}
+      ACCESS_LAYER_INTERNAL_BASE_URL: ${PETYR_ACCESS_LAYER_INTERNAL_BASE_URL:-https://access-layer.draftapps.it}
+      ACCESS_LAYER_CALLBACK_URL: ${PETYR_ACCESS_LAYER_CALLBACK_URL:-https://petyr.draftapps.it/auth/callback}
+      ACCESS_LAYER_TOOL_SLUG: ${PETYR_ACCESS_LAYER_TOOL_SLUG:-petyr}
+      ACCESS_LAYER_CLIENT_ID: ${PETYR_ACCESS_LAYER_CLIENT_ID:-}
+      ACCESS_LAYER_CLIENT_SECRET: ${PETYR_ACCESS_LAYER_CLIENT_SECRET:-}
+      PETYR_SESSION_SECRET: ${PETYR_SESSION_SECRET:-}
+    depends_on:
+      forecasting-db-sync:
+        condition: service_completed_successfully
+      redash-initial-sync:
+        condition: service_completed_successfully
+
+  petyr-ai-forecast-worker:
+    image: ${COOLIFY_RESOURCE_UUID:-petyr}-forecasting-app
+    restart: unless-stopped
+    command: npm run worker:ai-forecast:loop
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set and must match POSTGRES_DB, POSTGRES_USER and POSTGRES_PASSWORD}
+      APP_INTERNAL_SECRET: ${APP_INTERNAL_SECRET:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_DEFAULT_MODEL: ${OPENROUTER_DEFAULT_MODEL:-openai/gpt-4.1-mini}
+      PETYR_DEFAULT_YEAR: ${PETYR_DEFAULT_YEAR:-current}
+      TZ: ${TZ:-Europe/Rome}
+      PETYR_TIMEZONE: ${PETYR_TIMEZONE:-Europe/Rome}
+      PETYR_AI_FORECAST_DAILY_TIME: ${PETYR_AI_FORECAST_DAILY_TIME:-02:00}
+      PETYR_AI_FORECAST_DELAY_MS: ${PETYR_AI_FORECAST_DELAY_MS:-3000}
+      PETYR_PERF_LOGS: ${PETYR_PERF_LOGS:-false}
+      PETYR_AUTH_MODE: ${PETYR_AUTH_MODE:-access-layer}
+      ACCESS_LAYER_PUBLIC_BASE_URL: ${PETYR_ACCESS_LAYER_PUBLIC_BASE_URL:-https://access-layer.draftapps.it}
+      ACCESS_LAYER_INTERNAL_BASE_URL: ${PETYR_ACCESS_LAYER_INTERNAL_BASE_URL:-https://access-layer.draftapps.it}
+      ACCESS_LAYER_CALLBACK_URL: ${PETYR_ACCESS_LAYER_CALLBACK_URL:-https://petyr.draftapps.it/auth/callback}
+      ACCESS_LAYER_TOOL_SLUG: ${PETYR_ACCESS_LAYER_TOOL_SLUG:-petyr}
+      ACCESS_LAYER_CLIENT_ID: ${PETYR_ACCESS_LAYER_CLIENT_ID:-}
+      ACCESS_LAYER_CLIENT_SECRET: ${PETYR_ACCESS_LAYER_CLIENT_SECRET:-}
+      PETYR_SESSION_SECRET: ${PETYR_SESSION_SECRET:-}
+    depends_on:
+      forecasting-db-sync:
+        condition: service_completed_successfully
+      redash-initial-sync:
+        condition: service_completed_successfully
+
+  platform-home:
+    build:
+      context: ./platform-home
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      forecasting-app:
+        condition: service_started
+      redash-ingestor:
+        condition: service_started
+    expose:
+      - "8080"
+
+volumes:
+  postgres_data:

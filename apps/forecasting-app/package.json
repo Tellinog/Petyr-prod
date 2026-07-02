@@ -1,0 +1,60 @@
+{
+  "name": "petyr-forecasting-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0",
+    "build": "next build",
+    "build:sync": "npm run db:sync && npm run build",
+    "start": "next start -H 0.0.0.0",
+    "lint": "next lint",
+    "prisma:generate": "npm run db:generate",
+    "db:generate": "prisma generate",
+    "db:push": "node prisma/safeDbPush.mjs",
+    "db:sync": "npm run db:generate && npm run db:push",
+    "backfill:2026-ongoing-from-closed": "node scripts/backfill-2026-closed-revenue-to-ongoing-forecast.mjs",
+    "backtest:ai-preview": "tsc -p tsconfig.ai-preview-backtest.json && node scripts/run-compiled-backtest-ai-preview.cjs",
+    "worker:ai-forecast:once": "tsx src/worker/nightlyDeterministicAiForecast.ts --once",
+    "worker:ai-forecast:loop": "tsx src/worker/nightlyDeterministicAiForecast.ts --loop",
+    "test:auth": "tsc -p tsconfig.auth-test.json && node --test .tmp/auth-test/tests/petyrAuth.test.js",
+    "test:ai-forecast": "tsc -p tsconfig.ai-forecast-test.json && node --test .tmp/ai-forecast-test/tests/aiForecastIntelligence.test.js",
+    "test:annual-forecast-entry": "tsc -p tsconfig.annual-forecast-entry-test.json && node --test .tmp/annual-forecast-entry-test/tests/annualForecastEntryRules.test.js",
+    "test:petyr-data-service": "tsc -p tsconfig.petyr-data-service-test.json && node --test .tmp/petyr-data-service-test/tests/petyrDataServiceNumericAiCache.test.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1069.0",
+    "@prisma/client": "^6.8.2",
+    "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
+    "next": "^15.3.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^3.8.1",
+    "tailwind-merge": "^3.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.19",
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.4",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3",
+    "prisma": "^6.8.2",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  },
+  "overrides": {
+    "exceljs": {
+      "archiver": "^8.0.0",
+      "fast-csv": "^5.0.7",
+      "unzipper": "^0.12.3",
+      "uuid": "^11.1.1"
+    },
+    "archiver-utils": {
+      "glob": "^13.0.6"
+    },
+    "fstream": {
+      "rimraf": "^6.1.3"
+    }
+  }
+}

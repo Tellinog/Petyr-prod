@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>UNGUESS Platform Gateway</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="intro" aria-labelledby="platform-title">
+        <div class="brand-mark" aria-hidden="true">U</div>
+        <div>
+          <p class="label">Local platform gateway</p>
+          <h1 id="platform-title">UNGUESS Data Platform</h1>
+          <p class="summary">
+            One local host routes Petyr Forecasting, Petyr Admin and the Redash Ingestor operator dashboard while the services stay separate.
+          </p>
+        </div>
+      </section>
+
+      <section class="launcher-grid" aria-label="Platform tools">
+        <article class="tool-card tool-card--petyr">
+          <div class="tool-card__topline"></div>
+          <div class="tool-card__icon" aria-hidden="true">PF</div>
+          <h2>Petyr Forecasting</h2>
+          <p>Product-facing forecasting workspace for company, CSM and management views.</p>
+          <dl class="tool-meta">
+            <dt>Gateway route</dt>
+            <dd><a href="/forecasting">/forecasting</a></dd>
+          </dl>
+          <a class="button" href="/forecasting">Open Petyr Forecasting <span aria-hidden="true">-&gt;</span></a>
+        </article>
+
+        <article class="tool-card tool-card--admin">
+          <div class="tool-card__topline"></div>
+          <div class="tool-card__icon" aria-hidden="true">PA</div>
+          <div class="tool-card__badge">Temporary admin area</div>
+          <h2>Petyr Admin</h2>
+          <p>Internal workspace for Petyr data health, imports, exports and AI model settings.</p>
+          <dl class="tool-meta">
+            <dt>Gateway route</dt>
+            <dd><a href="/petyr-admin">/petyr-admin</a></dd>
+          </dl>
+          <a class="button" href="/petyr-admin">Open Petyr Admin <span aria-hidden="true">-&gt;</span></a>
+        </article>
+
+        <article class="tool-card tool-card--redash">
+          <div class="tool-card__topline"></div>
+          <div class="tool-card__icon" aria-hidden="true">RI</div>
+          <h2>Redash Ingestor</h2>
+          <p>Technical workspace for Redash sync, source status, previews and diagnostics.</p>
+          <dl class="tool-meta">
+            <dt>Gateway route</dt>
+            <dd><a href="/redash-ingestor">/redash-ingestor</a></dd>
+          </dl>
+          <a class="button" href="/redash-ingestor">Open Redash Ingestor <span aria-hidden="true">-&gt;</span></a>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>
