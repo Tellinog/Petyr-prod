@@ -16,8 +16,11 @@
     "backtest:ai-preview": "tsc -p tsconfig.ai-preview-backtest.json && node scripts/run-compiled-backtest-ai-preview.cjs",
     "worker:ai-forecast:once": "tsx src/worker/nightlyDeterministicAiForecast.ts --once",
     "worker:ai-forecast:loop": "tsx src/worker/nightlyDeterministicAiForecast.ts --loop",
+    "worker:intelligence:once": "tsx src/worker/intelligenceScanWorker.ts --once",
+    "worker:intelligence:loop": "tsx src/worker/intelligenceScanWorker.ts --loop",
     "test:auth": "tsc -p tsconfig.auth-test.json && node --test .tmp/auth-test/tests/petyrAuth.test.js",
     "test:ai-forecast": "tsc -p tsconfig.ai-forecast-test.json && node --test .tmp/ai-forecast-test/tests/aiForecastIntelligence.test.js",
+    "test:intelligence": "tsc -p tsconfig.intelligence-test.json && node --test .tmp/intelligence-test/tests/intelligence.test.js",
     "test:annual-forecast-entry": "tsc -p tsconfig.annual-forecast-entry-test.json && node --test .tmp/annual-forecast-entry-test/tests/annualForecastEntryRules.test.js",
     "test:petyr-data-service": "tsc -p tsconfig.petyr-data-service-test.json && node --test .tmp/petyr-data-service-test/tests/petyrDataServiceNumericAiCache.test.js"
   },

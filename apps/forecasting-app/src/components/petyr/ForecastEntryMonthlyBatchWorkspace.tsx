@@ -18,6 +18,7 @@ import {
 } from "@/components/petyr/PetyrLayoutPrimitives";
 import { PetyrSelectField } from "@/components/petyr/PetyrForecastNavigation";
 import AnnualForecastEntryBatchWorkspace from "@/components/petyr/AnnualForecastEntryBatchWorkspace";
+import { formatBusinessUnitDisplayName } from "@/lib/petyr/businessUnitDisplay";
 import { formatPetyrCurrencyValue, formatPetyrNumber } from "@/lib/petyr/formatters";
 import type { AnnualForecastEntryBatchDataResult } from "@/services/annualForecastEntryBatchService";
 import type {
@@ -75,8 +76,9 @@ function buildEntryPageUrl(csmName: string, year?: number, month?: number) {
   return query ? `/forecasting/entry?${query}` : "/forecasting/entry";
 }
 
-function buildCompanyDetailPageUrl(companyName: string, year: number) {
+function buildCompanyDetailPageUrl(companyName: string, year: number, csmName?: string | null) {
   const params = new URLSearchParams({ year: String(year) });
+  if (csmName) params.set("csmName", csmName);
   return `/forecasting/company/${encodeURIComponent(companyName)}?${params.toString()}`;
 }
 
@@ -180,11 +182,13 @@ function LegendChip({ className, label }: { className: string; label: string }) 
 export default function ForecastEntryMonthlyBatchWorkspace({
   initialBatch,
   initialAnnualYear,
-  initialAnnualBatch = null
+  initialAnnualBatch = null,
+  canViewCsmOverview = false
 }: {
   initialBatch: ForecastEntryBatchDataResult;
   initialAnnualYear?: string;
   initialAnnualBatch?: AnnualForecastEntryBatchDataResult | null;
+  canViewCsmOverview?: boolean;
 }) {
   const [batch, setBatch] = useState(initialBatch);
   const [selectedCsm, setSelectedCsm] = useState(initialBatch.data.selectedCsm);
@@ -210,7 +214,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
   const selectedMonthLabel = `${monthLabel(batch.data.month)} ${batch.data.year}`;
 
   const companyDetailHref = batch.data.companies[0]
-    ? buildCompanyDetailPageUrl(batch.data.companies[0].companyName, batch.data.year)
+    ? buildCompanyDetailPageUrl(batch.data.companies[0].companyName, batch.data.year, batch.data.companies[0].csmName)
     : null;
 
   useEffect(() => {
@@ -439,6 +443,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
       activeSection="entry"
       companyDetailHref={companyDetailHref}
       forecastEntryHref={buildEntryPageUrl(batch.data.selectedCsm, batch.data.year, batch.data.month)}
+      canViewCsmOverview={canViewCsmOverview}
       contentClassName="max-w-[1800px]"
     >
       <section>
@@ -554,7 +559,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="sticky left-0 top-0 z-40 min-w-[240px] bg-white shadow-[0_1px_0_0_rgba(226,232,240,1)]" rowSpan={2}>
-                    Customer
+                    Company
                   </TableHead>
                   {batch.data.businessUnits.map((businessUnit) => {
                     const expanded = expandedBusinessUnits.has(businessUnit);
@@ -570,7 +575,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                           onClick={() => toggleBusinessUnit(businessUnit)}
                           aria-expanded={expanded}
                         >
-                          <span>{businessUnit}</span>
+                          <span>{formatBusinessUnitDisplayName(businessUnit)}</span>
                           <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
                             {expanded ? "Collapse" : "Expand"}
                           </span>
@@ -615,7 +620,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                     <TableRow key={company.companyName}>
                       <TableCell className="sticky left-0 z-10 min-w-[240px] bg-white">
                         <Link
-                          href={buildCompanyDetailPageUrl(company.companyName, batch.data.year)}
+                          href={buildCompanyDetailPageUrl(company.companyName, batch.data.year, company.csmName)}
                           className="font-semibold text-slate-900 underline-offset-4 hover:underline"
                         >
                           {company.companyName}

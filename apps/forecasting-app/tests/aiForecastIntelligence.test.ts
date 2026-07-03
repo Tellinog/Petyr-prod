@@ -1039,6 +1039,49 @@ test("nightly deterministic run continues after one company fails", async () => 
   }
 });
 
+test("nightly deterministic run cleans inactive company AI Forecast cache before processing active companies", async () => {
+  const cleanedCompanies: string[][] = [];
+  const savedCompanies: string[] = [];
+
+  const result = await runPetyrNightlyDeterministicAiForecastCore({
+    now: new Date("2026-06-20T00:30:00.000Z"),
+    timezone: "Europe/Rome",
+    delayMs: 0,
+    sleep: async () => {},
+    runWithLock: async (operation) => operation(),
+    listCompanies: async () => ({
+      data: [
+        { companyName: "Active Co", csmName: "CSM A", isForecastActive: true, priorityScore: 3 },
+        { companyName: "Inactive Co", csmName: "CSM B", isForecastActive: false, priorityScore: 2 }
+      ] as never,
+      diagnostics: []
+    }),
+    cleanupInactiveCompanies: async (input) => {
+      cleanedCompanies.push(input.companyNames);
+      return { deletedRows: 4 };
+    },
+    saveCompany: async (input) => {
+      savedCompanies.push(input.companyName);
+      return {
+        ok: true,
+        companyName: input.companyName,
+        year: input.year,
+        deterministicCandidatesCount: 1,
+        report: {
+          savedRows: 1,
+          skippedRows: 0
+        },
+        diagnostics: []
+      };
+    }
+  });
+
+  assert.deepEqual(cleanedCompanies, [["Inactive Co"]]);
+  assert.deepEqual(savedCompanies, ["Active Co"]);
+  assert.equal(result.selectedCompanies, 1);
+  assert.ok(result.diagnostics.some((message) => /Cleaned 4 numeric AI Forecast cache row/.test(message)));
+});
+
 test("nightly deterministic worker defaults to 02:00 Europe/Rome schedule", () => {
   assert.equal(parsePetyrAiForecastDailyTime(undefined), "02:00");
   assert.equal(parsePetyrAiForecastDailyTime("not-a-time"), "02:00");

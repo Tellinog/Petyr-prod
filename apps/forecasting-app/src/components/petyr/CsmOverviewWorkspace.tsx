@@ -46,8 +46,12 @@ function formatDate(value: string | null | undefined) {
   return date.toLocaleDateString("en-GB");
 }
 
-function companyHref(companyName: string) {
-  return `/forecasting/company/${encodeURIComponent(companyName)}`;
+function companyHref(companyName: string, csmName?: string | null, year?: number | null) {
+  const params = new URLSearchParams();
+  if (year) params.set("year", String(year));
+  if (csmName) params.set("csmName", csmName);
+  const query = params.toString();
+  return `/forecasting/company/${encodeURIComponent(companyName)}${query ? `?${query}` : ""}`;
 }
 
 function forecastEntryHref(companyName: string, csmName: string, year: number, month: number) {
@@ -66,7 +70,7 @@ function urgentActionHref(item: PetyrCsmUrgentActionCompany) {
     return forecastEntryHref(item.companyName, item.csmName, item.year, item.month);
   }
 
-  return companyHref(item.companyName);
+  return companyHref(item.companyName, item.csmName, item.year);
 }
 
 function actionTone(id: PetyrCsmUrgentAction["id"], selected: boolean) {
@@ -455,7 +459,7 @@ export default function CsmOverviewWorkspace({
             companies.map((company) => (
               <div key={company.companyName} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                  <Link href={companyHref(company.companyName)} className="block rounded-xl bg-white p-3 transition hover:shadow-sm">
+                  <Link href={companyHref(company.companyName, company.csmName, overview.year)} className="block rounded-xl bg-white p-3 transition hover:shadow-sm">
                     <div className="font-semibold text-slate-900">{company.companyName}</div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <Badge variant="outline">{company.activeAgreementsCount} active agreement(s)</Badge>

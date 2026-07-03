@@ -13,16 +13,46 @@ Each decision should include:
 
 ---
 
-## 2026-07-02 - Run Petyr on petyr.unguess-internal.net
+## 2026-07-03 - Move Petyr production host back to petyr.unguess-internal.net
 
 - **Status:** Accepted.
-- **Context:** Petyr production routing was previously documented for `https://petyr.draftapps.it`, but the current deployment must run on `https://petyr.unguess-internal.net` instead. Petyr and Redash Ingestor continue to share the Petyr gateway host, while the external Access Layer host remains separately configured as `https://access-layer.draftapps.it`.
-- **Decision:** Production Petyr must use `https://petyr.unguess-internal.net` as the public host, with Petyr callback `https://petyr.unguess-internal.net/auth/callback` and Redash Ingestor callback `https://petyr.unguess-internal.net/redash-ingestor/auth/callback`. The gateway continues to route `/forecasting`, `/petyr-admin`, `/api/petyr/*` and `/redash-ingestor/*` to the existing services. Next.js Server Actions allow the new Petyr host and no longer list `petyr.draftapps.it` as an accepted production origin.
-- **Alternatives discarded:** Keeping `petyr.draftapps.it` as the production public host; changing the external Access Layer host in the same task without an explicit request; adding a `/petyr` base path.
-- **Reason:** The user explicitly requested that the application work on `https://petyr.unguess-internal.net/` instead of `https://petyr.draftapps.it/`.
-- **Consequences:** Coolify/DNS, deployed environment variables and Access Layer tool registrations must be updated to the `petyr.unguess-internal.net` return URLs before production login works on the new host. No Redash source, database schema, forecast calculation, permission key or Access Layer base URL changes are introduced.
-- **Supersedes:** The production host portions of `2026-06-22 - Deploy Petyr on draftapps.it through Coolify`.
-- **Related docs:** `DEPLOY.md`, `docs/01_architecture.md`, `.env.example`, `docker-compose.yml`, `docker-compose.local.yml`, `apps/forecasting-app/README.md`, `apps/redash-ingestor/README.md`, `petyr/access-layer-tools/*`, `DEVLOG.md`.
+- **Context:** The active Coolify/Petyr production configuration and docs pointed Petyr and Redash Ingestor callbacks to `https://petyr.draftapps.it`. Product requested that the application run on `https://petyr.unguess-internal.net/` instead.
+- **Decision:** Petyr's production public host is `https://petyr.unguess-internal.net`, with Petyr callback `https://petyr.unguess-internal.net/auth/callback` and Redash Ingestor callback `https://petyr.unguess-internal.net/redash-ingestor/auth/callback`. The gateway route model remains unchanged: `/forecasting`, `/petyr-admin`, `/api/petyr/*` and `/redash-ingestor/*` are served through `platform-home`. The Access Layer service host remains `https://access-layer.draftapps.it` because this task changes the Petyr app host only.
+- **Alternatives discarded:** Keeping `petyr.draftapps.it`; changing the Access Layer host in the same task without an explicit request; adding a Next.js `/petyr` base path.
+- **Reason:** The requested production entrypoint is the dedicated `petyr.unguess-internal.net` host, and auth redirects must derive the browser origin from the configured callback URL.
+- **Consequences:** Coolify/DNS must route `petyr.unguess-internal.net` to `platform-home:8080`, both Access Layer tool registrations must allow the new callback URLs, and deployed Petyr/Redash Ingestor environment variables must be updated before production login works on the new host. Active config no longer allows `petyr.draftapps.it` as a Next.js Server Actions origin.
+- **Supersedes:** The Petyr and Redash Ingestor public host/callback portions of `2026-06-22 - Deploy Petyr on draftapps.it through Coolify`. The Access Layer base URL portion of that decision is unchanged.
+- **Related docs:** `.env.example`, `docker-compose.yml`, `docker-compose.local.yml`, `DEPLOY.md`, `docs/01_architecture.md`, `apps/forecasting-app/README.md`, `apps/redash-ingestor/README.md`, `petyr/access-layer-tools/*`, `DEVLOG.md`.
+
+## 2026-07-03 - Add Petyr Admin annual Forecast Ongoing Excel import
+
+- **Status:** Accepted.
+- **Context:** Operations needed to load the 2026 annual forecast workbook into Petyr. The workbook contains a calculated Forecast Ongoing total and Business Unit columns, while the legacy Initial Forecast Excel bootstrap has been removed and Annual Forecast Entry is the canonical Initial Forecast workflow.
+- **Decision:** Add a new admin-only `.xlsx` import for annual Forecast Ongoing values. It reads only the Business Unit columns after `FORECAST ONGOING` in the `ITA_Andamento lavorato VS Forec` sheet, uses workbook `Customer` as the Petyr company key, treats workbook `Company` as optional reference only, maps workbook labels to official Petyr Business Units, writes `forecast_annual.value` with `value_source=manual`, and marks companies inactive when their aggregated workbook Forecast Ongoing total is zero. By default, workbook-absent companies are not touched; Petyr Admin exposes an unchecked opt-in checkbox to mark canonical Company Ownership companies absent from the workbook as inactive. It does not write Forecast Initial fields or annual confidence.
+- **Alternatives discarded:** Reusing the deprecated Initial Forecast Excel bootstrap; importing the calculated Forecast Ongoing total directly; overwriting Annual Forecast Entry confidence; using workbook `Company` as fallback or aggregation key; treating duplicate workbook customer rows independently.
+- **Reason:** Forecast Ongoing is derived in Petyr from saved Business Unit annual values, and Forecast Initial must remain owned by Annual Forecast Entry. The operational workbook uses `Customer` for the specific Petyr company rows, while `Company` can be blank or a broader grouping label.
+- **Consequences:** Petyr Admin gets a dry-run/apply annual import workflow. The import writes sparse effective change logs and leaves monthly forecast, Closed revenue, AI forecast cache, Redash data, Management Objectives, Forecast Initial and confidence untouched.
+- **Related docs:** `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+
+## 2026-07-02 - Make Petyr Intelligence admin-only for MVP
+
+- **Status:** Accepted.
+- **Context:** The first separated Petyr Intelligence MVP exposed `/intelligence`, `/intelligence/company/[companyName]` and CSM-style read/feedback APIs with `petyr:read` or `petyr:forecast:write`. Product clarified that the new Intelligence section must be accessible and visible only to users with admin permissions.
+- **Decision:** The separated Petyr Intelligence section and its read/detail/feedback APIs require `petyr:admin` for the MVP. Public gateway launcher copy must not advertise `/intelligence` as a normal user-facing tool. Admin scan, budget, calibration and worker controls continue to require `petyr:admin`, with `APP_INTERNAL_SECRET` where already required.
+- **Alternatives discarded:** Keeping `/intelligence` CSM-facing behind `petyr:read`; adding new dedicated `petyr:intelligence:*` permissions in this task; relying only on hidden navigation while leaving APIs readable.
+- **Reason:** Admin-only access matches the explicit product requirement and avoids exposing external-signal insight data before dedicated Intelligence permissions and row-level CSM scoping are documented.
+- **Consequences:** Non-admin Petyr users no longer access the Intelligence section or its insight/feedback APIs. Future non-admin Intelligence rollout requires a new documented Access Layer permission/scoping decision.
+- **Related docs:** `apps/forecasting-app/src/app/intelligence/*`, `apps/forecasting-app/src/app/api/petyr/intelligence/*`, `platform-home/index.html`, `docs/API.md`, `docs/UX.md`, `docs/SECURITY.md`, `docs/SCOPE.md`, `docs/ARCHITECTURE.md`, `BACKLOG.md`, `DEVLOG.md`.
+
+## 2026-07-01 - Keep Petyr Intelligence external-signal based and isolated from Forecasting
+
+- **Status:** Accepted.
+- **Context:** Petyr needs a future company-level Intelligence module after the old Company Detail Intelligence section was removed. Product clarified that this new module must use external company/news signals and must not blur with Forecasting or with deterministic numeric forecast analysis.
+- **Decision:** Petyr Intelligence will be implemented as a separated module/section inside Petyr, isolated from Forecasting. It will use Exa for external web/company signal retrieval and OpenRouter for LLM-based interpretation. Forecasting remains deterministic and must not depend on LLM-generated analysis. Petyr Intelligence must not use LLMs to analyze deterministic numeric data such as revenue, margin, forecast, campaign count or mathematical trends; those remain handled by SQL, formulas, deterministic services and existing Forecasting logic.
+- **Alternatives discarded:** Reusing the existing Forecast Entry Forecast Intelligence cache/sentinel model as the main company-intelligence surface; adding Intelligence back into Forecasting Company Detail; running naive company x Business Unit external searches; asking OpenRouter to analyze or explain deterministic Forecasting numbers.
+- **Reason:** External market/company signals are a different product surface from Forecasting. Keeping the module isolated reduces regression risk, keeps provider cost controllable and preserves the trusted deterministic ownership of Petyr forecast data.
+- **Consequences:** The module should use separate routes, services, worker naming and database tables such as `CompanyIntelligenceRun`, `CompanySignalItem`, `CompanyIntelligenceInsight`, `CompanyInsightFeedback` and `IntelligenceCalibrationReport`. The first MVP must use low default limits: `INTELLIGENCE_MAX_COMPANIES_PER_RUN=10`, `INTELLIGENCE_MAX_RESULTS_PER_COMPANY=5`, `INTELLIGENCE_SEARCH_RECENCY_DAYS=30` and `INTELLIGENCE_DAILY_BUDGET_REQUESTS=100`.
+- **Related docs:** `CURRENT_STATE.md`, `docs/SCOPE.md`, `docs/ARCHITECTURE.md`, `docs/DOMAIN.md`, `docs/DB.md`, `docs/API.md`, `docs/UX.md`, `docs/SECURITY.md`, `docs/TESTING.md`, `docs/DEPLOYMENT.md`, `BACKLOG.md`, `DEVLOG.md`.
 
 ## 2026-06-29 - Use recent workspace associations for Petyr CSM company lists
 

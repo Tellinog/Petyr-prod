@@ -7,10 +7,11 @@ Repository Dockerizzata per costruire la data platform UNGUESS.
 Implementato:
 
 - `apps/redash-ingestor`: servizio che legge Redash e salva snapshot JSON in PostgreSQL;
-- `apps/forecasting-app`: workspace Petyr Forecasting;
+- `apps/forecasting-app`: workspace Petyr Forecasting, sezione Petyr Intelligence admin-only e Admin Petyr;
 - `platform-home`: gateway/reverse proxy locale per l'accesso unificato;
 - root `docker-compose.yml` con PostgreSQL, Redash Ingestor, Redash Worker, Petyr e gateway;
 - `petyr-ai-forecast-worker`: worker notturno per salvare la deterministic preview come AI Forecast;
+- `intelligence-scan`: worker schedulato disabilitato di default per Petyr Intelligence;
 - preview dati salvati a database.
 - schema Prisma Petyr per forecast mensile, annuale, sessioni di salvataggio,
   metadati annuali customer/year, change log, stato company e cache AI.
@@ -27,6 +28,7 @@ Apri l'accesso unificato locale:
 
 ```txt
 http://localhost:8080/forecasting       -> Petyr Forecasting
+http://localhost:8080/intelligence      -> Petyr Intelligence admin-only
 http://localhost:8080/petyr-admin       -> Petyr Admin
 http://localhost:8080/redash-ingestor   -> Redash Ingestor dashboard tecnico
 ```

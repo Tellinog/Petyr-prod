@@ -23,6 +23,10 @@ export type PetyrNightlyForecastSaveResultLike = {
   diagnostics: string[];
 };
 
+export type PetyrNightlyForecastCleanupResultLike = {
+  deletedRows: number;
+};
+
 export type PetyrNightlyForecastCompanyResult = {
   companyName: string;
   csmName: string;
@@ -157,6 +161,7 @@ export async function runPetyrNightlyDeterministicAiForecastCore(input: {
   delayMs: number;
   listCompanies: () => Promise<{ data: PetyrNightlyForecastCompanyLike[]; diagnostics: string[] }>;
   saveCompany: (input: { companyName: string; year: number; modelVersion: string }) => Promise<PetyrNightlyForecastSaveResultLike>;
+  cleanupInactiveCompanies?: (input: { companyNames: string[] }) => Promise<PetyrNightlyForecastCleanupResultLike>;
   sleep: (ms: number) => Promise<void>;
   runWithLock: <T>(operation: () => Promise<T>) => Promise<T | "lock_busy">;
 }): Promise<PetyrNightlyForecastRunResult> {
@@ -167,6 +172,13 @@ export async function runPetyrNightlyDeterministicAiForecastCore(input: {
     const diagnostics: string[] = [];
     const companiesResult = await input.listCompanies();
     diagnostics.push(...companiesResult.diagnostics);
+    const inactiveCompanyNames = companiesResult.data
+      .filter((row) => row.isForecastActive === false)
+      .map((row) => row.companyName);
+    const cleanupResult = await input.cleanupInactiveCompanies?.({ companyNames: inactiveCompanyNames });
+    if (cleanupResult && cleanupResult.deletedRows > 0) {
+      diagnostics.push(`Cleaned ${cleanupResult.deletedRows} numeric AI Forecast cache row(s) for inactive companies before Daily AI Forecast.`);
+    }
     const companies = normalizePetyrNightlyForecastCompanies(companiesResult.data);
     const results: PetyrNightlyForecastCompanyResult[] = [];
 

@@ -46,6 +46,44 @@ enum ManagementObjectiveScopeType {
   business_unit
 }
 
+enum IntelligenceRunStatus {
+  pending
+  running
+  succeeded
+  partial
+  failed
+  skipped_budget
+  skipped_disabled
+  skipped_lock
+}
+
+enum IntelligenceInsightType {
+  opportunity
+  reactivation
+  caution
+  risk
+  monitor
+  no_action
+}
+
+enum IntelligenceUrgency {
+  high
+  medium
+  low
+}
+
+enum IntelligenceFeedbackUsefulness {
+  useful
+  not_useful
+  unclear
+}
+
+enum IntelligenceFeedbackAccuracy {
+  accurate
+  inaccurate
+  unclear
+}
+
 // Read model for the tables owned by apps/redash-ingestor.
 // Forecasting must not call Redash directly: it reads these snapshots from PostgreSQL.
 model RedashSource {
@@ -384,4 +422,198 @@ model ManagementObjectiveChangeLog {
   @@index([scopeType, scopeKey, year], map: "management_objective_change_log_scope_key_year_idx")
   @@index([updatedAt], map: "management_objective_change_log_updated_at_idx")
   @@map("management_objective_change_log")
+}
+
+model CompanyIntelligenceRun {
+  id                     String                @id @default(cuid())
+  runScope               String                @default("batch") @map("run_scope")
+  companyName            String?               @map("company_name")
+  csmName                String?               @map("csm_name")
+  status                 IntelligenceRunStatus @default(pending)
+  dryRun                 Boolean               @default(true) @map("dry_run")
+  startedAt              DateTime              @default(now()) @map("started_at")
+  finishedAt             DateTime?             @map("finished_at")
+  selectedReason         String?               @map("selected_reason") @db.Text
+  selectedCompaniesCount Int                   @default(0) @map("selected_companies_count")
+  exaRequestsUsed        Int                   @default(0) @map("exa_requests_used")
+  exaResultsReceived     Int                   @default(0) @map("exa_results_received")
+  openrouterRequestsUsed Int                   @default(0) @map("openrouter_requests_used")
+  budgetPolicy           Json                  @default("{}") @map("budget_policy_json")
+  errorMessage           String?               @map("error_message") @db.Text
+  createdBy              String                @default("system") @map("created_by")
+  createdAt              DateTime              @default(now()) @map("created_at")
+  updatedAt              DateTime              @updatedAt @map("updated_at")
+
+  rawResults             CompanySignalRawResult[]
+  insights               CompanyIntelligenceInsight[]
+  providerRequests       CompanyIntelligenceProviderRequestLog[]
+
+  @@index([status, startedAt], map: "company_intelligence_run_status_started_idx")
+  @@index([companyName, startedAt], map: "company_intelligence_run_company_started_idx")
+  @@map("company_intelligence_run")
+}
+
+model CompanySignalRawResult {
+  id               String                 @id @default(cuid())
+  runId            String                 @map("run_id")
+  run              CompanyIntelligenceRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  signalItemId     String?                @map("signal_item_id")
+  signalItem       CompanySignalItem?     @relation(fields: [signalItemId], references: [id], onDelete: SetNull)
+  companyName      String                 @map("company_name")
+  provider         String                 @default("exa")
+  providerResultId String?                @map("provider_result_id")
+  queryText        String                 @map("query_text") @db.Text
+  url              String                 @db.Text
+  title            String?
+  publishedAt      DateTime?              @map("published_at")
+  authorOrSource   String?                @map("author_or_source")
+  snippet          String?                @db.Text
+  rawResult        Json                   @default("{}") @map("raw_result_json")
+  contentHash      String                 @map("content_hash")
+  fetchedAt        DateTime               @default(now()) @map("fetched_at")
+
+  @@index([runId], map: "company_signal_raw_result_run_idx")
+  @@index([companyName, fetchedAt], map: "company_signal_raw_result_company_fetched_idx")
+  @@index([contentHash], map: "company_signal_raw_result_content_hash_idx")
+  @@map("company_signal_raw_result")
+}
+
+model CompanySignalItem {
+  id                    String                 @id @default(cuid())
+  companyName           String                 @map("company_name")
+  canonicalUrl          String                 @map("canonical_url") @db.Text
+  normalizedTitle       String?                @map("normalized_title")
+  sourceDomain          String?                @map("source_domain")
+  publishedAt           DateTime?              @map("published_at")
+  eventSignature        String                 @map("event_signature")
+  contentHash           String                 @map("content_hash")
+  firstSeenAt           DateTime               @default(now()) @map("first_seen_at")
+  lastSeenAt            DateTime               @default(now()) @map("last_seen_at")
+  duplicateCount        Int                    @default(1) @map("duplicate_count")
+  relevanceStatus       String                 @default("pending") @map("relevance_status")
+  companyRelevanceScore Decimal?               @map("company_relevance_score") @db.Decimal(5, 4)
+  status                String                 @default("active")
+
+  rawResults            CompanySignalRawResult[]
+  classifications       CompanySignalBusinessUnitClassification[]
+  insightSources        CompanyIntelligenceInsightSource[]
+
+  @@unique([companyName, contentHash], map: "company_signal_item_company_hash_key")
+  @@index([companyName, lastSeenAt], map: "company_signal_item_company_last_seen_idx")
+  @@index([eventSignature], map: "company_signal_item_event_signature_idx")
+  @@map("company_signal_item")
+}
+
+model CompanySignalBusinessUnitClassification {
+  id                   String            @id @default(cuid())
+  signalItemId         String            @map("signal_item_id")
+  signalItem           CompanySignalItem @relation(fields: [signalItemId], references: [id], onDelete: Cascade)
+  businessUnit         String            @map("business_unit")
+  relevanceScore       Decimal?          @map("relevance_score") @db.Decimal(5, 4)
+  rationale            String?           @db.Text
+  classifiedByProvider String            @default("local") @map("classified_by_provider")
+  model                String?
+  promptVersion        String?           @map("prompt_version")
+  classifiedAt         DateTime          @default(now()) @map("classified_at")
+
+  @@unique([signalItemId, businessUnit], map: "company_signal_bu_classification_item_bu_key")
+  @@index([businessUnit], map: "company_signal_bu_classification_bu_idx")
+  @@map("company_signal_business_unit_classification")
+}
+
+model CompanyIntelligenceInsight {
+  id             String                    @id @default(cuid())
+  companyName    String                    @map("company_name")
+  companyId      String                    @map("company_id")
+  csmName        String?                   @map("csm_name")
+  runId          String?                   @map("run_id")
+  run            CompanyIntelligenceRun?   @relation(fields: [runId], references: [id], onDelete: SetNull)
+  businessUnit   String                    @map("business_unit")
+  insightType    IntelligenceInsightType   @map("insight_type")
+  title          String
+  summary        String                    @db.Text
+  rationale      String                    @db.Text
+  suggestedAction String                   @map("suggested_action") @db.Text
+  urgency        IntelligenceUrgency
+  confidence     Decimal?                  @db.Decimal(5, 4)
+  assumptionsOrLimits Json                 @default("[]") @map("assumptions_or_limits")
+  provider       String                    @default("openrouter")
+  model          String?
+  promptVersion  String?                   @map("prompt_version")
+  status         String                    @default("active")
+  generatedAt    DateTime                  @default(now()) @map("generated_at")
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  updatedAt      DateTime                  @updatedAt @map("updated_at")
+
+  sources        CompanyIntelligenceInsightSource[]
+  feedback       CompanyInsightFeedback[]
+
+  @@index([companyName, generatedAt], map: "company_intelligence_insight_company_generated_idx")
+  @@index([csmName, generatedAt], map: "company_intelligence_insight_csm_generated_idx")
+  @@index([businessUnit, insightType, urgency], map: "company_intelligence_insight_bu_type_urgency_idx")
+  @@map("company_intelligence_insight")
+}
+
+model CompanyIntelligenceInsightSource {
+  id           String                     @id @default(cuid())
+  insightId    String                     @map("insight_id")
+  insight      CompanyIntelligenceInsight @relation(fields: [insightId], references: [id], onDelete: Cascade)
+  signalItemId String                     @map("signal_item_id")
+  signalItem   CompanySignalItem          @relation(fields: [signalItemId], references: [id], onDelete: Cascade)
+  createdAt    DateTime                   @default(now()) @map("created_at")
+
+  @@unique([insightId, signalItemId], map: "company_intelligence_insight_source_key")
+  @@index([signalItemId], map: "company_intelligence_insight_source_signal_idx")
+  @@map("company_intelligence_insight_source")
+}
+
+model CompanyInsightFeedback {
+  id               String                         @id @default(cuid())
+  insightId         String                         @map("insight_id")
+  insight           CompanyIntelligenceInsight     @relation(fields: [insightId], references: [id], onDelete: Cascade)
+  ratingUsefulness  IntelligenceFeedbackUsefulness @map("rating_usefulness")
+  ratingAccuracy    IntelligenceFeedbackAccuracy   @map("rating_accuracy")
+  feedbackText      String?                        @map("feedback_text") @db.Text
+  submittedBy       String                         @map("submitted_by")
+  submittedAt       DateTime                       @default(now()) @map("submitted_at")
+
+  @@index([insightId, submittedAt], map: "company_insight_feedback_insight_submitted_idx")
+  @@index([submittedBy, submittedAt], map: "company_insight_feedback_user_submitted_idx")
+  @@map("company_insight_feedback")
+}
+
+model CompanyIntelligenceProviderRequestLog {
+  id             String                 @id @default(cuid())
+  runId          String?                @map("run_id")
+  run            CompanyIntelligenceRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+  provider       String
+  operation      String
+  status         String
+  requestCount   Int                    @default(1) @map("request_count")
+  resultCount    Int?                   @map("result_count")
+  durationMs     Int?                   @map("duration_ms")
+  model          String?
+  costMetadata   Json                   @default("{}") @map("cost_metadata")
+  requestMetadata Json                  @default("{}") @map("request_metadata")
+  errorMessage   String?                @map("error_message") @db.Text
+  createdAt      DateTime               @default(now()) @map("created_at")
+
+  @@index([provider, operation, createdAt], map: "company_intelligence_provider_log_provider_op_idx")
+  @@index([runId], map: "company_intelligence_provider_log_run_idx")
+  @@map("company_intelligence_provider_request_log")
+}
+
+model IntelligenceCalibrationReport {
+  id              String   @id @default(cuid())
+  periodStart     DateTime @map("period_start")
+  periodEnd       DateTime @map("period_end")
+  generatedAt     DateTime @default(now()) @map("generated_at")
+  generatedBy     String   @map("generated_by")
+  summary         String   @db.Text
+  recommendations Json     @default("[]") @map("recommendations_json")
+  metrics         Json     @default("{}") @map("metrics_json")
+  status          String   @default("draft")
+
+  @@index([generatedAt], map: "intelligence_calibration_report_generated_idx")
+  @@map("intelligence_calibration_report")
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,8 +24,9 @@ type CompanyDetailNavigatorProps = {
   preferredCsmName?: string | null;
 };
 
-function buildCompanyDetailPageUrl(companyName: string, year: number) {
+function buildCompanyDetailPageUrl(companyName: string, year: number, csmName?: string | null) {
   const params = new URLSearchParams({ year: String(year) });
+  if (csmName) params.set("csmName", csmName);
   return `/forecasting/company/${encodeURIComponent(companyName)}?${params.toString()}`;
 }
 
@@ -50,6 +51,15 @@ export function CompanyDetailNavigator({
     return preferredCsmName && normalizeKey(preferredCsmName) === normalizeKey(selected) ? preferredCsmName : selected;
   });
   const [yearInput, setYearInput] = useState(String(selectedYear));
+  useEffect(() => {
+    const selected = selectedCsmName || "Unassigned";
+    setCsmFilter(preferredCsmName && normalizeKey(preferredCsmName) === normalizeKey(selected) ? preferredCsmName : selected);
+  }, [preferredCsmName, selectedCsmName, selectedCompanyName]);
+
+  useEffect(() => {
+    setYearInput(String(selectedYear));
+  }, [selectedYear]);
+
   const csmOptions = useMemo(() => {
     const csmNames = [...new Set(companies.map((company) => company.csmName || "Unassigned"))].sort((left, right) =>
       left.localeCompare(right)
@@ -64,8 +74,13 @@ export function CompanyDetailNavigator({
     return companies.filter((company) => normalizeKey(company.csmName || "Unassigned") === csmKey);
   }, [companies, csmFilter]);
   const selectedCompanyOption = useMemo(
-    () => companies.find((company) => normalizeKey(company.companyName) === normalizeKey(selectedCompanyName)),
-    [companies, selectedCompanyName]
+    () =>
+      companies.find(
+        (company) =>
+          normalizeKey(company.companyName) === normalizeKey(selectedCompanyName) &&
+          normalizeKey(company.csmName || "Unassigned") === normalizeKey(csmFilter)
+      ) ?? companies.find((company) => normalizeKey(company.companyName) === normalizeKey(selectedCompanyName)),
+    [companies, csmFilter, selectedCompanyName]
   );
   const visibleCompanyOptions = useMemo(() => {
     if (!selectedCompanyOption) return filteredCompanyOptions;
@@ -82,13 +97,13 @@ export function CompanyDetailNavigator({
 
   function openCompany(companyName: string, year = nextYear) {
     if (!companyName) return;
-    window.location.assign(buildCompanyDetailPageUrl(companyName, year));
+    window.location.assign(buildCompanyDetailPageUrl(companyName, year, csmFilter));
   }
 
   function handleCsmChange(csmName: string) {
     setCsmFilter(csmName);
     const firstCompanyForCsm = companies.find((company) => normalizeKey(company.csmName || "Unassigned") === normalizeKey(csmName));
-    if (firstCompanyForCsm) openCompany(firstCompanyForCsm.companyName);
+    if (firstCompanyForCsm) window.location.assign(buildCompanyDetailPageUrl(firstCompanyForCsm.companyName, nextYear, csmName));
   }
 
   function navigateCompany(direction: -1 | 1) {

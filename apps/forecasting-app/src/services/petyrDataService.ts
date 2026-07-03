@@ -4076,7 +4076,7 @@ export async function getForecastEntryCompanies() {
 
 export async function getCompanyDetailNavigationCompanies() {
   const diagnostics: string[] = [];
-  const finishPerformance = startPetyrPerformanceTimer("getForecastEntryCompanies");
+  const finishPerformance = startPetyrPerformanceTimer("getCompanyDetailNavigationCompanies");
 
   try {
     const ownershipContext = await buildOwnershipContext(diagnostics);
@@ -4093,9 +4093,19 @@ export async function getCompanyDetailNavigationCompanies() {
     }
 
     if (ownershipMaps.hasRows) {
-      for (const ownership of ownershipMaps.byCompany.values()) {
+      const recentAssociations = recentCompanyOwnershipAssociations(ownershipMaps);
+      const navigationOwnershipRows = recentAssociations.length > 0 ? recentAssociations : [...ownershipMaps.byCompany.values()];
+
+      if (recentAssociations.length === 0) {
+        diagnostics.push(
+          `No company_ownership workspace association has workspace_updated_on within the last ${RECENT_WORKSPACE_ASSOCIATION_MONTHS} months. Company Detail navigation uses the latest owner per company until fresh workspace associations are synced.`
+        );
+      }
+
+      for (const ownership of navigationOwnershipRows) {
         const status = statusByKey.get(normalizeKey(ownership.companyName));
-        rowsByKey.set(normalizeKey(ownership.companyName), {
+        const navigationKey = [normalizeKey(ownership.companyName), normalizeKey(ownership.csmName || "Unassigned")].join("\u0000");
+        rowsByKey.set(navigationKey, {
           companyName: ownership.companyName,
           csmName: ownership.csmName || "Unassigned",
           isForecastActive: status?.isActive ?? null,
@@ -4108,7 +4118,8 @@ export async function getCompanyDetailNavigationCompanies() {
 
     for (const status of companyStatuses) {
       const key = normalizeKey(status.companyName);
-      if (rowsByKey.has(key)) continue;
+      const alreadyHasCompany = [...rowsByKey.values()].some((row) => normalizeKey(row.companyName) === key);
+      if (alreadyHasCompany) continue;
 
       rowsByKey.set(key, {
         companyName: status.companyName,

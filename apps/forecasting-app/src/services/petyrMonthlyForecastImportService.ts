@@ -7,6 +7,7 @@ import {
   PetyrCompanyOwnershipError,
   resolveCanonicalCompanyOwnership
 } from "@/services/petyrCompanyOwnershipService";
+import { clearNumericAiForecastCacheForCompany } from "@/services/petyrAiForecastCacheCleanupService";
 
 const CSV_IMPORT_SOURCE = "Admin CSV Import";
 const IMPORT_USER = "petyr-admin";
@@ -568,6 +569,9 @@ async function upsertCompanyForecastStatus(input: {
       updatedBy: IMPORT_USER
     }
   });
+  if (!change.isActive) {
+    await clearNumericAiForecastCacheForCompany({ companyName: row.companyName, tx });
+  }
 
   counters.companyStatusUpserts += 1;
   counters.importedRowNumbers.add(row.rowNumber);

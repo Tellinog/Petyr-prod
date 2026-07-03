@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "noEmit": false,
+    "outDir": ".tmp/intelligence-test",
+    "rootDir": ".",
+    "isolatedModules": false,
+    "incremental": false,
+    "tsBuildInfoFile": ".tmp/intelligence-test/tsconfig.tsbuildinfo"
+  },
+  "include": [
+    "src/lib/db.ts",
+    "src/lib/petyr/constants.ts",
+    "src/services/intelligence/*.ts",
+    "tests/intelligence.test.ts"
+  ]
+}

@@ -54,6 +54,8 @@ Accepted deterministic automation:
 - schedule defaults to `02:00` in `Europe/Rome`;
 - the worker waits `3000ms` between companies by default;
 - the worker targets the current Rome year;
+- the worker cleans numeric `ai_forecast_cache` rows for companies explicitly
+  marked inactive and does not calculate deterministic rows for them;
 - the worker saves local deterministic preview rows to `ai_forecast_cache`;
 - the worker uses daily append-only model versions such as
   `petyr_deterministic_preview_v1@YYYY-MM-DD`;
@@ -650,8 +652,9 @@ Rules:
 
 Nightly deterministic automation is accepted separately from OpenRouter
 automation. It runs in `petyr-ai-forecast-worker`, excludes explicitly inactive
-companies, computes local deterministic preview values only and saves those rows
-to `ai_forecast_cache`. Future automated/progressive LLM/OpenRouter batch
+companies, cleans their numeric AI Forecast cache rows, computes local
+deterministic preview values only for active companies and saves those rows to
+`ai_forecast_cache`. Future automated/progressive LLM/OpenRouter batch
 behavior is still deferred and tracked separately in `BACKLOG.md`.
 
 ## Failure handling

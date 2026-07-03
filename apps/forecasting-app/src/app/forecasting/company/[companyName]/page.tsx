@@ -925,6 +925,7 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
   const routeParams = await params;
   const resolvedSearchParams = (await searchParams) ?? {};
   const rawYear = firstParam(resolvedSearchParams.year)?.trim();
+  const requestedCsmName = firstParam(resolvedSearchParams.csmName)?.trim() ?? "";
   const selectedYear = parseYearParam(rawYear) ?? new Date().getFullYear();
   const companyName = decodeRouteParam(routeParams.companyName).trim();
   const yearDiagnostics = rawYear && !parseYearParam(rawYear) ? [`Invalid year query parameter "${rawYear}" ignored.`] : [];
@@ -959,10 +960,20 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
     identity.user.displayName,
     navigationCompanies.map((company) => company.csmName)
   );
-  const navigationCompany = navigationCompanies.find(
+  const requestedCsmNavigationCompany = requestedCsmName
+    ? navigationCompanies.find(
+        (company) =>
+          normalizeRouteKey(company.companyName) === normalizeRouteKey(displayCompanyName) &&
+          normalizeRouteKey(company.csmName) === normalizeRouteKey(requestedCsmName)
+      )
+    : null;
+  const navigationCompany = requestedCsmNavigationCompany ?? navigationCompanies.find(
     (company) => normalizeRouteKey(company.companyName) === normalizeRouteKey(displayCompanyName)
   );
-  const csmName = overview?.csmName || navigationCompany?.csmName || "Unassigned";
+  const hasRequestedCsmInNavigation = requestedCsmName
+    ? navigationCompanies.some((company) => normalizeRouteKey(company.csmName) === normalizeRouteKey(requestedCsmName))
+    : false;
+  const csmName = requestedCsmNavigationCompany?.csmName || (hasRequestedCsmInNavigation ? requestedCsmName : "") || overview?.csmName || navigationCompany?.csmName || "Unassigned";
   const forecastEntryHref = buildForecastEntryHref(displayCompanyName, csmName, selectedYear);
   const companyDetailHref = buildCompanyDetailHref(displayCompanyName, selectedYear);
   const activeStatus = data.companyStatus?.isActive ?? overview?.isForecastActive ?? navigationCompany?.isForecastActive ?? null;
@@ -972,7 +983,12 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
   const canAddCompanyNotes = hasPetyrPermission(identity, PETYR_PERMISSIONS.forecastWrite);
 
   return (
-    <PetyrWorkspaceShell activeSection="company" companyDetailHref={companyDetailHref} forecastEntryHref={forecastEntryHref}>
+    <PetyrWorkspaceShell
+      activeSection="company"
+      companyDetailHref={companyDetailHref}
+      forecastEntryHref={forecastEntryHref}
+      canViewCsmOverview={canViewAdminTools}
+    >
       <PetyrSectionTitle
         title="Company Detail"
         description={`Analytical company sheet for ${displayCompanyName}: agreement, closed revenue, residual, AI and company logs context.`}

@@ -23,13 +23,77 @@ Project-specific backlog items should be placed in the most specific backlog ava
 
 ---
 
+## Implement Petyr Intelligence MVP phase 1: schema and isolated service skeleton
+
+- **Area:** Petyr / Intelligence
+- **Problem/question:** Petyr Intelligence is documented as a separate external-signal module, but no isolated schema, service namespace, routes or worker skeleton exists yet.
+- **Impact:** Resolved for the first MVP. Intelligence now has isolated Prisma models/migration, services, routes and APIs.
+- **Status:** Resolved on 2026-07-01 for MVP.
+- **Proposal / next action:** Continue with production hardening tasks such as scheduled worker loop, provider-cost calibration and dedicated permissions.
+
+## Implement Petyr Intelligence MVP phase 2: Exa search and raw result persistence
+
+- **Area:** Petyr / Intelligence / Exa
+- **Problem/question:** The module needs external company signal retrieval with strict cost controls and local auditability.
+- **Impact:** Resolved for manual MVP runs. Exa adapter, aggregated query builder, low defaults and raw persistence are implemented.
+- **Status:** Resolved on 2026-07-01 for manual MVP; scheduled budget-window accounting remains future hardening.
+- **Proposal / next action:** Add rolling daily provider budget aggregation before enabling scheduled scans.
+
+## Implement Petyr Intelligence MVP phase 3: deduplication and Business Unit classification
+
+- **Area:** Petyr / Intelligence / Signal classification
+- **Problem/question:** Raw external results must be deduplicated and classified against official Petyr Business Units before CSM insights are generated.
+- **Impact:** Resolved for MVP. URL/content/event deduplication, signal items, local Business Unit classification, OpenRouter JSON validation and classification persistence are implemented.
+- **Status:** Resolved on 2026-07-01 for MVP.
+- **Proposal / next action:** Evaluate whether Business Unit classification should move from local keyword MVP logic to a stricter OpenRouter classification stage after reviewing real scan quality.
+
+## Implement Petyr Intelligence MVP phase 4: CSM insight generation and feedback UI
+
+- **Area:** Petyr / Intelligence / CSM UX
+- **Problem/question:** CSMs need a separate Petyr Intelligence surface with actionable insights, sources, rationale, suggested actions and feedback controls.
+- **Impact:** Superseded for the current MVP by the 2026-07-02 admin-only access decision. `/intelligence`, company detail, insight APIs, source display and feedback controls remain implemented separately from Forecasting, but now require `petyr:admin`.
+- **Status:** Superseded on 2026-07-02 by admin-only MVP access.
+- **Proposal / next action:** Review quality with admins first. Reopen CSM UX only after a future Access Layer decision defines non-admin Intelligence permissions and row-level CSM scoping.
+
+## Implement Petyr Intelligence MVP phase 5: admin calibration and scheduled worker
+
+- **Area:** Petyr / Intelligence / Admin and worker
+- **Problem/question:** Admins need run observability, budget monitoring, calibration reports and eventually a controlled scheduled scan worker.
+- **Impact:** Partially resolved. `/petyr-admin/intelligence`, manual capped runs, run history, provider key/config status, provider usage, generated insights, feedback summary, daily provider request budget enforcement and the scheduled `intelligence-scan` worker are implemented. Persisted calibration report generation is not implemented yet.
+- **Status:** Partially resolved on 2026-07-01; worker portion resolved on 2026-07-01.
+- **Proposal / next action:** Add persisted calibration report generation and review dedicated Intelligence permissions before broader rollout.
+
+## Harden Petyr Intelligence daily provider budget accounting
+
+- **Area:** Petyr / Intelligence / Provider budget
+- **Problem/question:** The MVP enforces per-run caps and stores provider request logs, but it does not yet aggregate a rolling daily request count across previous runs before every provider call.
+- **Impact:** Resolved. Manual and scheduled real scans check `company_intelligence_provider_request_log` before each Exa/OpenRouter attempt and stop when `INTELLIGENCE_DAILY_BUDGET_REQUESTS` is exhausted.
+- **Status:** Resolved on 2026-07-01.
+- **Proposal / next action:** Review real provider usage/cost metadata after smoke tests and decide whether to add monetary budget thresholds.
+
+## Add scheduled Petyr Intelligence scan worker
+
+- **Area:** Petyr / Intelligence / Worker
+- **Problem/question:** The MVP exposes manual admin runs only. A scheduled `intelligence-scan` loop is documented but not implemented.
+- **Impact:** Resolved. `intelligence-scan` runs as a separate worker command/service, defaults to disabled, can be enabled/disabled from Admin, uses an advisory lock and records skipped/partial/failed states.
+- **Status:** Resolved on 2026-07-01.
+- **Proposal / next action:** Run a low-limit provider smoke test before enabling it on a production schedule.
+
+## Define Petyr Intelligence permissions beyond existing Petyr permissions
+
+- **Area:** Petyr / Intelligence / Access Control
+- **Problem/question:** Initial documentation proposes using `petyr:read`, `petyr:forecast:write` and `petyr:admin`, but a dedicated permission model such as `petyr:intelligence:read`, `petyr:intelligence:feedback` or `petyr:intelligence:admin` has not been accepted.
+- **Impact:** Resolved for the current MVP by making the entire separated Intelligence section and its non-admin-looking read/feedback APIs require `petyr:admin`. Broader production exposure to CSMs would still need a new documented Access Layer decision and row-level scoping before implementation.
+- **Status:** Resolved for admin-only MVP on 2026-07-02.
+- **Proposal / next action:** Keep Intelligence admin-only unless a future task explicitly defines and implements dedicated non-admin Intelligence permissions through the Access Layer.
+
 ## Redesign company-level intelligence outside Company Detail
 
 - **Area:** Petyr / Forecasting / Intelligence UX
-- **Problem/question:** The existing Intelligence section inside Company Detail has been removed by product direction. The future company-level intelligence experience, location, permissions, interaction model, persistence rules and relationship to Forecast Entry Intelligence are not yet documented.
-- **Impact:** Company Detail no longer exposes consultative Intelligence. Implementing a replacement without a documented decision could reintroduce unclear UX, duplicate Forecast Entry behavior or unsafe OpenRouter/data-minimization assumptions.
-- **Status:** Open.
-- **Proposal / next action:** Define the future Intelligence surface in Petyr product documentation before implementation, including where it lives, who can run it, whether it reads persisted sentinel rows, what data is sent to OpenRouter and how it differs from Forecast Entry Monthly Intelligence.
+- **Problem/question:** The existing Intelligence section inside Company Detail has been removed by product direction. The future company-level intelligence experience, location, permissions, interaction model, persistence rules and relationship to Forecast Entry Intelligence needed documentation.
+- **Impact:** Resolved at documentation/decision level by defining Petyr Intelligence as a separate external-signal module isolated from Forecasting and from existing Forecast Entry Intelligence.
+- **Status:** Resolved on 2026-07-01 for documentation planning; implementation tracked in the Petyr Intelligence MVP backlog items above.
+- **Proposal / next action:** Implement the documented MVP phases without reintroducing Intelligence into Forecasting Company Detail.
 
 ## Optimize Petyr Forecast Entry batch read for production-sized portfolios
 
@@ -171,9 +235,9 @@ Project-specific backlog items should be placed in the most specific backlog ava
 
 - **Area:** Platform / Access Control / Deployment
 - **Problem/question:** The exact public/internal domains for OAuth2 Proxy, Auth API and admin/access-control surfaces are not yet fully defined. Petyr unified access is accepted as one user-facing Petyr host/domain routed through a gateway.
-- **Impact:** Resolved for current Petyr, Redash Ingestor and Access Layer production routing: Petyr uses `https://petyr.unguess-internal.net` with callback `https://petyr.unguess-internal.net/auth/callback`; Redash Ingestor uses `https://petyr.unguess-internal.net/redash-ingestor` with callback `https://petyr.unguess-internal.net/redash-ingestor/auth/callback`; Access Layer uses `https://access-layer.draftapps.it`.
-- **Status:** Resolved on 2026-06-22 for the current Petyr/Redash Ingestor/Access Layer host contract.
-- **Proposal / next action:** Configure DNS/proxy so `petyr.unguess-internal.net` routes `/forecasting`, `/petyr-admin`, `/api/petyr/*` and `/redash-ingestor/*` through the gateway, configure `access-layer.draftapps.it` for Access Layer, and update both Access Layer tool registrations with the documented callback URLs.
+- **Impact:** Resolved for current Petyr and Redash Ingestor production routing: Petyr uses `https://petyr.unguess-internal.net` with callback `https://petyr.unguess-internal.net/auth/callback`; Redash Ingestor uses `https://petyr.unguess-internal.net/redash-ingestor` with callback `https://petyr.unguess-internal.net/redash-ingestor/auth/callback`. Access Layer remains `https://access-layer.draftapps.it` unless a later explicit task changes that service host.
+- **Status:** Resolved on 2026-07-03 for the current Petyr/Redash Ingestor host contract.
+- **Proposal / next action:** Configure DNS/proxy so `petyr.unguess-internal.net` routes `/forecasting`, `/petyr-admin`, `/api/petyr/*` and `/redash-ingestor/*` through the gateway, keep `access-layer.draftapps.it` configured for Access Layer, and update both Access Layer tool registrations with the documented callback URLs.
 
 ## Confirm first protected tool
 

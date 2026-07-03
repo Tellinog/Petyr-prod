@@ -2038,7 +2038,7 @@ export default function PetyrMVPRendering({
   activeView = 'management',
   preferredCsmName = null,
   canViewAdminTools = false,
-  canViewCsmOverview = true,
+  canViewCsmOverview = false,
   canManageObjectives = false,
   renderingState = 'ready',
   onRetryRenderingData,

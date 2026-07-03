@@ -124,7 +124,7 @@ export function PetyrWorkspaceShell({
   activeSection,
   companyDetailHref = null,
   forecastEntryHref = null,
-  canViewCsmOverview = true,
+  canViewCsmOverview = false,
   children,
   ...props
 }: PetyrWorkspaceShellProps) {

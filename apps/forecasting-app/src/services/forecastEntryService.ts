@@ -15,6 +15,7 @@ import {
   type PetyrDataServiceResult,
   type PetyrForecastEntryContext
 } from "@/services/petyrDataService";
+import { clearNumericAiForecastCacheForCompany } from "@/services/petyrAiForecastCacheCleanupService";
 
 const SAVE_SOURCE = "Forecast Entry";
 const SAVE_USER_FALLBACK = "petyr-forecast-entry";
@@ -480,6 +481,9 @@ export async function saveForecastEntry(input: ForecastEntrySaveInput): Promise<
           updatedBy: createdBy
         }
       });
+      if (!companyActiveStatus) {
+        await clearNumericAiForecastCacheForCompany({ companyName: resolvedCompanyName, tx });
+      }
 
       await tx.forecastChangeLog.create({
         data: {

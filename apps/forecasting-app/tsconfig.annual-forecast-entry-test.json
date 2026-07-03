@@ -13,6 +13,9 @@
   },
   "include": [
     "src/lib/petyr/annualForecastEntryRules.ts",
+    "src/lib/petyr/constants.ts",
+    "src/lib/petyr/annualForecastImportParser.ts",
+    "src/lib/petyr/inactiveCompaniesAnnualExportRows.ts",
     "src/services/forecastEntryReadCache.ts",
     "src/services/petyrInitialForecastWindowOverrideService.ts",
     "tests/annualForecastEntryRules.test.ts"

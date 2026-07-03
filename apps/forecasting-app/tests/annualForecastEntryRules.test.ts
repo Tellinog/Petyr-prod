@@ -13,6 +13,9 @@ import {
   parsePetyrInitialForecastWindowOverrides,
   PetyrInitialForecastWindowOverrideValidationError
 } from "../src/services/petyrInitialForecastWindowOverrideService";
+import { parseAnnualForecastImportRows } from "../src/lib/petyr/annualForecastImportParser";
+import { getMissingAnnualForecastImportCustomers } from "../src/lib/petyr/annualForecastImportMissingCustomers";
+import { buildInactiveCompaniesAnnualForecastRows } from "../src/lib/petyr/inactiveCompaniesAnnualExportRows";
 
 function dateFor(year: number, month: number, day: number) {
   return new Date(year, month - 1, day, 12, 0, 0);
@@ -112,4 +115,133 @@ test("Annual Forecast Entry percentages derive revenue, planned and uncovered sh
     plannedPct: 0.5,
     uncoveredPct: 0.25
   });
+});
+
+test("Annual forecast import parser reads only the Forecast Ongoing BU block", () => {
+  const result = parseAnnualForecastImportRows([
+    [
+      "CSM",
+      "Customer",
+      "Company",
+      "FORECAST INIZIALE 2026",
+      "Revenue previste su UX",
+      "FORECAST ONGOING",
+      "QA",
+      "UX",
+      "Accessibility",
+      "Security",
+      "FTE",
+      "TA",
+      "AI",
+      "OTHER"
+    ],
+    ["CSM 1", "Customer A", "Company A", 999, 999, 300, 100, 50, "", "", "", "", "", 150]
+  ]);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.importableRows, 1);
+  assert.deepEqual(result.businessUnits, ["QA", "Experience", "Accessibility", "Security", "FTE", "TA", "AI", "Other"]);
+  assert.equal(result.companies[0].ongoingTotal, 300);
+  assert.deepEqual(result.companies[0].valuesByBusinessUnit, {
+    QA: 100,
+    Experience: 50,
+    Other: 150
+  });
+});
+
+test("Annual forecast import parser aggregates duplicate customers and reports them", () => {
+  const result = parseAnnualForecastImportRows([
+    ["Customer", "Company", "FORECAST ONGOING", "QA", "UX", "OTHER"],
+    ["Customer A", "Company A", 100, 80, 20, ""],
+    ["Customer A", "Company A - second row", 50, "", 10, 40],
+    ["Customer B", "Company B", 0, "", "", ""]
+  ]);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.importableRows, 2);
+  assert.deepEqual(result.duplicateCustomers, [{ customerName: "Customer A", rows: [2, 3] }]);
+  assert.deepEqual(result.companies[0].valuesByBusinessUnit, {
+    QA: 80,
+    Experience: 30,
+    Other: 40
+  });
+  assert.equal(result.companies[0].ongoingTotal, 150);
+  assert.equal(result.companies[1].ongoingTotal, 0);
+});
+
+test("Annual forecast import parser accepts rows with values and missing optional Company", () => {
+  const result = parseAnnualForecastImportRows([
+    ["Customer", "Company", "FORECAST ONGOING", "QA", "UX"],
+    ["Consip", "", 350000, "", 150000]
+  ]);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.companies[0].companyName, "Consip");
+  assert.deepEqual(result.companies[0].valuesByBusinessUnit, {
+    Experience: 150000
+  });
+});
+
+test("Annual forecast import parser does not duplicate rows with same Company but different Customer", () => {
+  const result = parseAnnualForecastImportRows([
+    ["Customer", "Company", "FORECAST ONGOING", "QA", "UX"],
+    ["Accenture Italia", "Accenture Italia", 100000, 20000, 80000],
+    ["Accenture / Valentino", "Accenture Italia", 0, 0, ""]
+  ]);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.importableRows, 2);
+  assert.deepEqual(result.duplicateCustomers, []);
+});
+
+test("Annual forecast import parser rejects rows with values and missing Customer", () => {
+  const result = parseAnnualForecastImportRows([
+    ["Customer", "Company", "FORECAST ONGOING", "QA", "UX"],
+    ["", "Company A", 10, 10, ""]
+  ]);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors.length, 1);
+  assert.equal(result.errors[0].field, "Customer");
+});
+
+test("Annual forecast import missing-customer selector ignores imported and already inactive companies", () => {
+  const missing = getMissingAnnualForecastImportCustomers({
+    importedCompanyNames: ["Customer A", "Customer C"],
+    inactiveCompanyNames: ["Customer D"],
+    ownershipPairs: [
+      { companyName: "Customer A", csmName: "CSM 1" },
+      { companyName: "Customer B", csmName: "CSM 2" },
+      { companyName: "Customer C", csmName: "CSM 3" },
+      { companyName: "Customer D", csmName: "CSM 4" }
+    ]
+  });
+
+  assert.deepEqual(missing, [{ companyName: "Customer B", csmName: "CSM 2" }]);
+});
+
+test("Inactive companies annual export rows aggregate saved annual revenue by Business Unit", () => {
+  const rows = buildInactiveCompaniesAnnualForecastRows({
+    inactiveStatuses: [
+      { companyName: "Customer B", reason: "zero annual forecast", updatedAt: "2026-07-03T08:00:00.000Z" },
+      { companyName: "Customer A", reason: null }
+    ],
+    annualForecasts: [
+      { companyName: "Customer B", csmName: "CSM 2", businessUnit: "QA", value: "100.25" },
+      { companyName: "Customer B", csmName: "CSM 2", businessUnit: "Experience", value: 50 },
+      { companyName: "Customer B", csmName: "CSM 2", businessUnit: "Unknown BU", value: 25 },
+      { companyName: "Active Customer", csmName: "CSM 1", businessUnit: "QA", value: 999 }
+    ]
+  });
+
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].companyName, "Customer A");
+  assert.equal(rows[0].totalRevenue, 0);
+  assert.equal(rows[1].companyName, "Customer B");
+  assert.equal(rows[1].csmName, "CSM 2");
+  assert.equal(rows[1].totalRevenue, 175.25);
+  assert.equal(rows[1].valuesByBusinessUnit.QA, 100.25);
+  assert.equal(rows[1].valuesByBusinessUnit.Experience, 50);
+  assert.equal(rows[1].valuesByBusinessUnit.Other, 25);
 });

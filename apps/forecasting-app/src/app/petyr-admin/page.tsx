@@ -9,6 +9,8 @@ import PetyrAiModelSettingsForm from "@/components/petyr/PetyrAiModelSettingsFor
 import PetyrClosedRevenueOngoingBackfillControl from "@/components/petyr/PetyrClosedRevenueOngoingBackfillControl";
 import PetyrDatabaseBackupControl from "@/components/petyr/PetyrDatabaseBackupControl";
 import PetyrInitialForecastWindowControl from "@/components/petyr/PetyrInitialForecastWindowControl";
+import PetyrAnnualForecastExcelImportWorkflow from "@/components/petyr/PetyrAnnualForecastExcelImportWorkflow";
+import PetyrInactiveCompaniesAnnualExportControl from "@/components/petyr/PetyrInactiveCompaniesAnnualExportControl";
 import PetyrMonthlyForecastExcelWorkflow from "@/components/petyr/PetyrMonthlyForecastExcelWorkflow";
 import { requirePetyrPagePermission } from "@/lib/petyr/auth";
 import { PETYR_PERMISSIONS } from "@/lib/petyr/authCore";
@@ -935,6 +937,19 @@ export default async function PetyrAdminPage() {
           <PetyrMonthlyForecastExcelWorkflow preferredCsmName={preferredCsmName} />
         </SectionCard>
 
+        <SectionCard
+          description="Admin-only import for annual Forecast Ongoing values from the 2026 annual workbook."
+          title="Excel annual forecast import"
+        >
+          <PetyrAnnualForecastExcelImportWorkflow />
+        </SectionCard>
+
+        <SectionCard
+          description="Read-only Excel export of inactive companies with saved annual Forecast Ongoing revenue by Business Unit."
+          title="Inactive companies annual export"
+        >
+          <PetyrInactiveCompaniesAnnualExportControl />
+        </SectionCard>
 
         <SectionCard
           description="One-time protected operation to copy already closed 2026 Redash revenue into Petyr Ongoing Forecast."

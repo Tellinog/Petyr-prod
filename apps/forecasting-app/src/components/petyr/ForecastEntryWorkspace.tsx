@@ -63,10 +63,11 @@ function monthLabel(month: number) {
   return MONTHS[month - 1] ?? `Month ${month}`;
 }
 
-function buildCompanyDetailPageUrl(selection: Pick<Selection, "companyName" | "year">) {
+function buildCompanyDetailPageUrl(selection: Pick<Selection, "companyName" | "csmName" | "year">) {
   const params = new URLSearchParams({
     year: String(selection.year)
   });
+  if (selection.csmName) params.set("csmName", selection.csmName);
 
   return `/forecasting/company/${encodeURIComponent(selection.companyName)}?${params.toString()}`;
 }
@@ -579,15 +580,21 @@ export default function ForecastEntryWorkspace({
 
   const selectedMonthLabel = monthLabel(entry.data.month);
   const companyDetailUrl = entry.data.companyName
-    ? buildCompanyDetailPageUrl({
-        companyName: entry.data.companyName,
-        year: entry.data.year
-      })
+      ? buildCompanyDetailPageUrl({
+          companyName: entry.data.companyName,
+          csmName: entry.data.csmName,
+          year: entry.data.year
+        })
     : null;
   const forecastEntryHref = buildEntryPageUrl(selectionFromEntry(entry));
 
   return (
-    <PetyrWorkspaceShell activeSection="entry" companyDetailHref={companyDetailUrl} forecastEntryHref={forecastEntryHref}>
+    <PetyrWorkspaceShell
+      activeSection="entry"
+      companyDetailHref={companyDetailUrl}
+      forecastEntryHref={forecastEntryHref}
+      canViewCsmOverview={canViewAdminTools}
+    >
       <PetyrForecastNavigatorShell
         sticky
         csmSlot={

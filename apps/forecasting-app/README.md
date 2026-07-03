@@ -12,7 +12,10 @@ This base app includes:
 - the approved Petyr visual rendering at `/forecasting`;
 - Management Objectives in Management View, with `/forecasting/entry/objectives` kept as a management-only compatibility route;
 - PostgreSQL database backup export/import in `/petyr-admin`;
+- admin-only separated Petyr Intelligence at `/intelligence` and `/petyr-admin/intelligence`;
 - Excel-first monthly forecast import/export in `/petyr-admin`;
+- admin-only annual Forecast Ongoing Excel import in `/petyr-admin`;
+- admin-only inactive companies annual Forecast Ongoing export in `/petyr-admin`;
 - persisted sanitized performance results in `/petyr-admin`;
 - local UI components needed by the rendering;
 - Dockerfile;
@@ -21,7 +24,7 @@ This base app includes:
 - first DB preview API.
 
 `/forecasting` renders a lightweight shell immediately after Petyr read permission checks, then loads Management first from `GET /api/petyr/forecasting/rendering-data?view=management` in the browser. CSM Overview is currently in development and is visible/accessible only to users with `petyr:admin`; non-admin users are kept on Management and do not see the CSM Overview navigator item or preload its data. For admins, after Management is usable, the client starts scoped CSM Overview preload through `view=csm-scoped` for the authenticated/preferred CSM and starts Forecast Entry Monthly and Annual warmup for users with `petyr:forecast:write`. It does not immediately hydrate `view=all` after Management. While the Management refresh is running, users see only the shared workspace header, section navigator and an in-page loader labelled `Updating data ongoing`; Management dashboard cards, tables and diagnostics remain hidden until the Management payload is ready. Forecasting data remains PostgreSQL-backed; these endpoint variants do not introduce Redash browser calls or schema changes. Company Detail is intentionally on-demand and reads only the selected company/year. Numeric AI Forecast cache reads use a narrow latest-row projection and exclude `explanation`, `request_payload_summary`, `validated_output` and `error_message`; if that read fails, Management, CSM Overview and Company Detail continue rendering with `aiRows=[]` plus a warning.
-In Company Detail, the Business Unit current-year view shows collapsed Business Unit totals for Ongoing Forecast, AI Forecast and Closed Revenue YTD. Users can expand each Business Unit to review the individual selected-year months, including previous-month forecast, ongoing forecast, AI Forecast and closed revenue. Below that section, users with forecast write permission can add a company note directly to Company logs without opening Forecast Entry or changing forecast values. Company campaigns show the latest completed campaign plus running or planned campaigns by default, with older/other campaigns expandable. Agreements show only rows expiring after the moment of viewing by default, with expired or undated rows expandable. Company logs replace Change history, show notes and forecast changes, and display the latest three logs before expansion. The Revenue by Business Unit detail, Monthly forecast rows, Annual forecast rows and AI forecast cache support tables are visible only to users with `petyr:admin`.
+In Company Detail, the navigator CSM/company filter uses the same recent Company Ownership workspace association rule as Forecast Entry Monthly and Annual: all company-CSM associations with `workspace_updated_on` in the last 6 months are eligible, with latest-owner fallback only when no recent associations exist. Company Detail links and in-page navigation preserve the selected `csmName` query context so the CSM filter and company list stay aligned when a company appears in multiple recent CSM portfolios. The Business Unit current-year view shows collapsed Business Unit totals for Ongoing Forecast, AI Forecast and Closed Revenue YTD. Users can expand each Business Unit to review the individual selected-year months, including previous-month forecast, ongoing forecast, AI Forecast and closed revenue. Below that section, users with forecast write permission can add a company note directly to Company logs without opening Forecast Entry or changing forecast values. Company campaigns show the latest completed campaign plus running or planned campaigns by default, with older/other campaigns expandable. Agreements show only rows expiring after the moment of viewing by default, with expired or undated rows expandable. Company logs replace Change history, show notes and forecast changes, and display the latest three logs before expansion. The Revenue by Business Unit detail, Monthly forecast rows, Annual forecast rows and AI forecast cache support tables are visible only to users with `petyr:admin`.
 
 ## Important rule
 
@@ -144,9 +147,10 @@ npm run worker:ai-forecast:loop
 The Docker Compose service `petyr-ai-forecast-worker` runs the loop every night
 at `PETYR_AI_FORECAST_DAILY_TIME=02:00` in `Europe/Rome`, with
 `PETYR_AI_FORECAST_DELAY_MS=3000` between active companies. It targets the
-current Rome year, excludes only companies explicitly marked inactive, computes
-the same local deterministic preview rows used by Forecast Entry, and saves them
-to `ai_forecast_cache` with daily append-only model versions such as
+current Rome year, cleans numeric `ai_forecast_cache` rows for companies
+explicitly marked inactive, excludes those inactive companies, computes the same
+local deterministic preview rows used by Forecast Entry for active companies,
+and saves them to `ai_forecast_cache` with daily append-only model versions such as
 `petyr_deterministic_preview_v1@YYYY-MM-DD`. It does not call OpenRouter or
 Forecast Intelligence, and it does not write CSM forecast, annual forecast,
 management objective, Initial Forecast, closed revenue or Redash tables.
@@ -154,6 +158,23 @@ Petyr Admin records each manual or scheduled Daily AI Forecast run in
 `petyr_performance_measurement` under operation `Daily AI Forecast run`, showing
 duration, run source, selected/processed/failed company counts, saved/skipped
 rows and the daily model version.
+
+Petyr Intelligence scheduled worker:
+
+```bash
+npm run worker:intelligence:once
+npm run worker:intelligence:loop
+```
+
+The Docker Compose service `intelligence-scan` runs the loop every day at
+`INTELLIGENCE_SCAN_DAILY_TIME=03:00` in `INTELLIGENCE_SCAN_TIMEZONE=Europe/Rome`.
+It defaults to disabled through `INTELLIGENCE_WORKER_ENABLED=false` and can be
+enabled or disabled from `/petyr-admin/intelligence` with `APP_INTERNAL_SECRET`.
+Real scans require `INTELLIGENCE_ENABLED=true`, `EXA_API_KEY`,
+`OPENROUTER_API_KEY`, low run caps and the persisted daily provider request
+budget. The worker writes only Intelligence tables and provider request logs; it
+does not write Forecasting forecast tables or ask OpenRouter to analyze revenue,
+margin, forecast values, campaign counts or numeric trends.
 
 Management Objectives use:
 
@@ -204,7 +225,7 @@ GET /api/petyr/forecast-entry/annual-batch?csmName=...&year=YYYY
 POST /api/petyr/forecast-entry/annual-batch/save
 ```
 
-The annual section is a separate tab inside `/forecasting/entry`. It exposes CSM and Year filters, and its CSM selector stays synchronized with Monthly Forecast Entry when both sections are loaded. The Annual table shows a compact horizontally scrollable summary row above the legend and table with the selected CSM year total plus one selected-year total for each official Business Unit. The Annual table uses its own vertical scroll area so only the legend row and table header stay visible while users scroll down the portfolio; the section title, filters, selected-CSM annual summary and Forecast Initial window notice scroll away above it. It keeps Customer and Confidence visible during horizontal scroll, marks editable/manual-entry columns with a subtle background, and includes a legend-row button to collapse or show all Business Unit columns. Collapsed mode keeps only Active through Confidence plus Closed Revenue YTD through Logs visible. It stores customer + year Forecast Initial and Confidence in
+The annual section is a separate tab inside `/forecasting/entry`. It exposes CSM and Year filters, and its CSM selector stays synchronized with Monthly Forecast Entry when both sections are loaded. The Annual table shows the selected CSM year total as a highlighted portfolio-total row at the bottom of the table, aligned to Forecast Initial, Forecast Ongoing, visible Business Unit, Closed Revenue YTD, Planned This Year and ratio columns; Active, Confidence and Logs stay empty on that total row. The Annual table uses its own vertical scroll area so only the full-width legend row and table header stay visible while users scroll down the portfolio; the section title, filters and Forecast Initial window notice scroll away above it. It keeps Company and Confidence visible during horizontal scroll, marks editable/manual-entry columns with a subtle background, displays the official `Experience` Business Unit as `UX` in Forecast Entry headers, and includes a legend-row button to collapse or show all Business Unit columns. Collapsed mode keeps only Active through Confidence plus Closed Revenue YTD through Logs visible. It stores company + year Forecast Initial and Confidence in
 `forecast_annual_entry`, stores annual BU values in `forecast_annual`, and
 audits effective changes through `forecast_save_session` /
 `forecast_change_log` with source `Annual Forecast Entry`. Annual saves use the same floating bottom-right `Save` button pattern and do not show separate top or bottom inline save buttons. Its read endpoint uses a portfolio-scoped PostgreSQL read model for the selected CSM/year instead of loading full Company Detail for each customer. After schema changes,
@@ -227,6 +248,38 @@ POST /api/petyr/admin/import-monthly-forecast-xlsx
 Excel is the recommended bulk admin format for 2026 historical input and CSM-friendly
 forecast updates. CSV import/export routes remain available as legacy/advanced
 compatibility.
+
+Petyr Admin annual Forecast Ongoing Excel import uses:
+
+```txt
+POST /api/petyr/admin/import-annual-forecast-xlsx
+```
+
+The endpoint requires `petyr:admin`, accepts the 2026 annual workbook, supports
+dry-run/apply from `/petyr-admin`, and reads only the Business Unit columns after
+`FORECAST ONGOING` in `ITA_Andamento lavorato VS Forec`. The workbook
+`Customer` column is the Petyr company key; `Company` is optional reference data
+only. It writes
+`forecast_annual.value` with `value_source=manual` and may mark companies
+inactive when the aggregated workbook Forecast Ongoing total is zero. By
+default, companies absent from the workbook are not changed. The unchecked
+Petyr Admin checkbox can opt into marking canonical Company Ownership companies
+absent from the workbook as inactive during dry-run/apply. It does not write
+Forecast Initial, annual confidence, monthly forecast, Closed revenue, AI
+forecast cache, Redash data or Management Objectives.
+
+Petyr Admin inactive companies annual Forecast Ongoing Excel export uses:
+
+```txt
+GET /api/petyr/admin/export-inactive-companies-annual-forecast-xlsx?year=2026
+```
+
+The endpoint requires `petyr:admin` and exports all companies explicitly saved
+as inactive in `company_forecast_status`, with selected-year saved annual
+Forecast Ongoing totals and official Business Unit values from
+`forecast_annual.value`. It is read-only and does not use Closed revenue,
+monthly forecast, AI forecast, Forecast Initial, Redash data or Management
+Objectives as revenue values.
 
 Petyr Admin performance results use:
 

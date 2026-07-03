@@ -29,6 +29,7 @@ import {
   getPetyrInitialForecastWindowOverridesWithDiagnostics,
   isInitialForecastYearAdminUnlocked
 } from "@/services/petyrInitialForecastWindowOverrideService";
+import { clearNumericAiForecastCacheForCompany } from "@/services/petyrAiForecastCacheCleanupService";
 
 const SAVE_SOURCE = "Annual Forecast Entry";
 const SAVE_USER_FALLBACK = "petyr-annual-forecast-entry";
@@ -863,6 +864,9 @@ export async function saveAnnualForecastEntryBatch(
             updatedBy: createdBy
           }
         });
+        if (!nextActiveStatus) {
+          await clearNumericAiForecastCacheForCompany({ companyName: resolvedCompanyName, tx });
+        }
         activeStatusUpdates += 1;
 
         await tx.forecastChangeLog.create({

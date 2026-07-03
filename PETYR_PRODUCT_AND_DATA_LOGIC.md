@@ -460,15 +460,22 @@ Year rules:
 
 Table rules:
 
-- rows are all customers assigned to the selected CSM;
-- sorting is active customers first, inactive customers with Revenue or Planned
-  second, inactive customers without Revenue or Planned last;
-- inactive customers remain visible with muted styling;
-- customer names link to Company Detail;
+- rows are all companies assigned to the selected CSM;
+- sorting is active companies first, inactive companies with Revenue or Planned
+  second, inactive companies without Revenue or Planned last;
+- inactive companies remain visible with muted styling;
+- company names link to Company Detail;
 - Logs opens Company Detail at the company logs anchor in a new tab and each
   row action is labelled `See latest logs of <company>`;
-- the Customer and Confidence columns remain visible during horizontal scroll,
-  and table headers stay fixed during vertical scroll;
+- the Company and Confidence columns remain visible during horizontal scroll,
+  the legend row spans the full horizontal table width, and table headers stay
+  fixed during vertical scroll;
+- the selected CSM annual summary is shown as a highlighted total row at the
+  bottom of the table, with no Active, Confidence or Logs value, and with
+  Forecast Initial, Forecast Ongoing, visible Business Unit totals, Closed
+  Revenue YTD, Planned This Year and ratio values aligned under their columns;
+- Forecast Entry may display the official `Experience` Business Unit as `UX`
+  while preserving `Experience` as the stored Business Unit value;
 - a button to the right of the legend collapses or shows all Business Unit
   columns, leaving only Active through Confidence and Closed Revenue YTD through
   Logs visible when collapsed;
@@ -478,11 +485,11 @@ Table rules:
 
 Annual values:
 
-- FC Initial is stored by customer + year in `forecast_annual_entry`;
+- FC Initial is stored by company + year in `forecast_annual_entry`;
 - FC Initial is editable only from December 10 of year N-1 through January 10 of
   year N, or while Petyr Admin has unlocked that selected target year, then
   read-only;
-- FC Ongoing Confidence is stored by customer + year and accepts only `01 High`,
+- FC Ongoing Confidence is stored by company + year and accepts only `01 High`,
   `02 Mid` and `03 Low`;
 - confidence is required when a row is modified;
 - Business Unit annual forecast values use the official Petyr Business Units and
@@ -998,7 +1005,7 @@ It must not be the main editing area.
 
 Company Detail is analytical and read-only.
 
-Company Detail uses the shared Petyr workspace shell with the same descriptive header card and section navigation as Management View, CSM Overview and Forecast Entry. It remains read-only for forecast data edits, but users must be able to change CSM filter, company, previous/next company and year through the Forecast Entry-style navigator backed by the Forecast Entry company ordering. The year/load control appears to the left of previous/next company navigation, and previous/next navigation must not repeat the CSM name.
+Company Detail uses the shared Petyr workspace shell with the same descriptive header card and section navigation as Management View, CSM Overview and Forecast Entry. It remains read-only for forecast data edits, but users must be able to change CSM filter, company, previous/next company and year through the Forecast Entry-style navigator backed by the Forecast Entry company ordering and the same recent Company Ownership workspace association rule used by Forecast Entry Monthly and Annual. The year/load control appears to the left of previous/next company navigation, and previous/next navigation must not repeat the CSM name.
 
 It must show:
 
@@ -1171,9 +1178,13 @@ It must:
 - influence priority ordering;
 - not hide inactive companies;
 - put inactive companies lower in priority;
+- clear numeric AI Forecast cache rows from `ai_forecast_cache` when a company
+  is explicitly saved as inactive;
 - be tracked in change history/save session.
 
-Inactive companies remain visible.
+Inactive companies remain visible. Cleaning AI Forecast cache for an inactive
+company must not mutate CSM forecast rows, Annual Forecast rows, Initial
+Forecast, Closed revenue, management objectives or Redash-derived data.
 
 External Excel import/export format:
 
@@ -1227,10 +1238,12 @@ is deliberately controlled:
 Accepted deterministic automation:
 
 - Petyr runs a dedicated nightly deterministic-only worker for active companies;
-- default schedule: `01:00` in `Europe/Rome`;
+- default schedule: `02:00` in `Europe/Rome`;
 - default inter-company delay: `3000ms`;
 - target year: current Rome year;
 - company scope: all Forecast Entry companies except those explicitly marked inactive;
+- inactive cleanup: before processing active companies, delete numeric
+  `ai_forecast_cache` rows for companies explicitly marked inactive;
 - persistence: `ai_forecast_cache` only;
 - model version: daily append-only value such as `petyr_deterministic_preview_v1@YYYY-MM-DD`;
 - no OpenRouter call, Forecast Intelligence call, CSM forecast write, annual forecast write,
@@ -1522,6 +1535,8 @@ It is used for these visible sections, in display order:
 - AI Forecast baseline weights;
 - OpenRouter model settings;
 - Excel monthly forecast import/export as the recommended admin workflow;
+- Excel annual Forecast Ongoing import for the 2026 workbook;
+- inactive companies annual Forecast Ongoing export;
 - one-time 2026 closed revenue alignment.
 
 The visible admin area must not show legacy Initial Forecast baseline/import
@@ -1565,6 +1580,43 @@ Excel admin workflow rules:
 - Excel import must create save sessions and change logs coherently with other massive forecast saves;
 - validation errors and warnings must be visible in the admin result;
 - manager/CSM access scoping is deferred to the future access-control layer and must not be invented ad hoc.
+
+Annual Forecast Ongoing Excel import rules:
+
+- endpoint: `POST /api/petyr/admin/import-annual-forecast-xlsx`;
+- the endpoint requires `petyr:admin`;
+- the admin UI must run a dry-run validation before apply;
+- default/focus year is 2026;
+- the workbook source sheet is `ITA_Andamento lavorato VS Forec`;
+- import reads only the Business Unit columns after `FORECAST ONGOING`;
+- the calculated `FORECAST ONGOING` total is used only to decide inactive status and must not be persisted directly;
+- workbook Business Unit headers map to official Petyr values: `QA` -> `QA`, `UX` -> `Experience`, `Accessibility` -> `Accessibility`, `Security` -> `Security`, `FTE` -> `FTE`, `TA` -> `TA`, `AI` -> `AI`, `OTHER` -> `Other`;
+- `Community` and `Express` are not touched because the workbook has no columns for them;
+- `Customer` is the Petyr company key for this workbook;
+- workbook `Company` is optional reference data only and must not be used as a fallback or aggregation key;
+- duplicate Customer rows are aggregated before import and reported as warnings;
+- rows with importable values and an empty Customer cell are validation errors;
+- blank cells in imported Business Unit columns become `0` only when Petyr already has an existing annual value for that Customer + Business Unit + Year; otherwise no zero row is created;
+- if the aggregated workbook Forecast Ongoing total for a Customer is zero, save `company_forecast_status.is_active=false`;
+- by default, Customers absent from the workbook are not touched;
+- Petyr Admin exposes an unchecked opt-in checkbox to mark all canonical Company Ownership companies absent from the workbook as inactive during dry-run/apply;
+- positive Forecast Ongoing totals must not force inactive companies back to active;
+- persistence writes only `forecast_annual.value` with `value_source=manual`, `status=draft`, and `company_forecast_status` inactive updates;
+- the import must not write `forecast_annual.initial_forecast`, `forecast_annual_entry.initial_forecast`, `forecast_annual_entry.ongoing_confidence`, monthly forecast, Closed revenue, AI forecast cache, Redash materialized data or Management Objectives;
+- effective changes create `forecast_save_session` and `forecast_change_log` rows with source `Admin Annual Forecast Import`.
+
+Inactive companies annual Forecast Ongoing export rules:
+
+- endpoint: `GET /api/petyr/admin/export-inactive-companies-annual-forecast-xlsx?year=YYYY`;
+- the endpoint requires `petyr:admin`;
+- default/focus year is 2026;
+- the export is read-only and writes no database rows;
+- it includes companies explicitly saved as inactive in `company_forecast_status`;
+- total saved revenue is the sum of `forecast_annual.value` for the selected year;
+- revenue by Business Unit is grouped by the official Petyr Business Units;
+- missing saved annual values export as zero for the relevant inactive company/Business Unit;
+- unofficial or unknown Business Unit values are normalized to `Other`;
+- the export must not use Closed revenue, monthly forecast, AI forecast, Forecast Initial, Redash materialized data or Management Objectives as revenue values.
 
 Monthly import behavior must not be changed outside tasks explicitly dedicated
 to monthly import performance/status. New imports for Initial Forecast 2026

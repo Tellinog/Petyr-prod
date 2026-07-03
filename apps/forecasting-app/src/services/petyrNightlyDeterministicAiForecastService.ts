@@ -6,6 +6,7 @@ import {
   savePetyrDeterministicAiForecastForCompany,
   type PetyrDeterministicAiForecastCacheSaveResult
 } from "@/services/petyrAiForecastCompanyIntelligenceService";
+import { clearNumericAiForecastCacheForCompanies } from "@/services/petyrAiForecastCacheCleanupService";
 
 const DEFAULT_DAILY_TIME = "02:00";
 const DEFAULT_DELAY_MS = 3000;
@@ -55,6 +56,7 @@ export type PetyrNightlyDeterministicAiForecastResult = {
 export type PetyrNightlyDeterministicAiForecastDependencies = {
   listCompanies?: typeof getForecastEntryCompanies;
   saveCompany?: typeof savePetyrDeterministicAiForecastForCompany;
+  cleanupInactiveCompanies?: typeof clearNumericAiForecastCacheForCompanies;
   sleep?: (ms: number) => Promise<void>;
   runWithLock?: <T>(operation: () => Promise<T>) => Promise<T | "lock_busy">;
   now?: () => Date;
@@ -184,6 +186,7 @@ export async function runPetyrNightlyDeterministicAiForecast(
   const delayMs = parsePetyrAiForecastDelayMs();
   const listCompanies = dependencies.listCompanies ?? getForecastEntryCompanies;
   const saveCompany = dependencies.saveCompany ?? savePetyrDeterministicAiForecastForCompany;
+  const cleanupInactiveCompanies = dependencies.cleanupInactiveCompanies ?? clearNumericAiForecastCacheForCompanies;
   const sleep = dependencies.sleep ?? defaultSleep;
   const runWithLock = dependencies.runWithLock ?? defaultRunWithAdvisoryLock;
   const runSource = dependencies.runSource ?? "scheduled";
@@ -192,6 +195,13 @@ export async function runPetyrNightlyDeterministicAiForecast(
     const diagnostics: string[] = [];
     const companiesResult = await listCompanies();
     diagnostics.push(...companiesResult.diagnostics);
+    const inactiveCompanyNames = companiesResult.data
+      .filter((row) => row.isForecastActive === false)
+      .map((row) => row.companyName);
+    const cleanupResult = await cleanupInactiveCompanies({ companyNames: inactiveCompanyNames });
+    if (cleanupResult.deletedRows > 0) {
+      diagnostics.push(`Cleaned ${cleanupResult.deletedRows} numeric AI Forecast cache row(s) for inactive companies before Daily AI Forecast.`);
+    }
     const companies = normalizePetyrNightlyForecastCompanies(companiesResult.data);
     const results: PetyrNightlyDeterministicAiForecastCompanyResult[] = [];
 

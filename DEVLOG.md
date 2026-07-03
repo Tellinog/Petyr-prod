@@ -18,15 +18,131 @@ Each entry must include:
 
 ---
 
+## 2026-07-03
+
+- **Area:** Platform / Petyr deployment / Access Layer callbacks
+- **Change:** Updated the active Petyr production host from `https://petyr.draftapps.it` to `https://petyr.unguess-internal.net` across root env examples, Docker Compose defaults, deploy docs, architecture docs, Petyr and Redash Ingestor auth examples, Access Layer tool descriptors and auth tests. Next.js Server Actions allowed origins now include `petyr.unguess-internal.net` and no longer include `petyr.draftapps.it`.
+- **Reason:** Product requested that the application work on `https://petyr.unguess-internal.net/` instead of `https://petyr.draftapps.it/`.
+- **Impact:** Petyr auth callback becomes `https://petyr.unguess-internal.net/auth/callback`; Redash Ingestor callback becomes `https://petyr.unguess-internal.net/redash-ingestor/auth/callback`. Access Layer itself remains documented at `https://access-layer.draftapps.it` unless changed by a later task. No database schema, Redash source, forecast calculation, permission key or UI behavior changed.
+- **Files/documents involved:** `.env.example`, `docker-compose.yml`, `docker-compose.local.yml`, `DEPLOY.md`, `docs/01_architecture.md`, `BACKLOG.md`, `DECISIONS.md`, `apps/forecasting-app/.env.example`, `apps/forecasting-app/README.md`, `apps/forecasting-app/next.config.ts`, `apps/forecasting-app/tests/petyrAuth.test.ts`, `apps/redash-ingestor/.env.example`, `apps/redash-ingestor/README.md`, `apps/redash-ingestor/tests/redashIngestorAuth.test.ts`, `petyr/access-layer-tools/*`.
+- **Follow-up:** Update Coolify variables/DNS and both Access Layer tool registrations to the new callback URLs before testing production login.
+
+## 2026-07-03
+
+- **Area:** Petyr / Admin / Inactive companies export
+- **Change:** Added an admin-only read-only Excel export for inactive companies at `GET /api/petyr/admin/export-inactive-companies-annual-forecast-xlsx?year=YYYY` and exposed it in `/petyr-admin`. The workbook lists companies explicitly saved as inactive, their selected-year saved annual Forecast Ongoing total and saved values by official Business Unit.
+- **Reason:** Admin users need a quick extraction of inactive companies with total saved revenue and saved Business Unit revenue.
+- **Impact:** No database rows are written. The export reads `company_forecast_status` and selected-year `forecast_annual.value`; it does not use Closed revenue, monthly forecast, AI forecast, Forecast Initial, Redash materialized data or Management Objectives as revenue values.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/petyr/inactiveCompaniesAnnualExportRows.ts`, `apps/forecasting-app/src/services/petyrInactiveCompaniesAnnualExportService.ts`, `apps/forecasting-app/src/app/api/petyr/admin/export-inactive-companies-annual-forecast-xlsx/route.ts`, `apps/forecasting-app/src/components/petyr/PetyrInactiveCompaniesAnnualExportControl.tsx`, `apps/forecasting-app/src/app/petyr-admin/page.tsx`, `apps/forecasting-app/tests/annualForecastEntryRules.test.ts`, `apps/forecasting-app/tsconfig.annual-forecast-entry-test.json`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-03
+
+- **Area:** Petyr / Admin / Annual forecast Excel import
+- **Change:** Added an unchecked Petyr Admin annual import option to mark canonical Company Ownership companies absent from the uploaded workbook as inactive. The flag is passed through dry-run/apply, appears in result counters as missing-Customer inactive updates, and writes status-only save sessions/change logs only for effective active-to-inactive changes.
+- **Reason:** Operations sometimes need the annual workbook to act as the authoritative active Customer list while keeping the safer default behavior for ordinary imports.
+- **Impact:** Default annual import behavior is unchanged: workbook-absent companies are not touched. When the checkbox is selected, absent canonical companies that are not already inactive are marked `company_forecast_status.is_active=false`; Forecast Initial, confidence, monthly forecast, Closed revenue, AI forecast cache, Redash data and Management Objectives remain untouched.
+- **Files/documents involved:** `apps/forecasting-app/src/app/api/petyr/admin/import-annual-forecast-xlsx/route.ts`, `apps/forecasting-app/src/components/petyr/PetyrAnnualForecastExcelImportWorkflow.tsx`, `apps/forecasting-app/src/services/petyrAnnualForecastExcelImportService.ts`, `apps/forecasting-app/src/lib/petyr/annualForecastImportMissingCustomers.ts`, `apps/forecasting-app/tests/annualForecastEntryRules.test.ts`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DECISIONS.md`, `DEVLOG.md`.
+- **Follow-up:** Use dry-run with the checkbox selected before applying, because it can create status updates for every active Company Ownership company absent from the workbook.
+
+## 2026-07-03
+
+- **Area:** Petyr / Admin / Annual forecast Excel import
+- **Change:** Corrected the annual workbook import contract so `Customer` is the Petyr company key and workbook `Company` is optional reference data only. Dry-run validation no longer rejects rows such as `Consip` or `Luiss` where Customer is present and Company is blank, and duplicate warnings are now based on repeated Customer values rather than broader Company grouping labels.
+- **Reason:** The operational workbook uses Customer for the specific Petyr company rows, while Company can be empty or can group slash/hyphen-specific customer rows under a broader name.
+- **Impact:** The annual import preserves separate Customer rows such as `Accenture Italia` and `Accenture / Valentino`, still fails when an importable row has no Customer, and still writes only annual Forecast Ongoing BU values plus inactive status when the aggregated Customer total is zero.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/petyr/annualForecastImportParser.ts`, `apps/forecasting-app/src/services/petyrAnnualForecastExcelImportService.ts`, `apps/forecasting-app/src/components/petyr/PetyrAnnualForecastExcelImportWorkflow.tsx`, `apps/forecasting-app/tests/annualForecastEntryRules.test.ts`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DECISIONS.md`, `DEVLOG.md`.
+- **Follow-up:** Re-run dry-run with the production workbook and review only remaining Customer-not-found errors, if any.
+
+## 2026-07-03
+
+- **Area:** Petyr / Admin / Annual forecast Excel import
+- **Change:** Added an admin-only annual `.xlsx` import workflow in `/petyr-admin` with dry-run/apply support. The import reads `ITA_Andamento lavorato VS Forec`, uses only the Business Unit columns after `FORECAST ONGOING`, maps workbook labels such as `UX` and `OTHER` to official Petyr Business Units, aggregates duplicate Customer rows, writes effective `forecast_annual.value` changes, and marks companies inactive only when aggregated Forecast Ongoing is zero.
+- **Reason:** Operations needed to load the 2026 annual forecast workbook into Petyr without reopening the deprecated Initial Forecast Excel bootstrap or importing calculated totals.
+- **Impact:** New endpoint `POST /api/petyr/admin/import-annual-forecast-xlsx` requires `petyr:admin`. The workflow does not modify Forecast Initial, annual confidence, monthly forecast, Closed revenue, AI forecast cache, Redash data or Management Objectives. Effective changes create Forecast save sessions and change logs with source `Admin Annual Forecast Import`.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/petyr/annualForecastImportParser.ts`, `apps/forecasting-app/src/services/petyrAnnualForecastExcelImportService.ts`, `apps/forecasting-app/src/app/api/petyr/admin/import-annual-forecast-xlsx/route.ts`, `apps/forecasting-app/src/components/petyr/PetyrAnnualForecastExcelImportWorkflow.tsx`, `apps/forecasting-app/src/app/petyr-admin/page.tsx`, `apps/forecasting-app/tests/annualForecastEntryRules.test.ts`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DECISIONS.md`, `DEVLOG.md`.
+- **Follow-up:** Run the dry-run with the production workbook and review missing Company Ownership errors before applying.
+
+## 2026-07-03
+
+- **Area:** Petyr / AI Forecasting / Inactive companies
+- **Change:** Added numeric AI Forecast cache cleanup for companies explicitly saved as inactive from Forecast Entry, Annual Forecast Entry and admin monthly import. The deterministic Daily AI Forecast worker now also deletes numeric `ai_forecast_cache` rows for explicitly inactive companies before processing and continues to calculate only active companies.
+- **Reason:** Product requested that inactive companies have their AI Forecast cleaned and not be calculated during nightly runs.
+- **Impact:** Stale numeric AI Forecast suggestions are removed for inactive companies. CSM forecast rows, Annual Forecast rows, Initial Forecast, Closed revenue, management objectives, Redash-derived data and Forecast Intelligence sentinel rows are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/services/petyrAiForecastCacheCleanupService.ts`, `apps/forecasting-app/src/services/forecastEntryService.ts`, `apps/forecasting-app/src/services/annualForecastEntryBatchService.ts`, `apps/forecasting-app/src/services/petyrMonthlyForecastImportService.ts`, `apps/forecasting-app/src/services/petyrNightlyDeterministicAiForecastService.ts`, `apps/forecasting-app/src/lib/petyr/nightlyDeterministicAiForecastCore.ts`, `apps/forecasting-app/tests/aiForecastIntelligence.test.ts`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/AI_FORECASTING_DESIGN.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
 ## 2026-07-02
 
-- **Area:** Platform / Petyr production domain
-- **Change:** Changed the active Petyr production host contract from `https://petyr.draftapps.it` to `https://petyr.unguess-internal.net`, including Petyr and Redash Ingestor Access Layer callback defaults, Docker Compose fallbacks, env examples, Access Layer tool descriptors, deployment runbook, architecture notes, auth tests and Next.js Server Actions allowed origins.
-- **Reason:** User requested that the application work on `https://petyr.unguess-internal.net/` instead of `https://petyr.draftapps.it/`.
-- **Impact:** Petyr must be exposed through the gateway on `petyr.unguess-internal.net`; Access Layer tool registrations and deployed environment variables must use the new callback URLs before production login succeeds. The external Access Layer base URL remains `https://access-layer.draftapps.it`. No database schema, Redash source, forecast logic, permissions or app route base paths changed.
-- **Files/documents involved:** `.env.example`, `.env - Copia.example`, `docker-compose.yml`, `docker-compose.local.yml`, `DEPLOY.md`, `docs/01_architecture.md`, `BACKLOG.md`, `DECISIONS.md`, `apps/forecasting-app/.env.example`, `apps/forecasting-app/next.config.ts`, `apps/forecasting-app/README.md`, `apps/forecasting-app/tests/petyrAuth.test.ts`, `apps/redash-ingestor/.env.example`, `apps/redash-ingestor/README.md`, `apps/redash-ingestor/tests/redashIngestorAuth.test.ts`, `petyr/access-layer-tools/*`.
-- **Validation:** Validation status is listed in the task handoff.
-- **Follow-up:** Update Coolify variables, DNS/proxy routing and the real Access Layer tool allowed return URLs to the new `petyr.unguess-internal.net` callbacks.
+- **Area:** Petyr / Forecast Entry / Annual table layout and copy
+- **Change:** Moved the Annual Forecast Entry selected-CSM year summary from the compact row above the legend into a highlighted total row at the bottom of the annual table. The total row leaves Active, Confidence and Logs empty and aligns Forecast Initial, Forecast Ongoing, visible Business Unit totals, Closed Revenue YTD, Planned This Year and ratio values under their table columns. The annual legend row now spans the full horizontal table width while scrolling right. Forecast Entry table copy now shows `Company` instead of `Customer`, and displays the official `Experience` Business Unit as `UX` in table headers while preserving `Experience` as the stored value.
+- **Reason:** Product requested that the Annual legend/collapse row continue to cover the table when horizontally scrolled, that annual totals live at the bottom of the table as a clearly non-company total, and that the visible labels use Company and UX.
+- **Impact:** UI layout and copy changed only. Annual read/save APIs, schema, permissions, Redash/PostgreSQL data flow, stored Business Unit values, forecast calculations and audit persistence are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/lib/petyr/businessUnitDisplay.ts`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-02
+
+- **Area:** Petyr / Forecasting / Company Detail CSM navigation
+- **Change:** Preserved `csmName` query context across Company Detail entry links and in-page navigator actions. Company Detail now honors a valid requested CSM navigation context, keeps the CSM filter synchronized after route changes, and carries the selected CSM through company, previous/next and year navigation.
+- **Reason:** Product reported that changing CSM inside Company Detail could leave the CSM filter or the company filter list stuck on the previous CSM, especially when companies have multiple recent CSM associations.
+- **Impact:** UI navigation behavior changed only. Company Detail remains read-only for forecast values; CSM portfolio data still uses the documented recent Company Ownership association rule. No schema, API contract, Redash/PostgreSQL data flow, permissions or forecast calculations changed.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/CompanyDetailNavigator.tsx`, `apps/forecasting-app/src/app/forecasting/company/[companyName]/page.tsx`, `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/CsmOverviewWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/ForecastEntryWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/ForecastEntryWorkspaceOld.tsx`, `apps/forecasting-app/src/app/forecasting/entry/faq/page.tsx`, `apps/forecasting-app/README.md`, `docs/05_forecasting_product_spec.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-02
+
+- **Area:** Petyr / Forecasting / Company Detail navigation
+- **Change:** Aligned the Company Detail CSM/company navigator with Forecast Entry Monthly and Annual portfolio selection. Company Detail navigation now uses all recent Company Ownership company-CSM workspace associations whose `workspace_updated_on` is within the last 6 months, allowing the same company to appear under multiple CSM filters when the source data has multiple recent associations. It falls back to the latest owner per company only when no recent workspace associations are available.
+- **Reason:** Product reported that the Company Detail company filter did not appear to associate the correct CSM company list with the same rules already defined for Monthly and Annual Forecast Entry.
+- **Impact:** UI navigation/read-model behavior changed only. Company Detail remains read-only; forecast calculations, save contracts, schema, Redash sources, PostgreSQL data flow and permissions are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/services/petyrDataService.ts`, `apps/forecasting-app/README.md`, `docs/05_forecasting_product_spec.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-02
+
+- **Area:** Petyr / Intelligence permissions
+- **Change:** Restricted the separated Petyr Intelligence pages and non-admin-looking Intelligence read/detail/feedback APIs to `petyr:admin`. Removed the public gateway launcher card for `/intelligence` and updated Intelligence API, UX, Security, Scope, Architecture and app docs to state the admin-only MVP model.
+- **Reason:** Product asked whether the new Intelligence section was visible only to admins and requested it be made admin-only if not.
+- **Impact:** Non-admin users with `petyr:read` or `petyr:forecast:write` can no longer access `/intelligence`, `/intelligence/company/[companyName]`, `GET /api/petyr/intelligence/insights`, `GET /api/petyr/intelligence/insights/[insightId]` or `POST /api/petyr/intelligence/feedback`. Intelligence workers, admin scan controls, provider configuration, schema, Forecasting data flow and forecast logic are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/app/intelligence/page.tsx`, `apps/forecasting-app/src/app/intelligence/company/[companyName]/page.tsx`, `apps/forecasting-app/src/app/api/petyr/intelligence/insights/route.ts`, `apps/forecasting-app/src/app/api/petyr/intelligence/insights/[insightId]/route.ts`, `apps/forecasting-app/src/app/api/petyr/intelligence/feedback/route.ts`, `platform-home/index.html`, `README.md`, `apps/forecasting-app/README.md`, `docs/API.md`, `docs/UX.md`, `docs/SECURITY.md`, `docs/SCOPE.md`, `docs/ARCHITECTURE.md`, `BACKLOG.md`, `DECISIONS.md`, `DEVLOG.md`.
+- **Follow-up:** Any future non-admin Intelligence rollout must first define dedicated Access Layer permissions and row-level scoping.
+
+## 2026-07-02
+
+- **Area:** Petyr / Forecasting navigation permissions
+- **Change:** Made the shared Petyr workspace navigation fail closed for CSM Overview visibility and passed the explicit `petyr:admin` check from Forecast Entry, Forecast Entry FAQ, legacy Forecast Entry and Company Detail routes.
+- **Reason:** Non-admin users must never see the CSM Overview navigator item. The dedicated Forecast Entry route was relying on the shell default, so the item could appear there until clicked.
+- **Impact:** UI navigation behavior changed only. CSM Overview remains admin-only; no schema, API contract, Redash/PostgreSQL data flow or forecast save behavior changed.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/PetyrLayoutPrimitives.tsx`, `apps/forecasting-app/src/app/forecasting/entry/page.tsx`, `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/app/forecasting/entry/faq/page.tsx`, `apps/forecasting-app/src/components/petyr/ForecastEntryWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/ForecastEntryWorkspaceOld.tsx`, `apps/forecasting-app/src/app/forecasting/company/[companyName]/page.tsx`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-01
+
+- **Area:** Petyr / Intelligence / Scheduled worker
+- **Change:** Implemented the scheduled `intelligence-scan` worker as a separate Petyr app worker entrypoint and Compose service. Added persisted Admin enable/disable control through `app_setting`, worker status API, protected toggle action, advisory-lock execution, daily provider request budget enforcement from `company_intelligence_provider_request_log`, bounded provider retry logging, skipped run statuses for disabled/lock cases, worker npm scripts and Admin budget/status UI updates.
+- **Reason:** Product requested a controlled scheduled Petyr Intelligence worker with daily budget enforcement, retry policy, admin-visible run status and the ability for Admin to enable/disable the worker or trigger one capped manual run.
+- **Impact:** Petyr Intelligence can now refresh external company signals automatically when enabled, while manual real runs share the same lock and budget guard. Forecasting business logic, deterministic forecast calculations and Forecasting tables were not changed.
+- **Files/documents involved:** `apps/forecasting-app/src/worker/intelligenceScanWorker.ts`, `apps/forecasting-app/src/services/intelligence/*`, `apps/forecasting-app/src/app/api/petyr/admin/intelligence/*`, `apps/forecasting-app/src/components/intelligence/IntelligenceAdminRunControl.tsx`, `apps/forecasting-app/src/app/petyr-admin/intelligence/page.tsx`, `apps/forecasting-app/prisma/schema.prisma`, `apps/forecasting-app/prisma/migrations/202607010002_add_intelligence_worker_statuses/migration.sql`, `apps/forecasting-app/package.json`, `.env.example`, `apps/forecasting-app/.env.example`, `docker-compose.yml`, `CURRENT_STATE.md`, `BACKLOG.md`, `docs/ARCHITECTURE.md`, `docs/API.md`, `docs/DB.md`, `docs/UX.md`, `docs/SECURITY.md`, `docs/TESTING.md`, `docs/DEPLOYMENT.md`, `docs/SCOPE.md`, `DEVLOG.md`.
+- **Follow-up:** Run a real provider smoke test with low limits before enabling the worker broadly, then implement persisted calibration report generation.
+
+## 2026-07-01
+
+- **Area:** Petyr / Intelligence / MVP implementation
+- **Change:** Implemented the first separated Petyr Intelligence MVP. Added Prisma models and migration for Intelligence runs, raw Exa results, deduplicated signal items, Business Unit classifications, generated insights, insight-source links, CSM feedback, provider request logs and calibration reports. Added isolated services under `src/services/intelligence`, Exa and OpenRouter adapters, structured JSON insight validation, capped manual admin runs, CSM insight UI at `/intelligence`, company Intelligence detail, admin Intelligence view at `/petyr-admin/intelligence`, gateway routing, env placeholders and focused tests.
+- **Reason:** Product requested an isolated external-signal Intelligence module using Exa and OpenRouter while keeping Forecasting deterministic and untouched.
+- **Impact:** New Intelligence functionality is available behind existing Petyr permissions. Forecasting business logic, forecast calculations and existing Forecast Intelligence cache behavior were not modified. Real provider runs require `INTELLIGENCE_ENABLED=true`, provider keys and `APP_INTERNAL_SECRET` for non-dry-run admin execution.
+- **Files/documents involved:** `apps/forecasting-app/prisma/schema.prisma`, `apps/forecasting-app/prisma/migrations/202607010001_add_petyr_intelligence/migration.sql`, `apps/forecasting-app/src/services/intelligence/*`, `apps/forecasting-app/src/app/intelligence/*`, `apps/forecasting-app/src/app/petyr-admin/intelligence/page.tsx`, `apps/forecasting-app/src/app/api/petyr/intelligence/*`, `apps/forecasting-app/src/app/api/petyr/admin/intelligence/*`, `apps/forecasting-app/src/components/intelligence/*`, `.env.example`, `apps/forecasting-app/.env.example`, `docker-compose.yml`, `platform-home/nginx.conf`, `platform-home/index.html`, `apps/forecasting-app/package.json`, `apps/forecasting-app/tests/intelligence.test.ts`, `CURRENT_STATE.md`, `BACKLOG.md`, `docs/API.md`, `docs/DB.md`, `docs/UX.md`, `docs/SECURITY.md`, `docs/TESTING.md`, `docs/DEPLOYMENT.md`, `DEVLOG.md`.
+- **Follow-up:** Completed by the later scheduled worker entry above; remaining follow-up is persisted calibration report generation and low-limit provider smoke testing.
+
+## 2026-07-01
+
+- **Area:** Petyr / Intelligence / Documentation planning
+- **Change:** Documented Petyr Intelligence as a planned, isolated Petyr module for external company-signal discovery. Added missing root/template documentation files for scope, architecture, domain, database, API, UX, security, testing and deployment. Added the accepted decision that Intelligence uses Exa for external retrieval and OpenRouter for qualitative interpretation, while Forecasting remains deterministic and independent from LLM-generated numeric analysis. Added phased backlog items for schema, Exa ingestion, deduplication/classification, CSM UX, admin calibration and permissions.
+- **Reason:** Product requested a documentation-only design for a new `intelligence` module before implementation, with explicit isolation from Forecasting and low default MVP provider limits.
+- **Impact:** No runtime behavior, routes, schema, environment files, workers or application code changed. Future implementation now has documented module boundaries, proposed table names, endpoint contracts, UX surfaces, provider-secret handling, retry/budget strategy and test strategy.
+- **Files/documents involved:** `CURRENT_STATE.md`, `DECISIONS.md`, `BACKLOG.md`, `docs/SCOPE.md`, `docs/ARCHITECTURE.md`, `docs/DOMAIN.md`, `docs/DB.md`, `docs/API.md`, `docs/UX.md`, `docs/SECURITY.md`, `docs/TESTING.md`, `docs/DEPLOYMENT.md`, `DEVLOG.md`.
+- **Follow-up:** Implement the MVP with schema and isolated service skeleton first, using the exact prompt in the task handoff.
 
 ## 2026-06-30
 

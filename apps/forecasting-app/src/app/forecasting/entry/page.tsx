@@ -1,6 +1,6 @@
 import ForecastEntryMonthlyBatchWorkspace from "@/components/petyr/ForecastEntryMonthlyBatchWorkspace";
 import { requirePetyrPagePermission } from "@/lib/petyr/auth";
-import { PETYR_PERMISSIONS } from "@/lib/petyr/authCore";
+import { hasPetyrPermission, PETYR_PERMISSIONS } from "@/lib/petyr/authCore";
 import { getForecastEntryBatch } from "@/services/forecastEntryBatchService";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +27,7 @@ export default async function ForecastEntryPage({ searchParams }: ForecastEntryP
   const identity = await requirePetyrPagePermission(PETYR_PERMISSIONS.forecastWrite);
   const resolvedSearchParams = (await searchParams) ?? {};
   const query = getForecastEntryQuery(resolvedSearchParams);
+  const canViewCsmOverview = hasPetyrPermission(identity, PETYR_PERMISSIONS.admin);
   const initialBatch = await getForecastEntryBatch({
     csmName: query.csmName,
     preferredCsmName: identity.user.displayName,
@@ -34,6 +35,12 @@ export default async function ForecastEntryPage({ searchParams }: ForecastEntryP
     month: query.month
   });
 
-  return <ForecastEntryMonthlyBatchWorkspace initialBatch={initialBatch} initialAnnualYear={query.year} />;
+  return (
+    <ForecastEntryMonthlyBatchWorkspace
+      initialBatch={initialBatch}
+      initialAnnualYear={query.year}
+      canViewCsmOverview={canViewCsmOverview}
+    />
+  );
 
 }
