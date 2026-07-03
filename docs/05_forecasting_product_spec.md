@@ -204,7 +204,7 @@ Normal `/forecasting/entry` requires `petyr:forecast:write` and is accessible to
 users who can write CSM forecasts. It no longer shows the old full single-company
 editor. The Monthly section defaults to the current server month/year, exposes
 a CSM filter plus Month and Year controls, and renders the selected CSM's companies in one batch table. Changing CSM reloads immediately from the CSM dropdown; changing Month or Year requires pressing the same-row `Load` button.
-The Annual section is separate, exposes a CSM multi-select and Year filter, and renders the current annual portfolio for the selected annual cycle. Annual users can select one or more CSMs and see the combined company list for all selected CSM portfolios. The Monthly and Annual CSM selectors stay synchronized when the Annual section has exactly one selected CSM; when Annual has multiple selected CSMs, Monthly remains on its single selected CSM.
+The Annual section is separate, exposes a compact single-row CSM multi-select dropdown with checkboxes and a Year filter, and renders the current annual portfolio for the selected annual cycle. The CSM dropdown defaults to the same preselected CSM as Monthly Forecast Entry, allows that default CSM to be deselected, and summarizes multiple selections as the first selected CSM plus the count of additional selected CSMs. Annual users can select one or more CSMs and see the combined company list for all selected CSM portfolios. The Monthly and Annual CSM selectors stay synchronized when the Annual section has exactly one selected CSM; when Annual has multiple selected CSMs, Monthly remains on its single selected CSM.
 
 Normal Forecast Entry must not expose a company filter, Forecast Intelligence,
 deterministic preview, apply AI forecast, import/export, diagnostics or admin
@@ -272,6 +272,8 @@ Normal batch table rules:
   appear under more than one CSM when multiple recent company-CSM associations
   exist;
 - the first column is the company name linked to Company Detail for the current year;
+- the Company header can sort the loaded Monthly Forecast Entry rows by company
+  name ascending or descending;
 - columns are grouped by the 10 official Petyr Business Units only;
 - Business Unit columns are ordered for fast CSM checks as QA, UX/Experience,
   Accessibility, Security, FTE, TA, AI, OTHER/Other, Express, Community;
@@ -332,9 +334,15 @@ Annual Forecast Entry rules:
   Company Ownership workspaces updated in the last 6 months; a company may
   appear under more than one CSM when multiple recent company-CSM associations
   exist;
-- ordering is active companies first, then inactive companies with Revenue or
-  Planned, then inactive companies without Revenue or Planned;
-- inactive rows remain visible with muted styling;
+- default ordering is active companies first, then inactive companies with
+  Revenue or Planned, then inactive companies without Revenue or Planned;
+- the Company, Active, Forecast Initial, Forecast Ongoing and Confidence
+  headers can sort the currently visible Annual Forecast Entry rows without
+  changing persistence or the selected CSM/year filters;
+- inactive rows remain visible with muted styling by default;
+- the Active column can filter visible Annual rows to all companies, active
+  companies only or inactive companies only. This is a client-side table view
+  filter and does not modify `company_forecast_status`;
 - company names link to Company Detail; the Logs action opens Company Detail
   at the company logs anchor in a new tab and is labelled `See latest logs of <company>`;
 - the Annual table uses its own vertical scroll area so only the legend row and
@@ -346,7 +354,8 @@ Annual Forecast Entry rules:
   under the table headers and above the first company row. The total row is not a company row: Active,
   Confidence and Logs remain empty, while Forecast Initial, Forecast Ongoing,
   visible Business Unit totals, Closed Revenue YTD, Planned This Year and ratio
-  values align under their respective columns;
+  values align under their respective columns. When the Active visibility
+  filter is used, this summary reflects the visible rows;
 - Forecast Entry headers may display the official `Experience` Business Unit as
   `UX` while preserving `Experience` as the stored Business Unit value;
 - Business Unit columns use the same CSM check order as Monthly Forecast Entry:
@@ -360,7 +369,7 @@ Annual Forecast Entry rules:
 - Annual table body rows use compact vertical padding and top-align cell
   content. Saved/AI-confirmed labels and related AI Forecast references render
   on separate lines, with the AI Forecast reference using the AI legend color;
-- a button to the right of the legend collapses or shows all Business Unit columns,
+- a button immediately after the legend chips collapses or shows all Business Unit columns,
   so the collapsed table shows only Active through Confidence and Closed Revenue YTD through Logs;
 - editable/manual-entry columns use a subtle manual-entry background to distinguish
   CSM-entered or to-be-entered values from consolidated/read-only data;

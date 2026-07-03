@@ -144,7 +144,9 @@ TODO:
 Implemented in Forecast Entry ordering.
 
 Inactive companies are lowered in priority and remain visible. They must not be
-filtered out.
+filtered out by default. Annual Forecast Entry can still apply a user-selected
+Active column visibility filter to show all, active only or inactive only rows;
+that filter changes the table view only and does not change persisted status.
 
 ### Agreement residual
 

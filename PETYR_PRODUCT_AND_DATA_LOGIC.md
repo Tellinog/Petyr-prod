@@ -349,6 +349,8 @@ Past months are never editable.
 
 Monthly Forecast Entry table rules:
 
+- the Company header can sort the loaded monthly portfolio by company name
+  ascending or descending;
 - Business Unit groups start collapsed and show only the active editable field;
 - Expand/Collapse must look like an actionable button and sit at the far right
   of the Business Unit group header;
@@ -475,9 +477,15 @@ Table rules:
 
 - rows are all companies assigned to the selected Annual Forecast Entry CSM
   filter, including all selected CSMs when multiple CSMs are selected;
-- sorting is active companies first, inactive companies with Revenue or Planned
-  second, inactive companies without Revenue or Planned last;
-- inactive companies remain visible with muted styling;
+- default sorting is active companies first, inactive companies with Revenue or
+  Planned second, inactive companies without Revenue or Planned last;
+- the Company, Active, Forecast Initial, Forecast Ongoing and Confidence
+  headers can sort the currently visible Annual rows without changing
+  persistence or the selected CSM/year filters;
+- inactive companies remain visible with muted styling by default;
+- the Active column can filter the visible Annual rows to all companies, active
+  companies only or inactive companies only; this is a client-side table view
+  filter and does not modify `company_forecast_status`;
 - company names link to Company Detail;
 - Logs opens Company Detail at the company logs anchor in a new tab and each
   row action is labelled `See latest logs of <company>`;
@@ -488,6 +496,8 @@ Table rules:
   under the table headers and above the first company row, with no Active, Confidence or Logs value, and with
   Forecast Initial, Forecast Ongoing, visible Business Unit totals, Closed
   Revenue YTD, Planned This Year and ratio values aligned under their columns;
+  when the Active visibility filter is used, this summary reflects the visible
+  rows;
 - Forecast Entry may display the official `Experience` Business Unit as `UX`
   while preserving `Experience` as the stored Business Unit value;
 - Annual Forecast Entry displays Business Unit columns in the same CSM check

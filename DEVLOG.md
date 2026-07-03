@@ -20,6 +20,33 @@ Each entry must include:
 
 ## 2026-07-03
 
+- **Area:** Petyr / Forecast Entry / Table sorting and active visibility
+- **Change:** Added Company sorting to Monthly Forecast Entry. Added Annual Forecast Entry header sorting for Company, Active, Forecast Initial, Forecast Ongoing and Confidence, plus an Active column visibility filter for all, active-only or inactive-only rows. The Annual portfolio total now follows the visible rows when the Active filter is applied.
+- **Reason:** Product requested sortable Forecast Entry tables and the ability to show or hide active/inactive companies from the Annual Active column.
+- **Impact:** UI table behavior changed only. Read/save APIs, database schema, permissions, Redash/PostgreSQL data flow, forecast calculations, active status persistence and audit logging are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `docs/petyr/COMPANY_ORDERING.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-03
+
+- **Area:** Petyr / Forecast Entry / Numeric input formatting
+- **Change:** Fixed the shared Petyr euro formatter to render the euro symbol through `\u20ac` and updated Monthly Forecast Entry plus Annual Forecast Entry inputs so typed integer monetary values are immediately displayed with Italian thousands separators.
+- **Reason:** Product reported that the euro symbol was not rendered correctly in Forecast Entry and requested visible thousands/millions separators while entering values.
+- **Impact:** UI formatting changed only for Petyr monetary display helpers and Forecast Entry numeric input drafts. Save APIs, database schema, permissions, Redash/PostgreSQL data flow, forecast calculations and audit persistence are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/petyr/formatters.ts`, `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-03
+
+- **Area:** Petyr / Forecast Entry / Annual CSM filter layout
+- **Change:** Replaced the tall native Annual Forecast Entry CSM multi-select with a compact single-row dropdown containing checkbox options. The dropdown keeps the default selected CSM on initial load, allows it to be deselected, and summarizes multiple selections as the first selected CSM plus the additional selected count. Moved the Annual Business Unit collapse/show button to sit immediately after the legend chips.
+- **Reason:** Product requested a more compact Annual CSM filter and closer placement of the Business Unit collapse action.
+- **Impact:** UI layout behavior changed only for Annual Forecast Entry filtering and legend controls. Annual read/save APIs, schema, permissions, forecast calculations, Redash/PostgreSQL data flow and audit persistence are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-03
+
 - **Area:** Petyr / Forecast Entry / Table density and status labels
 - **Change:** Reduced Monthly Forecast Entry and Annual Forecast Entry table body vertical padding, top-aligned table body cell content and compacted the table input controls. Saved/Saved CSM forecast and AI-confirmed labels now render the related AI Forecast reference on a separate line, and the AI Forecast reference uses the same blue treatment as the AI legend.
 - **Reason:** Product requested denser Forecast Entry rows, top-aligned fields and clearer multi-line Saved/AI Forecast labels.

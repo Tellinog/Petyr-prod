@@ -19,7 +19,7 @@ import {
 import { PetyrSelectField } from "@/components/petyr/PetyrForecastNavigation";
 import AnnualForecastEntryBatchWorkspace from "@/components/petyr/AnnualForecastEntryBatchWorkspace";
 import { formatBusinessUnitDisplayName } from "@/lib/petyr/businessUnitDisplay";
-import { formatPetyrInteger, formatPetyrIntegerCurrencyValue } from "@/lib/petyr/formatters";
+import { formatPetyrInteger, formatPetyrIntegerCurrencyValue, formatPetyrIntegerInputDraft } from "@/lib/petyr/formatters";
 import type { AnnualForecastEntryBatchDataResult } from "@/services/annualForecastEntryBatchService";
 import type {
   ForecastEntryBatchCell,
@@ -34,6 +34,7 @@ type Notice = {
 
 type SourceState = "accepted_ai" | "manual_edit";
 type MonthlyForecastType = "previous_month" | "ongoing";
+type MonthlyCompanySortDirection = "asc" | "desc";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const NOTE_ONLY_MESSAGE = "Company note requires at least one active forecast value entered, accepted from AI or modified.";
@@ -135,6 +136,10 @@ function mutedNumericClass(isMuted: boolean) {
   return isMuted ? "text-slate-400 placeholder:text-slate-300" : "text-slate-900 placeholder:text-slate-400";
 }
 
+function monthlyCompanySortLabel(direction: MonthlyCompanySortDirection) {
+  return direction === "asc" ? "A-Z" : "Z-A";
+}
+
 function valuesFromBatch(batch: ForecastEntryBatchDataResult) {
   const editableType = batch.data.entryMode.editableForecastType;
   const values: Record<string, string> = {};
@@ -229,6 +234,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
   const [annualBatch, setAnnualBatch] = useState<AnnualForecastEntryBatchDataResult | null>(initialAnnualBatch);
   const [isAnnualLoading, setIsAnnualLoading] = useState(false);
   const [annualLoadAttempted, setAnnualLoadAttempted] = useState(Boolean(initialAnnualBatch));
+  const [monthlyCompanySortDirection, setMonthlyCompanySortDirection] = useState<MonthlyCompanySortDirection>("asc");
 
   const editableForecastType = batch.data.entryMode.editableForecastType;
   const isLocked = batch.data.entryMode.locked || !editableForecastType;
@@ -375,9 +381,9 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     }
   }
 
-  function updateValue(company: ForecastEntryBatchCompany, cell: ForecastEntryBatchCell, value: string) {
-    const key = cellKey(company.companyName, cell.businessUnit);
-    setValues((existing) => ({ ...existing, [key]: value }));
+function updateValue(company: ForecastEntryBatchCompany, cell: ForecastEntryBatchCell, value: string) {
+  const key = cellKey(company.companyName, cell.businessUnit);
+    setValues((existing) => ({ ...existing, [key]: formatPetyrIntegerInputDraft(value) }));
     setSourceStates((existing) => ({ ...existing, [key]: "manual_edit" }));
   }
 
@@ -458,6 +464,12 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     return 2 + batch.data.businessUnits.reduce((sum, businessUnit) => sum + (expandedBusinessUnits.has(businessUnit) ? 3 : 1), 0);
   }, [batch.data.businessUnits, expandedBusinessUnits]);
   const periodSelectionChanged = draftMonth !== String(batch.data.month) || draftYear !== String(batch.data.year);
+  const monthlyCompanies = useMemo(() => {
+    return [...batch.data.companies].sort((left, right) => {
+      const result = left.companyName.localeCompare(right.companyName);
+      return monthlyCompanySortDirection === "asc" ? result : -result;
+    });
+  }, [batch.data.companies, monthlyCompanySortDirection]);
 
 
   return (
@@ -580,8 +592,19 @@ export default function ForecastEntryMonthlyBatchWorkspace({
             <Table className="min-w-max [&_tbody_td]:align-top [&_tbody_td]:py-[5px]">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="sticky left-0 top-0 z-40 min-w-[240px] bg-white shadow-[0_1px_0_0_rgba(226,232,240,1)]" rowSpan={2}>
-                    Company
+                  <TableHead
+                    className="sticky left-0 top-0 z-40 min-w-[240px] bg-white shadow-[0_1px_0_0_rgba(226,232,240,1)]"
+                    rowSpan={2}
+                    aria-sort={monthlyCompanySortDirection === "asc" ? "ascending" : "descending"}
+                  >
+                    <button
+                      type="button"
+                      className="inline-flex h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+                      onClick={() => setMonthlyCompanySortDirection((current) => (current === "asc" ? "desc" : "asc"))}
+                    >
+                      <span>Company</span>
+                      <span className="text-xs font-semibold text-slate-500">{monthlyCompanySortLabel(monthlyCompanySortDirection)}</span>
+                    </button>
                   </TableHead>
                   {batch.data.businessUnits.map((businessUnit) => {
                     const expanded = expandedBusinessUnits.has(businessUnit);
@@ -637,8 +660,8 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {batch.data.companies.length > 0 ? (
-                  batch.data.companies.map((company) => (
+                {monthlyCompanies.length > 0 ? (
+                  monthlyCompanies.map((company) => (
                     <TableRow key={company.companyName}>
                       <TableCell className="sticky left-0 z-10 min-w-[240px] bg-white">
                         <Link

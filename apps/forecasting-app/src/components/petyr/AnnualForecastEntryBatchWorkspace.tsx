@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PetyrCard, PetyrInlineNotice } from "@/components/petyr/PetyrLayoutPrimitives";
 import { PetyrSelectField } from "@/components/petyr/PetyrForecastNavigation";
 import { formatBusinessUnitDisplayName } from "@/lib/petyr/businessUnitDisplay";
-import { formatPetyrInteger, formatPetyrIntegerCurrencyValue, formatPetyrPercent } from "@/lib/petyr/formatters";
+import { formatPetyrInteger, formatPetyrIntegerCurrencyValue, formatPetyrIntegerInputDraft, formatPetyrPercent } from "@/lib/petyr/formatters";
 import { calculateAnnualForecastPercentages } from "@/lib/petyr/annualForecastEntryRules";
 import type {
   AnnualForecastEntryBatchCell,
@@ -24,6 +24,13 @@ type Notice = {
 };
 
 type SourceState = "accepted_ai" | "manual_edit";
+type AnnualSortKey = "company" | "active" | "initial" | "ongoing" | "confidence";
+type AnnualSortDirection = "asc" | "desc";
+type ActiveVisibilityFilter = "all" | "active" | "inactive";
+type AnnualSortState = {
+  key: AnnualSortKey | null;
+  direction: AnnualSortDirection;
+};
 
 function buildAnnualBatchUrl(csmNames: string[], year: number) {
   const params = new URLSearchParams();
@@ -142,7 +149,36 @@ function mutedNumericClass(isMuted: boolean) {
 function selectedCsmsLabel(csmNames: string[]) {
   if (csmNames.length === 0) return "No CSM selected";
   if (csmNames.length === 1) return csmNames[0];
-  return `${csmNames.length} CSM selected`;
+  return `${csmNames[0]} + ${csmNames.length - 1}`;
+}
+
+function nextAnnualSort(current: AnnualSortState, key: AnnualSortKey): AnnualSortState {
+  if (current.key === key) {
+    return {
+      key,
+      direction: current.direction === "asc" ? "desc" : "asc"
+    };
+  }
+
+  return {
+    key,
+    direction: key === "active" ? "asc" : "asc"
+  };
+}
+
+function annualSortLabel(sort: AnnualSortState, key: AnnualSortKey) {
+  if (sort.key !== key) return "Sort";
+  if (key === "company") return sort.direction === "asc" ? "A-Z" : "Z-A";
+  if (key === "active") return sort.direction === "asc" ? "Active first" : "Inactive first";
+  if (key === "confidence") return sort.direction === "asc" ? "High-Low" : "Low-High";
+  return sort.direction === "asc" ? "Low-High" : "High-Low";
+}
+
+function confidenceSortRank(value: string) {
+  if (value === "01 High") return 0;
+  if (value === "02 Mid") return 1;
+  if (value === "03 Low") return 2;
+  return 3;
 }
 
 const COMPANY_COLUMN_WIDTH = 220;
@@ -164,6 +200,8 @@ const PINNED_HEADER_STICKY_CLASS = "z-[60]";
 const HEADER_STICKY_CLASS = "sticky top-16 z-40 shadow-[0_1px_0_0_rgba(226,232,240,1)]";
 const MANUAL_HEADER_CLASS = "bg-amber-50 text-amber-950";
 const MANUAL_CELL_CLASS = "bg-amber-50/70 align-top";
+const SORT_BUTTON_BASE_CLASS =
+  "flex min-h-9 w-full flex-col items-start justify-center gap-0.5 rounded-lg border bg-white px-2 py-1 text-left text-xs font-semibold leading-tight text-slate-800 shadow-sm transition-colors";
 
 export default function AnnualForecastEntryBatchWorkspace({
   initialBatch,
@@ -188,8 +226,12 @@ export default function AnnualForecastEntryBatchWorkspace({
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedState, setShowSavedState] = useState(false);
   const [showBusinessUnits, setShowBusinessUnits] = useState(true);
+  const [isCsmDropdownOpen, setIsCsmDropdownOpen] = useState(false);
+  const [annualSort, setAnnualSort] = useState<AnnualSortState>({ key: null, direction: "asc" });
+  const [activeVisibilityFilter, setActiveVisibilityFilter] = useState<ActiveVisibilityFilter>("all");
   const savedStateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const annualTableRef = useRef<HTMLTableElement | null>(null);
+  const csmDropdownRef = useRef<HTMLDivElement | null>(null);
 
 
   const hasLocalChanges = useMemo(
@@ -219,6 +261,17 @@ export default function AnnualForecastEntryBatchWorkspace({
     };
   }, []);
 
+  useEffect(() => {
+    function closeCsmDropdownOnOutsideClick(event: MouseEvent) {
+      if (!csmDropdownRef.current?.contains(event.target as Node)) {
+        setIsCsmDropdownOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", closeCsmDropdownOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeCsmDropdownOnOutsideClick);
+  }, []);
+
   function markSavedState() {
     setShowSavedState(true);
 
@@ -236,6 +289,7 @@ export default function AnnualForecastEntryBatchWorkspace({
     setBatch(nextBatch);
     setSelectedCsms(nextBatch.data.selectedCsms ?? [nextBatch.data.selectedCsm].filter(Boolean));
     setSelectedYear(nextBatch.data.selectedYear);
+    setIsCsmDropdownOpen(false);
     setValues(valuesFromBatch(nextBatch));
     setInitialValues(initialValuesFromBatch(nextBatch));
     setActiveValues(activeValuesFromBatch(nextBatch));
@@ -289,12 +343,12 @@ export default function AnnualForecastEntryBatchWorkspace({
 
   function updateValue(company: AnnualForecastEntryBatchCompany, cell: AnnualForecastEntryBatchCell, value: string) {
     const key = cellKey(company.companyName, cell.businessUnit);
-    setValues((existing) => ({ ...existing, [key]: value }));
+    setValues((existing) => ({ ...existing, [key]: formatPetyrIntegerInputDraft(value) }));
     setSourceStates((existing) => ({ ...existing, [key]: "manual_edit" }));
   }
 
   function updateInitial(companyName: string, value: string) {
-    setInitialValues((existing) => ({ ...existing, [companyName]: value }));
+    setInitialValues((existing) => ({ ...existing, [companyName]: formatPetyrIntegerInputDraft(value) }));
     setTouchedInitial((existing) => new Set(existing).add(companyName));
   }
 
@@ -322,6 +376,14 @@ export default function AnnualForecastEntryBatchWorkspace({
     return company.businessUnits.reduce((sum, cell) => sum + (currentBuValue(company, cell) ?? 0), 0);
   }
 
+  function toggleCsmSelection(csmName: string) {
+    setSelectedCsms((current) =>
+      current.includes(csmName)
+        ? current.filter((selectedCsm) => selectedCsm !== csmName)
+        : [...current, csmName]
+    );
+  }
+
   function currentInitialForecast(company: AnnualForecastEntryBatchCompany) {
     const rawValue = initialValues[company.companyName] ?? "";
     if (!rawValue.trim()) return 0;
@@ -330,6 +392,50 @@ export default function AnnualForecastEntryBatchWorkspace({
     return parsed ?? company.initialForecast ?? 0;
   }
 
+  const displayedAnnualCompanies = useMemo(() => {
+    const filteredCompanies = batch.data.companies.filter((company) => {
+      const isActive = activeValues[company.companyName] ?? company.isForecastActive;
+      if (activeVisibilityFilter === "active") return isActive;
+      if (activeVisibilityFilter === "inactive") return !isActive;
+      return true;
+    });
+
+    if (!annualSort.key) return filteredCompanies;
+
+    return [...filteredCompanies].sort((left, right) => {
+      const leftActive = activeValues[left.companyName] ?? left.isForecastActive;
+      const rightActive = activeValues[right.companyName] ?? right.isForecastActive;
+      let result = 0;
+
+      if (annualSort.key === "company") {
+        result = left.companyName.localeCompare(right.companyName);
+      } else if (annualSort.key === "active") {
+        result = (leftActive ? 0 : 1) - (rightActive ? 0 : 1);
+      } else if (annualSort.key === "initial") {
+        result = currentInitialForecast(left) - currentInitialForecast(right);
+      } else if (annualSort.key === "ongoing") {
+        result = currentFcOngoing(left) - currentFcOngoing(right);
+      } else if (annualSort.key === "confidence") {
+        const leftRank = confidenceSortRank(confidenceValues[left.companyName] ?? "");
+        const rightRank = confidenceSortRank(confidenceValues[right.companyName] ?? "");
+        const leftMissing = leftRank === 3;
+        const rightMissing = rightRank === 3;
+
+        if (leftMissing || rightMissing) {
+          if (leftMissing !== rightMissing) return leftMissing ? 1 : -1;
+        } else {
+          result = leftRank - rightRank;
+        }
+      }
+
+      if (result !== 0) {
+        return annualSort.direction === "asc" ? result : -result;
+      }
+
+      return left.companyName.localeCompare(right.companyName);
+    });
+  }, [activeValues, activeVisibilityFilter, annualSort, batch.data.companies, confidenceValues, initialValues, sourceStates, values]);
+
   const annualSummary = useMemo(() => {
     const byBusinessUnit = Object.fromEntries(batch.data.businessUnits.map((businessUnit) => [businessUnit, 0])) as Record<string, number>;
     let initialTotal = 0;
@@ -337,7 +443,7 @@ export default function AnnualForecastEntryBatchWorkspace({
     let revenue = 0;
     let planned = 0;
 
-    for (const company of batch.data.companies) {
+    for (const company of displayedAnnualCompanies) {
       initialTotal += currentInitialForecast(company);
       revenue += company.revenue;
       planned += company.planned;
@@ -360,7 +466,7 @@ export default function AnnualForecastEntryBatchWorkspace({
       })),
       percentages: calculateAnnualForecastPercentages({ revenue, planned, fcOngoing: total })
     };
-  }, [batch.data.businessUnits, batch.data.companies, initialValues, sourceStates, values]);
+  }, [batch.data.businessUnits, displayedAnnualCompanies, initialValues, sourceStates, values]);
 
   function getCompanySaveValues(company: AnnualForecastEntryBatchCompany) {
     return company.businessUnits.flatMap((cell) => {
@@ -516,25 +622,43 @@ export default function AnnualForecastEntryBatchWorkspace({
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_180px_auto_minmax(0,1fr)] lg:items-end">
-          <label className="space-y-1 text-sm font-medium text-slate-700">
-            CSM
-            <select
-              multiple
+          <div ref={csmDropdownRef} className="relative space-y-1 text-sm font-medium text-slate-700">
+            <div>CSM</div>
+            <Button
+              type="button"
+              variant="outline"
               disabled={isLoading || isSaving}
-              value={selectedCsms}
-              onChange={(event) => {
-                const nextSelection = Array.from(event.target.selectedOptions, (option) => option.value);
-                setSelectedCsms(nextSelection);
-              }}
-              className="min-h-[120px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm"
+              onClick={() => setIsCsmDropdownOpen((current) => !current)}
+              className="h-10 w-full justify-between rounded-xl border-slate-200 bg-white px-3 text-left font-normal"
+              aria-haspopup="listbox"
+              aria-expanded={isCsmDropdownOpen}
             >
-              {batch.data.csmOptions.map((csmName) => (
-                <option key={csmName} value={csmName}>
-                  {csmName}
-                </option>
-              ))}
-            </select>
-          </label>
+              <span className="truncate">{selectedCsmsLabel(selectedCsms)}</span>
+              <span className="ml-3 shrink-0 text-slate-400">v</span>
+            </Button>
+            {isCsmDropdownOpen ? (
+              <div
+                role="listbox"
+                aria-multiselectable="true"
+                className="absolute left-0 top-full z-[70] mt-2 max-h-64 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10"
+              >
+                {batch.data.csmOptions.map((csmName) => (
+                  <label
+                    key={csmName}
+                    className="flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedCsms.includes(csmName)}
+                      disabled={isLoading || isSaving}
+                      onChange={() => toggleCsmSelection(csmName)}
+                    />
+                    <span className="truncate">{csmName}</span>
+                  </label>
+                ))}
+              </div>
+            ) : null}
+          </div>
           <PetyrSelectField
             label="Year"
             disabled={isLoading || isSaving}
@@ -582,7 +706,7 @@ export default function AnnualForecastEntryBatchWorkspace({
 
         <div className="max-h-[calc(100vh-10rem)] overflow-auto rounded-2xl border border-slate-200 bg-white">
           <div
-            className="sticky top-0 z-50 flex h-16 items-center justify-between gap-5 border-b border-slate-200 bg-slate-50 px-4 shadow-[0_1px_0_0_rgba(226,232,240,1)]"
+            className="sticky top-0 z-50 flex h-16 items-center gap-5 border-b border-slate-200 bg-slate-50 px-4 shadow-[0_1px_0_0_rgba(226,232,240,1)]"
             style={{ minWidth: annualLegendMinWidth }}
           >
             <div className="flex items-center gap-x-5 gap-y-2">
@@ -592,25 +716,98 @@ export default function AnnualForecastEntryBatchWorkspace({
               <LegendChip className="border-amber-300 bg-amber-50" label="Manual entry field" />
               <LegendChip className="border-slate-300 bg-white" label="Saved value" />
               <LegendChip className="border-slate-300 bg-slate-100" label="Inactive company" />
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 shrink-0 rounded-xl border-slate-300 bg-white px-4 text-sm"
+                onClick={() => setShowBusinessUnits((current) => !current)}
+                aria-expanded={showBusinessUnits}
+              >
+                {showBusinessUnits ? "Collapse Business Units" : "Show Business Units"}
+              </Button>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-9 shrink-0 rounded-xl border-slate-300 bg-white px-4 text-sm"
-              onClick={() => setShowBusinessUnits((current) => !current)}
-              aria-expanded={showBusinessUnits}
-            >
-              {showBusinessUnits ? "Collapse Business Units" : "Show Business Units"}
-            </Button>
           </div>
           <Table ref={annualTableRef} className="min-w-max [&_tbody_td]:align-top [&_tbody_td]:py-[5px]" style={{ minWidth: annualTableMinWidth }}>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className={`${COMPANY_STICKY_CLASS} bg-white ${HEADER_STICKY_CLASS} ${PINNED_HEADER_STICKY_CLASS}`}>Company</TableHead>
-                <TableHead className={`${HEADER_STICKY_CLASS} min-w-[120px] ${MANUAL_HEADER_CLASS}`}>Active</TableHead>
-                  <TableHead className={`${HEADER_STICKY_CLASS} w-[128px] min-w-[128px] ${MANUAL_HEADER_CLASS}`}>Forecast Initial</TableHead>
-                <TableHead className={`${HEADER_STICKY_CLASS} min-w-[150px] bg-white`}>Forecast Ongoing</TableHead>
-                <TableHead className={`${CONFIDENCE_STICKY_CLASS} bg-amber-50 ${HEADER_STICKY_CLASS} ${PINNED_HEADER_STICKY_CLASS}`}>Confidence</TableHead>
+                <TableHead
+                  className={`${COMPANY_STICKY_CLASS} bg-white ${HEADER_STICKY_CLASS} ${PINNED_HEADER_STICKY_CLASS}`}
+                  aria-sort={annualSort.key === "company" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
+                >
+                  <button
+                    type="button"
+                    className={`${SORT_BUTTON_BASE_CLASS} border-slate-200 hover:border-slate-300 hover:bg-slate-50`}
+                    onClick={() => setAnnualSort((current) => nextAnnualSort(current, "company"))}
+                  >
+                    <span>Company</span>
+                    <span className="text-[11px] font-semibold text-slate-500">{annualSortLabel(annualSort, "company")}</span>
+                  </button>
+                </TableHead>
+                <TableHead
+                  className={`${HEADER_STICKY_CLASS} min-w-[120px] ${MANUAL_HEADER_CLASS}`}
+                  aria-sort={annualSort.key === "active" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
+                >
+                  <div className="space-y-1">
+                    <button
+                      type="button"
+                      className={`${SORT_BUTTON_BASE_CLASS} border-amber-200 hover:border-amber-300 hover:bg-amber-50`}
+                      onClick={() => setAnnualSort((current) => nextAnnualSort(current, "active"))}
+                    >
+                      <span>Active</span>
+                      <span className="text-[11px] font-semibold text-slate-500">{annualSortLabel(annualSort, "active")}</span>
+                    </button>
+                    <select
+                      value={activeVisibilityFilter}
+                      disabled={isLoading || isSaving}
+                      onChange={(event) => setActiveVisibilityFilter(event.target.value as ActiveVisibilityFilter)}
+                      className="h-8 w-full rounded-lg border border-amber-200 bg-white px-2 text-xs font-medium text-slate-700"
+                      aria-label="Filter companies by active status"
+                    >
+                      <option value="all">All</option>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                </TableHead>
+                <TableHead
+                  className={`${HEADER_STICKY_CLASS} w-[128px] min-w-[128px] ${MANUAL_HEADER_CLASS}`}
+                  aria-sort={annualSort.key === "initial" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
+                >
+                  <button
+                    type="button"
+                    className={`${SORT_BUTTON_BASE_CLASS} border-amber-200 hover:border-amber-300 hover:bg-amber-50`}
+                    onClick={() => setAnnualSort((current) => nextAnnualSort(current, "initial"))}
+                  >
+                    <span>Forecast Initial</span>
+                    <span className="text-[11px] font-semibold text-slate-500">{annualSortLabel(annualSort, "initial")}</span>
+                  </button>
+                </TableHead>
+                <TableHead
+                  className={`${HEADER_STICKY_CLASS} min-w-[150px] bg-white`}
+                  aria-sort={annualSort.key === "ongoing" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
+                >
+                  <button
+                    type="button"
+                    className={`${SORT_BUTTON_BASE_CLASS} border-slate-200 hover:border-slate-300 hover:bg-slate-50`}
+                    onClick={() => setAnnualSort((current) => nextAnnualSort(current, "ongoing"))}
+                  >
+                    <span>Forecast Ongoing</span>
+                    <span className="text-[11px] font-semibold text-slate-500">{annualSortLabel(annualSort, "ongoing")}</span>
+                  </button>
+                </TableHead>
+                <TableHead
+                  className={`${CONFIDENCE_STICKY_CLASS} bg-amber-50 ${HEADER_STICKY_CLASS} ${PINNED_HEADER_STICKY_CLASS}`}
+                  aria-sort={annualSort.key === "confidence" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
+                >
+                  <button
+                    type="button"
+                    className={`${SORT_BUTTON_BASE_CLASS} border-amber-200 hover:border-amber-300 hover:bg-amber-50`}
+                    onClick={() => setAnnualSort((current) => nextAnnualSort(current, "confidence"))}
+                  >
+                    <span>Confidence</span>
+                    <span className="text-[11px] font-semibold text-slate-500">{annualSortLabel(annualSort, "confidence")}</span>
+                  </button>
+                </TableHead>
                 {showBusinessUnits
                   ? batch.data.businessUnits.map((businessUnit) => (
                       <TableHead key={businessUnit} className={`${HEADER_STICKY_CLASS} min-w-[128px] text-right ${MANUAL_HEADER_CLASS}`}>
@@ -627,7 +824,7 @@ export default function AnnualForecastEntryBatchWorkspace({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {batch.data.companies.length > 0 ? (
+              {displayedAnnualCompanies.length > 0 ? (
                 <TableRow className="border-b-2 border-cyan-200 bg-cyan-50 hover:bg-cyan-50">
                   <TableCell className={`${COMPANY_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} border-r border-cyan-200 bg-cyan-50`}>
                     <div className="text-[11px] font-semibold uppercase tracking-wide text-cyan-800">
@@ -674,8 +871,8 @@ export default function AnnualForecastEntryBatchWorkspace({
                   <TableCell className="min-w-[220px] bg-cyan-50" aria-label="No logs for total row" />
                 </TableRow>
               ) : null}
-              {batch.data.companies.length > 0 ? (
-                batch.data.companies.map((company) => {
+              {displayedAnnualCompanies.length > 0 ? (
+                displayedAnnualCompanies.map((company) => {
                   const fcOngoing = currentFcOngoing(company);
                   const percentages = calculateAnnualForecastPercentages({
                     revenue: company.revenue,
@@ -813,7 +1010,9 @@ export default function AnnualForecastEntryBatchWorkspace({
               ) : (
                 <TableRow>
                   <TableCell colSpan={visibleBusinessUnitCount + 11} className="bg-slate-50 py-8 text-center text-sm text-slate-500">
-                    No companies available for the selected CSM filter.
+                    {batch.data.companies.length > 0
+                      ? "No companies match the selected Active filter."
+                      : "No companies available for the selected CSM filter."}
                   </TableCell>
                 </TableRow>
               )}

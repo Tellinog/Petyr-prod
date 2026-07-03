@@ -1,6 +1,6 @@
 export type PetyrNumericValue = number | string | null | undefined;
 
-export const PETYR_EXCEL_CURRENCY_NUM_FORMAT = '#,##0.00 "€"';
+export const PETYR_EXCEL_CURRENCY_NUM_FORMAT = '#,##0.00 "\u20ac"';
 export const PETYR_EXCEL_PERCENT_NUM_FORMAT = "0.00%";
 
 function groupItalianIntegerDigits(value: string) {
@@ -11,7 +11,7 @@ export function parsePetyrNumericValue(value: PetyrNumericValue): number | null 
   if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
 
-  let normalized = value.trim().replace(/\s+/g, "").replace(/EUR|€/gi, "");
+  let normalized = value.trim().replace(/\s+/g, "").replace(/EUR|\u20ac/gi, "");
   if (!normalized) return null;
 
   if (/^-?\d+,\d+$/.test(normalized)) {
@@ -37,7 +37,7 @@ export function formatPetyrNumber(value: number | null | undefined): string {
 
 export function formatPetyrCurrency(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "n/a";
-  return `${formatPetyrNumber(value)} €`;
+  return `${formatPetyrNumber(value)} \u20ac`;
 }
 
 export function formatPetyrPercent(value: number | null | undefined): string {
@@ -56,7 +56,15 @@ export function formatPetyrInteger(value: number | null | undefined): string {
 
 export function formatPetyrIntegerCurrency(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "n/a";
-  return `${formatPetyrInteger(value)} â‚¬`;
+  return `${formatPetyrInteger(value)} \u20ac`;
+}
+
+export function formatPetyrIntegerInputDraft(value: string): string {
+  const digits = value.replace(/EUR|\u20ac/gi, "").replace(/\D/g, "");
+  if (!digits) return "";
+
+  const normalized = digits.replace(/^0+(?=\d)/, "");
+  return groupItalianIntegerDigits(normalized);
 }
 
 export function formatPetyrNumberValue(value: PetyrNumericValue): string {

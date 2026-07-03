@@ -62,10 +62,12 @@ section alongside Monthly Forecast Entry.
 
 Rules:
 
-- CSM filter is a multi-select dropdown. Users can select one or more CSMs and
-  Annual Forecast Entry shows the combined company portfolio for all selected
-  CSMs. Default/preselection follows the same ownership/preselection logic as
-  Monthly.
+- CSM filter is a compact single-row multi-select dropdown with checkboxes.
+  It defaults to the same preselected CSM as Monthly, allows that default CSM
+  to be deselected, and summarizes multiple selections as the first selected
+  CSM plus the count of additional selected CSMs. Users can select one or more
+  CSMs and Annual Forecast Entry shows the combined company portfolio for all
+  selected CSMs.
 - Company lists for Monthly and Annual Forecast Entry include every
   company-CSM association whose Company Ownership workspace has
   `workspace_updated_on` within the last 6 months. A company may therefore
@@ -83,6 +85,13 @@ Rules:
 - FC Ongoing Confidence is required only when Forecast Ongoing Business Unit
   values are modified without an existing confidence value, and accepts only
   `01 High`, `02 Mid` and `03 Low`.
+- Monthly Forecast Entry can sort the visible company portfolio by Company.
+- Annual Forecast Entry can sort visible rows by Company, Active, Forecast
+  Initial, Forecast Ongoing and Confidence.
+- Annual Forecast Entry shows all active and inactive rows by default, and the
+  Active column can filter the visible table to all, active only or inactive
+  only without changing persisted company status. The Annual portfolio total row
+  reflects the visible rows when this filter is applied.
 - Annual Entry table headers stay fixed during vertical scroll, the legend row spans the full horizontal table width, and Company plus Confidence stay visible during horizontal scroll.
 - Annual Entry shows the selected CSM filter annual summary as a highlighted total row directly under the table headers and above the first company row. The total row is not a company row: Active, Confidence and Logs remain empty, while Forecast Initial, Forecast Ongoing, visible Business Unit totals, Closed Revenue YTD, Planned This Year and ratio values align under their respective columns.
 - Forecast Entry headers may display the official `Experience` Business Unit as `UX` while preserving `Experience` as the stored Business Unit value.
@@ -98,7 +107,7 @@ Rules:
   padding and top-align cell content. Saved/Saved CSM forecast labels and
   related AI Forecast references render on separate lines, with the AI Forecast
   reference using the AI legend color.
-- The legend row includes a Business Unit collapse/show button; collapsed mode hides all BU input columns and keeps Active through Confidence plus Closed Revenue YTD through Logs visible.
+- The legend row includes a Business Unit collapse/show button immediately after the legend chips; collapsed mode hides all BU input columns and keeps Active through Confidence plus Closed Revenue YTD through Logs visible.
 - Editable Annual Entry columns use a subtle manual-entry background, while consolidated/read-only columns remain visually quieter.
 - Annual Entry revenue/planned columns are labelled Closed Revenue YTD and Planned This Year; ratio columns explicitly use Forecast Ongoing; the history action is labelled Logs and each row link says `See latest logs of <company>`.
 - Annual Entry Planned includes future `Setup`, `Recruiting` and `Running`
