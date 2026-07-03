@@ -13,6 +13,19 @@ export const PETYR_BUSINESS_UNITS = [
 
 export type PetyrBusinessUnit = (typeof PETYR_BUSINESS_UNITS)[number];
 
+export const PETYR_FORECAST_ENTRY_BUSINESS_UNITS: readonly PetyrBusinessUnit[] = [
+  "QA",
+  "Experience",
+  "Accessibility",
+  "Security",
+  "FTE",
+  "TA",
+  "AI",
+  "Other",
+  "Express",
+  "Community"
+];
+
 export const PETYR_FORECAST_INTELLIGENCE_CACHE_BUSINESS_UNIT = "__forecast_intelligence__";
 export const PETYR_FORECAST_INTELLIGENCE_CACHE_MONTH = 0;
 

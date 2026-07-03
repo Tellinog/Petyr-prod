@@ -204,7 +204,7 @@ Normal `/forecasting/entry` requires `petyr:forecast:write` and is accessible to
 users who can write CSM forecasts. It no longer shows the old full single-company
 editor. The Monthly section defaults to the current server month/year, exposes
 a CSM filter plus Month and Year controls, and renders the selected CSM's companies in one batch table. Changing CSM reloads immediately from the CSM dropdown; changing Month or Year requires pressing the same-row `Load` button.
-The Annual section is separate, exposes CSM and Year filters, and renders the current annual portfolio for the selected annual cycle. The Monthly and Annual CSM selectors stay synchronized: changing either selector reloads the other section to the same selected CSM when both sections are loaded.
+The Annual section is separate, exposes a CSM multi-select and Year filter, and renders the current annual portfolio for the selected annual cycle. Annual users can select one or more CSMs and see the combined company list for all selected CSM portfolios. The Monthly and Annual CSM selectors stay synchronized when the Annual section has exactly one selected CSM; when Annual has multiple selected CSMs, Monthly remains on its single selected CSM.
 
 Normal Forecast Entry must not expose a company filter, Forecast Intelligence,
 deterministic preview, apply AI forecast, import/export, diagnostics or admin
@@ -239,10 +239,10 @@ AI annual placeholders, selected-year Revenue, selected-year Planned, derived
 percentages and Company Detail history links through:
 
 ```txt
-GET /api/petyr/forecast-entry/annual-batch?csmName=...&year=YYYY
+GET /api/petyr/forecast-entry/annual-batch?csmName=...&csmName=...&year=YYYY
 ```
 
-The annual batch read endpoint requires `petyr:read`. It must use a portfolio-scoped PostgreSQL read model for the selected CSM and year, not one full Company Detail read per customer. The normal Forecast Entry page should load Monthly on initial render and start Annual Forecast Entry loading in the background as soon as the Monthly workspace is usable. Opening the Annual tab should either show already loaded data or a passive in-progress/unavailable state, not a separate manual load flow.
+The annual batch read endpoint requires `petyr:read`. It accepts one or more repeated `csmName` query parameters and must use a portfolio-scoped PostgreSQL read model for the selected CSM set and year, not one full Company Detail read per customer. The normal Forecast Entry page should load Monthly on initial render and start Annual Forecast Entry loading in the background as soon as the Monthly workspace is usable. Opening the Annual tab should either show already loaded data or a passive in-progress/unavailable state, not a separate manual load flow.
 
 The legacy single-company read endpoint remains available for the admin-only old
 workspace:
@@ -273,6 +273,8 @@ Normal batch table rules:
   exist;
 - the first column is the company name linked to Company Detail for the current year;
 - columns are grouped by the 10 official Petyr Business Units only;
+- Business Unit columns are ordered for fast CSM checks as QA, UX/Experience,
+  Accessibility, Security, FTE, TA, AI, OTHER/Other, Express, Community;
 - each Business Unit starts collapsed and shows only the active editable field;
 - the Business Unit Expand/Collapse control must look actionable as a button and sit at the far right of the Business Unit group header;
 - the Monthly table must use its own vertical scroll area; the CSM, Month, Year
@@ -285,6 +287,14 @@ Normal batch table rules:
 - the inactive monthly forecast field and Closed Revenue YTD are visible only when a BU is expanded;
 - in expanded Business Unit groups, Previous Month Forecast is shown to the left of Ongoing Forecast and Closed Revenue YTD is shown to the right of Ongoing Forecast;
 - editable monthly forecast columns should be wide enough for their header labels;
+- numeric Monthly Forecast Entry cells display integer monetary values without
+  decimal cents, keep Italian thousands separators and stay wide enough for
+  values up to eight digits plus separators;
+- zero or empty Monthly Forecast Entry numeric cells use a softer grey treatment
+  so populated cells stand out;
+- Monthly table body rows use compact vertical padding and top-align cell
+  content. Saved CSM forecast labels and related AI Forecast references render
+  on separate lines, with the AI Forecast reference using the AI legend color;
 - Closed Revenue YTD is always read-only;
 - each company has one note field;
 - one floating bottom-right `Save` action saves all company updates, stays visible while scrolling, and turns green for five seconds after an effective save.
@@ -318,7 +328,7 @@ Annual Forecast Entry rules:
 - The default year is the current year until December 9, switches to the next
   year from December 10 through December 31, and becomes the new current year on
   January 1.
-- rows are all companies/customers associated to the selected CSM through
+- rows are all companies/customers associated to the selected Annual CSM filter through
   Company Ownership workspaces updated in the last 6 months; a company may
   appear under more than one CSM when multiple recent company-CSM associations
   exist;
@@ -332,13 +342,24 @@ Annual Forecast Entry rules:
   title, filters and Forecast Initial window notice scroll away above the table,
   the legend row extends across the full horizontal table width, and the Company
   and Confidence columns remain visible during horizontal scroll;
-- the selected CSM annual summary is rendered as a highlighted total row at the
-  bottom of the Annual table. The total row is not a company row: Active,
+- the selected Annual CSM filter summary is rendered as a highlighted total row directly
+  under the table headers and above the first company row. The total row is not a company row: Active,
   Confidence and Logs remain empty, while Forecast Initial, Forecast Ongoing,
   visible Business Unit totals, Closed Revenue YTD, Planned This Year and ratio
   values align under their respective columns;
 - Forecast Entry headers may display the official `Experience` Business Unit as
   `UX` while preserving `Experience` as the stored Business Unit value;
+- Business Unit columns use the same CSM check order as Monthly Forecast Entry:
+  QA, UX/Experience, Accessibility, Security, FTE, TA, AI, OTHER/Other, Express,
+  Community;
+- numeric Annual Forecast Entry cells display integer monetary values without
+  decimal cents, keep Italian thousands separators and stay wide enough for
+  values up to eight digits plus separators;
+- zero or empty Annual Forecast Entry numeric cells use a softer grey treatment
+  so populated cells stand out;
+- Annual table body rows use compact vertical padding and top-align cell
+  content. Saved/AI-confirmed labels and related AI Forecast references render
+  on separate lines, with the AI Forecast reference using the AI legend color;
 - a button to the right of the legend collapses or shows all Business Unit columns,
   so the collapsed table shows only Active through Confidence and Closed Revenue YTD through Logs;
 - editable/manual-entry columns use a subtle manual-entry background to distinguish
@@ -349,7 +370,8 @@ Annual Forecast Entry rules:
   outside that window unless Petyr Admin has unlocked the selected target year;
 - Forecast Ongoing Confidence is stored in
   `forecast_annual_entry.ongoing_confidence`, accepts only `01 High`, `02 Mid`
-  and `03 Low`, and is required when a row is modified;
+  and `03 Low`, and is required only when Forecast Ongoing Business Unit values
+  are modified without an existing confidence value;
 - Business Unit values use all official Petyr Business Units and are stored in
   `forecast_annual` with `value_source=manual` or `value_source=ai_confirmed`;
 - AI placeholders are displayed from cached AI forecast values but are not saved
@@ -357,7 +379,7 @@ Annual Forecast Entry rules:
   value;
 - Forecast Ongoing is derived as the sum of saved/confirmed BU values, not from the
   old Excel BU formula;
-- a highlighted total row at the bottom of the table shows the selected CSM
+- a highlighted total row directly under the table headers shows the selected CSM filter
   totals for the selected year, using the same live Annual Entry values shown in
   the table and aligning totals under their respective visible columns;
 - Closed Revenue YTD is selected-year campaign revenue closed through today, read from
@@ -371,7 +393,7 @@ Annual Forecast Entry rules:
   `forecast_change_log` audit rows with source `Annual Forecast Entry`;
 - annual saves reject unconfirmed placeholders, negative/non-numeric BU values,
   Forecast Initial changes outside the edit window, unknown Business Units and missing
-  confidence on modified rows.
+  confidence on modified Forecast Ongoing rows.
 - the Annual section uses the same floating bottom-right `Save` action pattern as
   Monthly Forecast Entry; inline top or bottom save buttons must not be shown in
   the normal Forecast Entry workflow.
@@ -454,13 +476,15 @@ Initial Forecast rules:
   `petyr:forecast:write` can enter or edit Forecast Initial through Annual
   Forecast Entry outside the default window.
 - `forecast_annual_entry.initial_forecast` stores the company/year Initial
-  Forecast total.
+  Forecast total entered in the Forecast Initial column. Saving Forecast Initial
+  must not replace that submitted value with an existing Forecast Ongoing total.
 - `forecast_annual.initial_forecast` stores the company + Business Unit + year
   Initial Forecast values used by Business Unit, Management and Company Detail
   views.
 - During the Forecast Initial window, saved Annual Entry Business Unit values
-  also populate the matching per-Business Unit Initial Forecast values, and the
-  company/year total is derived as their sum.
+  also populate the matching per-Business Unit Initial Forecast values. When a
+  user submits a company/year Forecast Initial total, that submitted total is
+  preserved independently from Forecast Ongoing.
 - From January 11 onward, Forecast Initial is read-only unless the selected
   target year is admin-unlocked; later Annual Entry changes update Ongoing
   Forecast in `forecast_annual.value` without changing the Initial Forecast

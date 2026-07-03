@@ -4160,6 +4160,7 @@ export type PetyrForecastEntryScopedBatch = {
 
 export type PetyrAnnualForecastEntryScopedPortfolio = {
   selectedCsm: string;
+  selectedCsms: string[];
   csmOptions: string[];
   companies: PetyrForecastEntryScopedCompany[];
   portfolio: Map<string, PetyrAnnualForecastEntryPortfolioCompany>;
@@ -4168,14 +4169,33 @@ export type PetyrAnnualForecastEntryScopedPortfolio = {
   scopedRowsCount: number;
 };
 
-function selectScopedCsm(input: { csmName?: unknown; preferredCsmName?: unknown }, csmOptions: string[]) {
-  const requestedCsm = typeof input.csmName === "string" ? input.csmName.trim() : "";
-  const preferredCsm = requestedCsm ? null : resolvePreferredCsmName(input.preferredCsmName, csmOptions);
-  const selected = requestedCsm || preferredCsm || csmOptions[0] || "Unassigned";
+function parseRequestedCsmNames(input: { csmName?: unknown; csmNames?: unknown }) {
+  const rawValues = Array.isArray(input.csmNames) ? input.csmNames : input.csmNames ? [input.csmNames] : input.csmName ? [input.csmName] : [];
+  const names = rawValues.flatMap((value) => {
+    if (typeof value !== "string") return [];
+    return value.split(",").map((item) => item.trim()).filter(Boolean);
+  });
+  const seen = new Set<string>();
+
+  return names.filter((name) => {
+    const key = normalizeKey(name);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function selectScopedCsm(input: { csmName?: unknown; csmNames?: unknown; preferredCsmName?: unknown }, csmOptions: string[]) {
+  const requestedCsms = parseRequestedCsmNames(input);
+  const preferredCsm = requestedCsms.length > 0 ? null : resolvePreferredCsmName(input.preferredCsmName, csmOptions);
+  const selectedCsms = requestedCsms.length > 0 ? requestedCsms : [preferredCsm || csmOptions[0] || "Unassigned"];
+  const selected = selectedCsms.join(", ");
+  const missingSelected = selectedCsms.filter((csmName) => !csmOptions.some((option) => normalizeKey(option) === normalizeKey(csmName)));
 
   return {
     selectedCsm: selected,
-    csmOptions: selected && !csmOptions.includes(selected) ? [selected, ...csmOptions] : csmOptions
+    selectedCsms,
+    csmOptions: [...missingSelected, ...csmOptions]
   };
 }
 
@@ -4196,6 +4216,7 @@ async function loadOverviewInputs(year: number, month: number, diagnostics: stri
 
 async function getScopedOwnershipSelection(input: {
   csmName?: unknown;
+  csmNames?: unknown;
   preferredCsmName?: unknown;
   diagnostics: string[];
 }) {
@@ -4220,9 +4241,9 @@ async function getScopedOwnershipSelection(input: {
     left.localeCompare(right)
   );
   const selection = selectScopedCsm(input, csmOptions);
-  const selectedCsmKey = normalizeKey(selection.selectedCsm);
+  const selectedCsmKeys = new Set(selection.selectedCsms.map(normalizeKey));
   const companies = allCompanies
-    .filter((company) => normalizeKey(company.csmName || "Unassigned") === selectedCsmKey)
+    .filter((company) => selectedCsmKeys.has(normalizeKey(company.csmName || "Unassigned")))
     .map<PetyrForecastEntryScopedCompany>((company) => ({
       companyName: company.companyName,
       csmName: company.csmName || "Unassigned",
@@ -4430,6 +4451,7 @@ export async function getForecastEntryScopedBatch(input: {
 
 export async function getAnnualForecastEntryScopedPortfolio(input: {
   csmName?: unknown;
+  csmNames?: unknown;
   preferredCsmName?: unknown;
   year: number;
 }): Promise<PetyrAnnualForecastEntryScopedPortfolio | null> {
@@ -4442,6 +4464,7 @@ export async function getAnnualForecastEntryScopedPortfolio(input: {
   if (ownershipSelection.companies.length === 0) {
     return {
       selectedCsm: ownershipSelection.selectedCsm,
+      selectedCsms: ownershipSelection.selectedCsms,
       csmOptions: ownershipSelection.csmOptions,
       companies: [],
       portfolio: new Map(),
@@ -4558,6 +4581,7 @@ export async function getAnnualForecastEntryScopedPortfolio(input: {
 
     return {
       selectedCsm: selection.selectedCsm,
+      selectedCsms: selection.selectedCsms,
       csmOptions: selection.csmOptions,
       companies,
       portfolio: byCompany,

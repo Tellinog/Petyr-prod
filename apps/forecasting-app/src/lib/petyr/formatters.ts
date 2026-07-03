@@ -54,12 +54,21 @@ export function formatPetyrInteger(value: number | null | undefined): string {
   return `${sign}${groupItalianIntegerDigits(String(Math.abs(rounded)))}`;
 }
 
+export function formatPetyrIntegerCurrency(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "n/a";
+  return `${formatPetyrInteger(value)} â‚¬`;
+}
+
 export function formatPetyrNumberValue(value: PetyrNumericValue): string {
   return formatPetyrNumber(parsePetyrNumericValue(value));
 }
 
 export function formatPetyrCurrencyValue(value: PetyrNumericValue): string {
   return formatPetyrCurrency(parsePetyrNumericValue(value));
+}
+
+export function formatPetyrIntegerCurrencyValue(value: PetyrNumericValue): string {
+  return formatPetyrIntegerCurrency(parsePetyrNumericValue(value));
 }
 
 export function formatPetyrPercentValue(value: PetyrNumericValue): string {

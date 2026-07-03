@@ -19,7 +19,7 @@ import {
 import { PetyrSelectField } from "@/components/petyr/PetyrForecastNavigation";
 import AnnualForecastEntryBatchWorkspace from "@/components/petyr/AnnualForecastEntryBatchWorkspace";
 import { formatBusinessUnitDisplayName } from "@/lib/petyr/businessUnitDisplay";
-import { formatPetyrCurrencyValue, formatPetyrNumber } from "@/lib/petyr/formatters";
+import { formatPetyrInteger, formatPetyrIntegerCurrencyValue } from "@/lib/petyr/formatters";
 import type { AnnualForecastEntryBatchDataResult } from "@/services/annualForecastEntryBatchService";
 import type {
   ForecastEntryBatchCell,
@@ -87,7 +87,7 @@ function cellKey(companyName: string, businessUnit: string) {
 }
 
 function formatInputValue(value: number | null | undefined) {
-  return value === null || value === undefined ? "" : formatPetyrNumber(value);
+  return value === null || value === undefined ? "" : formatPetyrInteger(value);
 }
 
 function normalizeMoneyString(value: string) {
@@ -109,7 +109,7 @@ function parseMoneyInput(value: string) {
   if (!/^\d+(\.\d+)?$/.test(normalized)) return null;
 
   const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
+  return Number.isFinite(parsed) ? Math.round(parsed) : null;
 }
 
 function activeForecast(cell: ForecastEntryBatchCell, editableForecastType: string | null) {
@@ -122,6 +122,17 @@ function forecastForType(cell: ForecastEntryBatchCell, forecastType: MonthlyFore
 
 function expandedForecastHeaderClass(forecastType: MonthlyForecastType, editableForecastType: string | null) {
   return forecastType === editableForecastType ? "bg-white text-slate-700" : "bg-slate-50 text-slate-500";
+}
+
+function isEmptyOrZeroDisplay(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return true;
+  if (typeof value === "number") return value === 0;
+  const parsed = parseMoneyInput(value);
+  return parsed === null || parsed === 0;
+}
+
+function mutedNumericClass(isMuted: boolean) {
+  return isMuted ? "text-slate-400 placeholder:text-slate-300" : "text-slate-900 placeholder:text-slate-400";
 }
 
 function valuesFromBatch(batch: ForecastEntryBatchDataResult) {
@@ -176,6 +187,17 @@ function LegendChip({ className, label }: { className: string; label: string }) 
       <span className={`h-3 w-3 rounded-full border ${className}`} />
       {label}
     </span>
+  );
+}
+
+function SavedForecastStatus({ aiForecastValue }: { aiForecastValue: number | null }) {
+  return (
+    <div className="mt-1 space-y-0.5 text-[11px] leading-tight text-slate-500">
+      <div>Saved CSM forecast</div>
+      {aiForecastValue !== null ? (
+        <div className="text-blue-700">({formatPetyrIntegerCurrencyValue(aiForecastValue)} AI Forecast)</div>
+      ) : null}
+    </div>
   );
 }
 
@@ -555,7 +577,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
           </div>
 
           <div className="max-h-[calc(100vh-18rem)] overflow-auto rounded-2xl border border-slate-200 bg-white">
-            <Table className="min-w-max">
+            <Table className="min-w-max [&_tbody_td]:align-top [&_tbody_td]:py-[5px]">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="sticky left-0 top-0 z-40 min-w-[240px] bg-white shadow-[0_1px_0_0_rgba(226,232,240,1)]" rowSpan={2}>
@@ -633,6 +655,8 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                         const current = activeForecast(cell, editableForecastType);
                         const sourceState = sourceStates[key];
                         const aiPlaceholder = !current.hasSavedCsmValue && cell.aiForecast.value !== null ? formatInputValue(cell.aiForecast.value) : "";
+                        const currentInputValue = values[key] ?? "";
+                        const mutedInput = isEmptyOrZeroDisplay(currentInputValue || aiPlaceholder);
                         const activeInputClass =
                           sourceState === "accepted_ai"
                             ? "border-violet-300 bg-violet-50"
@@ -646,26 +670,22 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                         const renderEditableCell = (cellKeySuffix: string) => (
                           <TableCell key={`${key}-${cellKeySuffix}`} className="min-w-[190px] border-l border-slate-200">
                               <Input
-                                inputMode="decimal"
+                                inputMode="numeric"
                                 disabled={isLocked || isSaving}
                                 readOnly={isLocked}
                                 placeholder={aiPlaceholder || "n/a"}
-                                value={values[key] ?? ""}
+                                value={currentInputValue}
                                 onFocus={() => acceptAiPlaceholder(company, cell)}
                                 onClick={() => acceptAiPlaceholder(company, cell)}
                                 onChange={(event) => updateValue(company, cell, event.target.value)}
-                                className={`h-10 w-full min-w-[158px] rounded-xl text-right font-semibold ${isLocked ? "bg-slate-100" : activeInputClass}`}
+                                className={`h-8 w-full min-w-[158px] rounded-xl text-right font-semibold ${mutedNumericClass(mutedInput)} ${isLocked ? "bg-slate-100" : activeInputClass}`}
                               />
                               {sourceState ? (
                                 <div className="mt-1 text-[11px] font-medium text-slate-500">
                                   {sourceState === "accepted_ai" ? "Validated from AI" : "Manual edit"}
                                 </div>
                               ) : current.hasSavedCsmValue ? (
-                                <div className="mt-1 text-[11px] text-slate-500">
-                                  Saved CSM forecast
-                                  {cell.aiForecast.value !== null ? ` (${formatPetyrCurrencyValue(cell.aiForecast.value)} AI Forecast)` : ""}
-                                </div>
-
+                                <SavedForecastStatus aiForecastValue={cell.aiForecast.value} />
                               ) : aiPlaceholder ? (
                                 <div className="mt-1 text-[11px] text-blue-700">AI suggestion</div>
                               ) : null}
@@ -683,13 +703,19 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                             }
 
                             return (
-                              <TableCell key={`${key}-${forecastType}`} className="min-w-[190px] border-l border-slate-200 bg-slate-50 text-right font-medium text-slate-700">
-                                {formatPetyrCurrencyValue(forecastForType(cell, forecastType)?.value)}
+                              <TableCell
+                                key={`${key}-${forecastType}`}
+                                className={`min-w-[190px] border-l border-slate-200 bg-slate-50 text-right font-medium ${mutedNumericClass(isEmptyOrZeroDisplay(forecastForType(cell, forecastType)?.value))}`}
+                              >
+                                {formatPetyrIntegerCurrencyValue(forecastForType(cell, forecastType)?.value)}
                               </TableCell>
                             );
                           }),
-                          <TableCell key={`${key}-closed`} className="min-w-[170px] border-l border-slate-200 bg-amber-50 text-right font-medium text-slate-700">
-                            {formatPetyrCurrencyValue(cell.closedRevenue)}
+                          <TableCell
+                            key={`${key}-closed`}
+                            className={`min-w-[170px] border-l border-slate-200 bg-amber-50 text-right font-medium ${mutedNumericClass(isEmptyOrZeroDisplay(cell.closedRevenue))}`}
+                          >
+                            {formatPetyrIntegerCurrencyValue(cell.closedRevenue)}
                           </TableCell>
                         ];
                       })}
@@ -699,7 +725,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                           onChange={(event) => updateNote(company.companyName, event.target.value)}
                           disabled={isSaving}
                           placeholder="Company note..."
-                          className="min-h-[72px] rounded-xl"
+                          className="min-h-12 rounded-xl"
                         />
                       </TableCell>
                     </TableRow>
@@ -722,12 +748,12 @@ export default function ForecastEntryMonthlyBatchWorkspace({
         <TabsContent value="annual" className="space-y-5">
           {annualBatch ? (
             <AnnualForecastEntryBatchWorkspace
-              key={`${annualBatch.data.selectedCsm}-${annualBatch.data.selectedYear}`}
+              key={`${annualBatch.data.selectedCsms.join("|")}-${annualBatch.data.selectedYear}`}
               initialBatch={annualBatch}
               onBatchChange={(nextBatch) => {
                 setAnnualBatch(nextBatch);
-                if (nextBatch.data.selectedCsm !== batch.data.selectedCsm) {
-                  void loadBatch(nextBatch.data.selectedCsm);
+                if (nextBatch.data.selectedCsms.length === 1 && nextBatch.data.selectedCsms[0] !== batch.data.selectedCsm) {
+                  void loadBatch(nextBatch.data.selectedCsms[0]);
                 }
               }}
             />

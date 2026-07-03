@@ -62,7 +62,10 @@ section alongside Monthly Forecast Entry.
 
 Rules:
 
-- CSM filter follows the same ownership/preselection logic as Monthly.
+- CSM filter is a multi-select dropdown. Users can select one or more CSMs and
+  Annual Forecast Entry shows the combined company portfolio for all selected
+  CSMs. Default/preselection follows the same ownership/preselection logic as
+  Monthly.
 - Company lists for Monthly and Annual Forecast Entry include every
   company-CSM association whose Company Ownership workspace has
   `workspace_updated_on` within the last 6 months. A company may therefore
@@ -77,11 +80,24 @@ Rules:
   year N, or while Petyr Admin has unlocked the selected target year.
 - FC Ongoing is the sum of saved or AI-confirmed annual Business Unit values.
   Unclicked FC AI placeholders are not saved and do not contribute.
-- FC Ongoing Confidence is required on modified rows and accepts only `01 High`,
-  `02 Mid` and `03 Low`.
+- FC Ongoing Confidence is required only when Forecast Ongoing Business Unit
+  values are modified without an existing confidence value, and accepts only
+  `01 High`, `02 Mid` and `03 Low`.
 - Annual Entry table headers stay fixed during vertical scroll, the legend row spans the full horizontal table width, and Company plus Confidence stay visible during horizontal scroll.
-- Annual Entry shows the selected CSM annual summary as a highlighted total row at the bottom of the table. The total row is not a company row: Active, Confidence and Logs remain empty, while Forecast Initial, Forecast Ongoing, visible Business Unit totals, Closed Revenue YTD, Planned This Year and ratio values align under their respective columns.
+- Annual Entry shows the selected CSM filter annual summary as a highlighted total row directly under the table headers and above the first company row. The total row is not a company row: Active, Confidence and Logs remain empty, while Forecast Initial, Forecast Ongoing, visible Business Unit totals, Closed Revenue YTD, Planned This Year and ratio values align under their respective columns.
 - Forecast Entry headers may display the official `Experience` Business Unit as `UX` while preserving `Experience` as the stored Business Unit value.
+- Monthly and Annual Forecast Entry display Business Unit columns in this CSM
+  check order: QA, UX/Experience, Accessibility, Security, FTE, TA, AI, OTHER/Other,
+  Express, Community.
+- Monthly and Annual Forecast Entry numeric cells display integer monetary
+  values without decimal cents, keep Italian thousands separators and are wide
+  enough for values up to eight digits plus separators.
+- Zero or empty Forecast Entry numeric cells use a softer grey treatment so
+  populated values stand out.
+- Monthly and Annual Forecast Entry table body rows use compact vertical
+  padding and top-align cell content. Saved/Saved CSM forecast labels and
+  related AI Forecast references render on separate lines, with the AI Forecast
+  reference using the AI legend color.
 - The legend row includes a Business Unit collapse/show button; collapsed mode hides all BU input columns and keeps Active through Confidence plus Closed Revenue YTD through Logs visible.
 - Editable Annual Entry columns use a subtle manual-entry background, while consolidated/read-only columns remain visually quieter.
 - Annual Entry revenue/planned columns are labelled Closed Revenue YTD and Planned This Year; ratio columns explicitly use Forecast Ongoing; the history action is labelled Logs and each row link says `See latest logs of <company>`.
@@ -115,8 +131,10 @@ Rules:
   Forecast Initial through Annual Forecast Entry outside the default window.
 - During that window, saved Annual Entry Business Unit values also populate
   `forecast_annual.initial_forecast`.
-- `forecast_annual_entry.initial_forecast` is the sum of saved per-Business Unit
-  Initial Forecast values for the same company/year.
+- `forecast_annual_entry.initial_forecast` stores the company/year Forecast
+  Initial value entered in the Annual Forecast Entry Initial column. Saving
+  Forecast Initial must not replace that submitted value with existing Forecast
+  Ongoing values.
 - From January 11 onward, Forecast Initial is read-only and remains fixed unless
   the selected target year is admin-unlocked.
 - Later Annual Entry saves may update Ongoing Forecast in `forecast_annual.value`
@@ -273,6 +291,9 @@ with exactly two decimal digits:
 Missing numeric values show `n/a`. Real zero values show `0,00` or `0,00 €`.
 Technical IDs, years, months, CPID/campaign/agreement IDs and row/import counts
 that must remain integers are excluded from the two-decimal display rule.
+Forecast Entry numeric entry cells are also an explicit exception: Monthly and
+Annual Forecast Entry show integer monetary values without decimal cents while
+preserving Italian thousands separators.
 
 Excel exports for CSM/management workflows must keep editable/calculable cells
 numeric and apply compatible money/percentage number formats rather than turning

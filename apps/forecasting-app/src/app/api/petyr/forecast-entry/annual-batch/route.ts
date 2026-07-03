@@ -10,8 +10,10 @@ export async function GET(request: Request) {
   if (auth instanceof NextResponse) return auth;
 
   const { searchParams } = new URL(request.url);
+  const csmNames = searchParams.getAll("csmName").map((value) => value.trim()).filter(Boolean);
   const result = await getAnnualForecastEntryBatch({
     csmName: searchParams.get("csmName"),
+    csmNames,
     year: searchParams.get("year"),
     preferredCsmName: auth.user.displayName,
     warmup: searchParams.get("warmup")

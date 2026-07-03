@@ -6,7 +6,9 @@ import {
   getAnnualForecastEntryDefaultYear,
   getAnnualForecastEntryInitialMode,
   getAnnualForecastEntryYearOptions,
-  isPetyrAnnualConfidence
+  isPetyrAnnualConfidence,
+  resolveAnnualEntryInitialForecast,
+  shouldRequireAnnualOngoingConfidence
 } from "../src/lib/petyr/annualForecastEntryRules";
 import {
   isInitialForecastYearAdminUnlocked,
@@ -16,6 +18,7 @@ import {
 import { parseAnnualForecastImportRows } from "../src/lib/petyr/annualForecastImportParser";
 import { getMissingAnnualForecastImportCustomers } from "../src/lib/petyr/annualForecastImportMissingCustomers";
 import { buildInactiveCompaniesAnnualForecastRows } from "../src/lib/petyr/inactiveCompaniesAnnualExportRows";
+import { PETYR_FORECAST_ENTRY_BUSINESS_UNITS } from "../src/lib/petyr/constants";
 
 function dateFor(year: number, month: number, day: number) {
   return new Date(year, month - 1, day, 12, 0, 0);
@@ -23,6 +26,21 @@ function dateFor(year: number, month: number, day: number) {
 
 test("Annual Forecast Entry year options start at 2026 and include at least 2026 and 2027", () => {
   assert.deepEqual(getAnnualForecastEntryYearOptions(dateFor(2026, 6, 25)), [2026, 2027]);
+});
+
+test("Forecast Entry Business Unit columns follow the CSM check order", () => {
+  assert.deepEqual([...PETYR_FORECAST_ENTRY_BUSINESS_UNITS], [
+    "QA",
+    "Experience",
+    "Accessibility",
+    "Security",
+    "FTE",
+    "TA",
+    "AI",
+    "Other",
+    "Express",
+    "Community"
+  ]);
 });
 
 test("Annual Forecast Entry default year switches on December 10 and resets on January 1", () => {
@@ -99,6 +117,39 @@ test("Annual Forecast Entry confidence values are closed", () => {
   assert.equal(isPetyrAnnualConfidence("02 Mid"), true);
   assert.equal(isPetyrAnnualConfidence("03 Low"), true);
   assert.equal(isPetyrAnnualConfidence("04 Unknown"), false);
+});
+
+test("Annual Forecast Entry requires confidence only for changed Forecast Ongoing values", () => {
+  assert.equal(shouldRequireAnnualOngoingConfidence({ ongoingForecastChanged: true, hasExistingConfidence: false }), true);
+  assert.equal(shouldRequireAnnualOngoingConfidence({ ongoingForecastChanged: true, hasExistingConfidence: true }), false);
+  assert.equal(shouldRequireAnnualOngoingConfidence({ ongoingForecastChanged: false, hasExistingConfidence: false }), false);
+});
+
+test("Annual Forecast Entry keeps submitted Forecast Initial ahead of derived ongoing totals", () => {
+  assert.equal(
+    resolveAnnualEntryInitialForecast({
+      initialModeEditable: true,
+      submittedInitialForecast: 100,
+      derivedInitialForecast: 900
+    }),
+    100
+  );
+  assert.equal(
+    resolveAnnualEntryInitialForecast({
+      initialModeEditable: true,
+      submittedInitialForecast: null,
+      derivedInitialForecast: 900
+    }),
+    900
+  );
+  assert.equal(
+    resolveAnnualEntryInitialForecast({
+      initialModeEditable: false,
+      submittedInitialForecast: null,
+      derivedInitialForecast: 900
+    }),
+    null
+  );
 });
 
 test("Annual Forecast Entry percentages handle zero FC Ongoing", () => {

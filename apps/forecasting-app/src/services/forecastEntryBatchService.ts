@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getForecastEntryMode, type EditableForecastType, type ForecastEntryMode } from "@/lib/forecastEntryMode";
-import { PETYR_BUSINESS_UNITS, type PetyrBusinessUnit } from "@/lib/petyr/constants";
+import { PETYR_BUSINESS_UNITS, PETYR_FORECAST_ENTRY_BUSINESS_UNITS, type PetyrBusinessUnit } from "@/lib/petyr/constants";
 import { startPetyrPerformanceTimer } from "@/lib/petyr/performance";
 import { resolvePreferredCsmName } from "@/lib/petyr/csmIdentity";
 import {
@@ -21,6 +21,7 @@ const NOTE_ONLY_MESSAGE = "Company note requires at least one active forecast va
 const NO_CHANGES_DETECTED_MESSAGE = "No changes detected";
 const BUSINESS_UNITS = new Set<string>(PETYR_BUSINESS_UNITS);
 const SOURCE_STATES = new Set(["accepted_ai", "manual_edit"]);
+const FORECAST_ENTRY_BUSINESS_UNIT_RANK = new Map(PETYR_FORECAST_ENTRY_BUSINESS_UNITS.map((businessUnit, index) => [businessUnit, index]));
 
 export class ForecastEntryBatchError extends Error {
   status: number;
@@ -234,6 +235,10 @@ function savedForecast(row: PetyrForecastValueContext) {
   };
 }
 
+function forecastEntryBusinessUnitRank(businessUnit: PetyrBusinessUnit) {
+  return FORECAST_ENTRY_BUSINESS_UNIT_RANK.get(businessUnit) ?? PETYR_FORECAST_ENTRY_BUSINESS_UNITS.length;
+}
+
 function currentCompanyActiveStatus(context: PetyrForecastEntryContext) {
   return context.companyStatus?.isActive ?? context.company?.isForecastActive ?? true;
 }
@@ -267,13 +272,15 @@ function companyFromContext(context: PetyrForecastEntryContext, fallback: Compan
     csmName: context.csmName || fallback.csmName || "Unassigned",
     isForecastActive: currentCompanyActiveStatus(context),
     priorityScore: fallback.priorityScore,
-    businessUnits: context.businessUnits.map((row) => ({
-      businessUnit: normalizeBusinessUnit(row.businessUnit) ?? "Other",
-      previousMonthForecast: savedForecast(row.previousMonthForecast),
-      ongoingForecast: savedForecast(row.ongoingForecast),
-      closedRevenue: row.actualRevenue,
-      aiForecast: row.aiForecast
-    }))
+    businessUnits: context.businessUnits
+      .map((row) => ({
+        businessUnit: normalizeBusinessUnit(row.businessUnit) ?? "Other",
+        previousMonthForecast: savedForecast(row.previousMonthForecast),
+        ongoingForecast: savedForecast(row.ongoingForecast),
+        closedRevenue: row.actualRevenue,
+        aiForecast: row.aiForecast
+      }))
+      .sort((left, right) => forecastEntryBusinessUnitRank(left.businessUnit) - forecastEntryBusinessUnitRank(right.businessUnit))
   };
 }
 
@@ -309,7 +316,7 @@ export async function getForecastEntryBatch(input: ForecastEntryBatchQuery = {})
               year,
               month,
               entryMode: getForecastEntryMode({ year, month }),
-              businessUnits: [...PETYR_BUSINESS_UNITS],
+              businessUnits: [...PETYR_FORECAST_ENTRY_BUSINESS_UNITS],
               companies: contexts
             }
           } satisfies ForecastEntryBatchDataResult,
@@ -348,7 +355,7 @@ export async function getForecastEntryBatch(input: ForecastEntryBatchQuery = {})
             year,
             month,
             entryMode: getForecastEntryMode({ year, month }),
-            businessUnits: [...PETYR_BUSINESS_UNITS],
+            businessUnits: [...PETYR_FORECAST_ENTRY_BUSINESS_UNITS],
             companies: contexts
           }
         } satisfies ForecastEntryBatchDataResult,

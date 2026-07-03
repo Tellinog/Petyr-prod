@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PetyrCard, PetyrInlineNotice } from "@/components/petyr/PetyrLayoutPrimitives";
 import { PetyrSelectField } from "@/components/petyr/PetyrForecastNavigation";
 import { formatBusinessUnitDisplayName } from "@/lib/petyr/businessUnitDisplay";
-import { formatPetyrCurrencyValue, formatPetyrNumber, formatPetyrPercent } from "@/lib/petyr/formatters";
+import { formatPetyrInteger, formatPetyrIntegerCurrencyValue, formatPetyrPercent } from "@/lib/petyr/formatters";
 import { calculateAnnualForecastPercentages } from "@/lib/petyr/annualForecastEntryRules";
 import type {
   AnnualForecastEntryBatchCell,
@@ -25,9 +25,11 @@ type Notice = {
 
 type SourceState = "accepted_ai" | "manual_edit";
 
-function buildAnnualBatchUrl(csmName: string, year: number) {
+function buildAnnualBatchUrl(csmNames: string[], year: number) {
   const params = new URLSearchParams();
-  if (csmName) params.set("csmName", csmName);
+  for (const csmName of csmNames) {
+    if (csmName) params.append("csmName", csmName);
+  }
   params.set("year", String(year));
   return `/api/petyr/forecast-entry/annual-batch?${params.toString()}`;
 }
@@ -47,7 +49,7 @@ function cellKey(companyName: string, businessUnit: string) {
 }
 
 function formatInputValue(value: number | null | undefined) {
-  return value === null || value === undefined ? "" : formatPetyrNumber(value);
+  return value === null || value === undefined ? "" : formatPetyrInteger(value);
 }
 
 function normalizeMoneyString(value: string) {
@@ -69,7 +71,7 @@ function parseMoneyInput(value: string) {
   if (!/^\d+(\.\d+)?$/.test(normalized)) return null;
 
   const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
+  return Number.isFinite(parsed) ? Math.round(parsed) : null;
 }
 
 function valuesFromBatch(batch: AnnualForecastEntryBatchDataResult) {
@@ -107,6 +109,17 @@ function LegendChip({ className, label }: { className: string; label: string }) 
   );
 }
 
+function SavedForecastStatus({ label, aiForecastValue }: { label: string; aiForecastValue: number | null }) {
+  return (
+    <div className="mt-1 space-y-0.5 text-right text-[11px] leading-tight text-slate-500">
+      <div>{label}</div>
+      {aiForecastValue !== null ? (
+        <div className="text-blue-700">({formatPetyrIntegerCurrencyValue(aiForecastValue)} AI Forecast)</div>
+      ) : null}
+    </div>
+  );
+}
+
 function rowHasTouchedValue(company: AnnualForecastEntryBatchCompany, sourceStates: Record<string, SourceState | undefined>) {
   return company.businessUnits.some((cell) => Boolean(sourceStates[cellKey(company.companyName, cell.businessUnit)]));
 }
@@ -115,23 +128,42 @@ function percentLabel(value: number | null | undefined) {
   return value === null || value === undefined ? "n/a" : formatPetyrPercent(value * 100);
 }
 
+function isEmptyOrZeroDisplay(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return true;
+  if (typeof value === "number") return value === 0;
+  const parsed = parseMoneyInput(value);
+  return parsed === null || parsed === 0;
+}
+
+function mutedNumericClass(isMuted: boolean) {
+  return isMuted ? "text-slate-400 placeholder:text-slate-300" : "text-slate-900 placeholder:text-slate-400";
+}
+
+function selectedCsmsLabel(csmNames: string[]) {
+  if (csmNames.length === 0) return "No CSM selected";
+  if (csmNames.length === 1) return csmNames[0];
+  return `${csmNames.length} CSM selected`;
+}
+
 const COMPANY_COLUMN_WIDTH = 220;
 const ACTIVE_COLUMN_WIDTH = 120;
-const INITIAL_COLUMN_WIDTH = 104;
+const INITIAL_COLUMN_WIDTH = 128;
 const ONGOING_COLUMN_WIDTH = 150;
 const CONFIDENCE_COLUMN_WIDTH = 150;
-const BUSINESS_UNIT_COLUMN_WIDTH = 105;
+const BUSINESS_UNIT_COLUMN_WIDTH = 128;
 const REVENUE_COLUMN_WIDTH = 150;
 const PLANNED_COLUMN_WIDTH = 150;
 const REVENUE_RATIO_COLUMN_WIDTH = 170;
 const PLANNED_RATIO_COLUMN_WIDTH = 170;
 const UNCOVERED_RATIO_COLUMN_WIDTH = 180;
 const LOGS_COLUMN_WIDTH = 220;
-const COMPANY_STICKY_CLASS = "sticky left-0 z-30 min-w-[220px]";
-const CONFIDENCE_STICKY_CLASS = "sticky left-[220px] z-30 min-w-[150px] shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]";
+const COMPANY_STICKY_CLASS = "sticky left-0 min-w-[220px]";
+const CONFIDENCE_STICKY_CLASS = "sticky left-[220px] min-w-[150px] shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]";
+const PINNED_BODY_STICKY_CLASS = "z-30";
+const PINNED_HEADER_STICKY_CLASS = "z-[60]";
 const HEADER_STICKY_CLASS = "sticky top-16 z-40 shadow-[0_1px_0_0_rgba(226,232,240,1)]";
 const MANUAL_HEADER_CLASS = "bg-amber-50 text-amber-950";
-const MANUAL_CELL_CLASS = "bg-amber-50/70";
+const MANUAL_CELL_CLASS = "bg-amber-50/70 align-top";
 
 export default function AnnualForecastEntryBatchWorkspace({
   initialBatch,
@@ -141,7 +173,7 @@ export default function AnnualForecastEntryBatchWorkspace({
   onBatchChange?: (batch: AnnualForecastEntryBatchDataResult) => void;
 }) {
   const [batch, setBatch] = useState(initialBatch);
-  const [selectedCsm, setSelectedCsm] = useState(initialBatch.data.selectedCsm);
+  const [selectedCsms, setSelectedCsms] = useState<string[]>(() => initialBatch.data.selectedCsms ?? [initialBatch.data.selectedCsm].filter(Boolean));
   const [selectedYear, setSelectedYear] = useState(initialBatch.data.selectedYear);
   const [values, setValues] = useState<Record<string, string>>(() => valuesFromBatch(initialBatch));
   const [initialValues, setInitialValues] = useState<Record<string, string>>(() => initialValuesFromBatch(initialBatch));
@@ -202,7 +234,7 @@ export default function AnnualForecastEntryBatchWorkspace({
 
   function resetLocalState(nextBatch: AnnualForecastEntryBatchDataResult) {
     setBatch(nextBatch);
-    setSelectedCsm(nextBatch.data.selectedCsm);
+    setSelectedCsms(nextBatch.data.selectedCsms ?? [nextBatch.data.selectedCsm].filter(Boolean));
     setSelectedYear(nextBatch.data.selectedYear);
     setValues(valuesFromBatch(nextBatch));
     setInitialValues(initialValuesFromBatch(nextBatch));
@@ -214,18 +246,19 @@ export default function AnnualForecastEntryBatchWorkspace({
     setTouchedConfidence(new Set());
   }
 
-  async function loadAnnualBatch(csmName: string, year: number) {
+  async function loadAnnualBatch(csmNames: string[], year: number) {
     if (hasLocalChanges && !window.confirm("Annual Forecast Entry has unsaved changes. Change filter and discard them?")) {
       return;
     }
 
-    setSelectedCsm(csmName);
+    const nextCsms = csmNames.length > 0 ? csmNames : selectedCsms;
+    setSelectedCsms(nextCsms);
     setSelectedYear(year);
     setIsLoading(true);
     setNotice(null);
 
     try {
-      const response = await fetch(buildAnnualBatchUrl(csmName, year), { cache: "no-store" });
+      const response = await fetch(buildAnnualBatchUrl(nextCsms, year), { cache: "no-store" });
       const payload = (await response.json()) as AnnualForecastEntryBatchDataResult;
 
       if (!response.ok) {
@@ -351,13 +384,14 @@ export default function AnnualForecastEntryBatchWorkspace({
       const hasInitial = touchedInitial.has(company.companyName);
       const hasActive = touchedActive.has(company.companyName);
       const hasConfidence = touchedConfidence.has(company.companyName);
-      const rowModified = valuesForCompany.length > 0 || hasInitial || hasActive;
+      const ongoingModified = valuesForCompany.length > 0;
+      const rowModified = ongoingModified || hasInitial || hasActive;
 
       if (!rowModified && !hasConfidence) return [];
 
       const confidence = confidenceValues[company.companyName] ?? "";
-      if (rowModified && !confidence) {
-        throw new Error(`${company.companyName}: Confidence is required on modified annual rows.`);
+      if (ongoingModified && !confidence) {
+        throw new Error(`${company.companyName}: Confidence is required when Forecast Ongoing changes.`);
       }
 
       return [
@@ -365,7 +399,7 @@ export default function AnnualForecastEntryBatchWorkspace({
           companyName: company.companyName,
           activeStatus: hasActive ? activeValues[company.companyName] : undefined,
           initialForecast: hasInitial ? initialValues[company.companyName] : undefined,
-          confidence: rowModified || hasConfidence ? confidence : undefined,
+          confidence: ongoingModified || hasConfidence ? confidence : undefined,
           values: valuesForCompany
         }
       ];
@@ -396,6 +430,7 @@ export default function AnnualForecastEntryBatchWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           csmName: batch.data.selectedCsm,
+          csmNames: batch.data.selectedCsms,
           year: batch.data.selectedYear,
           updates
         })
@@ -473,31 +508,38 @@ export default function AnnualForecastEntryBatchWorkspace({
           <div>
             <CardTitle>Annual Forecast Entry</CardTitle>
             <CardDescription>
-              {batch.data.selectedCsm}: {batch.data.companies.length} compan{batch.data.companies.length === 1 ? "y" : "ies"} - {batch.data.selectedYear}
+              {selectedCsmsLabel(batch.data.selectedCsms)}: {batch.data.companies.length} compan{batch.data.companies.length === 1 ? "y" : "ies"} - {batch.data.selectedYear}
             </CardDescription>
           </div>
           <Badge variant={batch.data.initialMode.editable ? "secondary" : "outline"}>{batch.data.initialMode.label}</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_180px_minmax(0,1fr)] lg:items-end">
-          <PetyrSelectField
-            label="CSM"
-            disabled={isLoading || isSaving}
-            value={selectedCsm}
-            onChange={(event) => void loadAnnualBatch(event.target.value, selectedYear)}
-          >
-            {batch.data.csmOptions.map((csmName) => (
-              <option key={csmName} value={csmName}>
-                {csmName}
-              </option>
-            ))}
-          </PetyrSelectField>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_180px_auto_minmax(0,1fr)] lg:items-end">
+          <label className="space-y-1 text-sm font-medium text-slate-700">
+            CSM
+            <select
+              multiple
+              disabled={isLoading || isSaving}
+              value={selectedCsms}
+              onChange={(event) => {
+                const nextSelection = Array.from(event.target.selectedOptions, (option) => option.value);
+                setSelectedCsms(nextSelection);
+              }}
+              className="min-h-[120px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm"
+            >
+              {batch.data.csmOptions.map((csmName) => (
+                <option key={csmName} value={csmName}>
+                  {csmName}
+                </option>
+              ))}
+            </select>
+          </label>
           <PetyrSelectField
             label="Year"
             disabled={isLoading || isSaving}
             value={String(selectedYear)}
-            onChange={(event) => void loadAnnualBatch(selectedCsm, Number(event.target.value))}
+            onChange={(event) => setSelectedYear(Number(event.target.value))}
           >
             {batch.data.yearOptions.map((year) => (
               <option key={year} value={year}>
@@ -505,6 +547,15 @@ export default function AnnualForecastEntryBatchWorkspace({
               </option>
             ))}
           </PetyrSelectField>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isLoading || isSaving || selectedCsms.length === 0}
+            onClick={() => void loadAnnualBatch(selectedCsms, selectedYear)}
+            className="h-10 rounded-xl px-5"
+          >
+            {isLoading ? "Loading" : "Load"}
+          </Button>
           <PetyrInlineNotice tone={batch.data.initialMode.editable ? "success" : "warning"}>
             {batch.data.initialMode.reason}
           </PetyrInlineNotice>
@@ -552,17 +603,17 @@ export default function AnnualForecastEntryBatchWorkspace({
               {showBusinessUnits ? "Collapse Business Units" : "Show Business Units"}
             </Button>
           </div>
-          <Table ref={annualTableRef} className="min-w-max" style={{ minWidth: annualTableMinWidth }}>
+          <Table ref={annualTableRef} className="min-w-max [&_tbody_td]:align-top [&_tbody_td]:py-[5px]" style={{ minWidth: annualTableMinWidth }}>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className={`${COMPANY_STICKY_CLASS} bg-white ${HEADER_STICKY_CLASS}`}>Company</TableHead>
+                <TableHead className={`${COMPANY_STICKY_CLASS} bg-white ${HEADER_STICKY_CLASS} ${PINNED_HEADER_STICKY_CLASS}`}>Company</TableHead>
                 <TableHead className={`${HEADER_STICKY_CLASS} min-w-[120px] ${MANUAL_HEADER_CLASS}`}>Active</TableHead>
-                <TableHead className={`${HEADER_STICKY_CLASS} w-[104px] min-w-[104px] ${MANUAL_HEADER_CLASS}`}>Forecast Initial</TableHead>
+                  <TableHead className={`${HEADER_STICKY_CLASS} w-[128px] min-w-[128px] ${MANUAL_HEADER_CLASS}`}>Forecast Initial</TableHead>
                 <TableHead className={`${HEADER_STICKY_CLASS} min-w-[150px] bg-white`}>Forecast Ongoing</TableHead>
-                <TableHead className={`${CONFIDENCE_STICKY_CLASS} bg-amber-50 ${HEADER_STICKY_CLASS}`}>Confidence</TableHead>
+                <TableHead className={`${CONFIDENCE_STICKY_CLASS} bg-amber-50 ${HEADER_STICKY_CLASS} ${PINNED_HEADER_STICKY_CLASS}`}>Confidence</TableHead>
                 {showBusinessUnits
                   ? batch.data.businessUnits.map((businessUnit) => (
-                      <TableHead key={businessUnit} className={`${HEADER_STICKY_CLASS} min-w-[105px] text-right ${MANUAL_HEADER_CLASS}`}>
+                      <TableHead key={businessUnit} className={`${HEADER_STICKY_CLASS} min-w-[128px] text-right ${MANUAL_HEADER_CLASS}`}>
                         {formatBusinessUnitDisplayName(businessUnit)}
                       </TableHead>
                     ))
@@ -577,6 +628,53 @@ export default function AnnualForecastEntryBatchWorkspace({
             </TableHeader>
             <TableBody>
               {batch.data.companies.length > 0 ? (
+                <TableRow className="border-b-2 border-cyan-200 bg-cyan-50 hover:bg-cyan-50">
+                  <TableCell className={`${COMPANY_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} border-r border-cyan-200 bg-cyan-50`}>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-cyan-800">
+                      {batch.data.selectedYear} CSM Forecast
+                    </div>
+                    <div className="mt-1 text-xs font-medium text-cyan-700">Portfolio total</div>
+                  </TableCell>
+                  <TableCell className="min-w-[120px] bg-cyan-50" aria-label="No active status for total row" />
+                  <TableCell className={`w-[128px] min-w-[128px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(annualSummary.initialTotal))}`}>
+                    {formatPetyrIntegerCurrencyValue(annualSummary.initialTotal)}
+                  </TableCell>
+                  <TableCell className={`min-w-[150px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(annualSummary.total))}`}>
+                    {formatPetyrIntegerCurrencyValue(annualSummary.total)}
+                  </TableCell>
+                  <TableCell
+                    className={`${CONFIDENCE_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} bg-cyan-50`}
+                    aria-label="No confidence value for total row"
+                  />
+                  {showBusinessUnits
+                    ? annualSummary.byBusinessUnit.map((item) => (
+                        <TableCell
+                          key={`total-${item.businessUnit}`}
+                          className={`min-w-[128px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(item.value))}`}
+                        >
+                          {formatPetyrIntegerCurrencyValue(item.value)}
+                        </TableCell>
+                      ))
+                    : null}
+                  <TableCell className={`min-w-[150px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(annualSummary.revenue))}`}>
+                    {formatPetyrIntegerCurrencyValue(annualSummary.revenue)}
+                  </TableCell>
+                  <TableCell className={`min-w-[150px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(annualSummary.planned))}`}>
+                    {formatPetyrIntegerCurrencyValue(annualSummary.planned)}
+                  </TableCell>
+                  <TableCell className="min-w-[170px] bg-cyan-50 text-right font-semibold text-cyan-950">
+                    {percentLabel(annualSummary.percentages.revenuePct)}
+                  </TableCell>
+                  <TableCell className="min-w-[170px] bg-cyan-50 text-right font-semibold text-cyan-950">
+                    {percentLabel(annualSummary.percentages.plannedPct)}
+                  </TableCell>
+                  <TableCell className="min-w-[180px] bg-cyan-50 text-right font-semibold text-cyan-950">
+                    {percentLabel(annualSummary.percentages.uncoveredPct)}
+                  </TableCell>
+                  <TableCell className="min-w-[220px] bg-cyan-50" aria-label="No logs for total row" />
+                </TableRow>
+              ) : null}
+              {batch.data.companies.length > 0 ? (
                 batch.data.companies.map((company) => {
                   const fcOngoing = currentFcOngoing(company);
                   const percentages = calculateAnnualForecastPercentages({
@@ -588,7 +686,7 @@ export default function AnnualForecastEntryBatchWorkspace({
 
                   return (
                     <TableRow key={company.companyName} className={inactiveClass}>
-                      <TableCell className={`${COMPANY_STICKY_CLASS} ${company.isForecastActive ? "bg-white" : "bg-slate-50"}`}>
+                      <TableCell className={`${COMPANY_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} ${company.isForecastActive ? "bg-white" : "bg-slate-50"}`}>
                         <Link
                           href={buildCompanyDetailPageUrl(company.companyName, batch.data.selectedYear, company.csmName)}
                           className="font-semibold text-slate-900 underline-offset-4 hover:underline"
@@ -610,13 +708,13 @@ export default function AnnualForecastEntryBatchWorkspace({
                       </TableCell>
                       <TableCell className={batch.data.initialMode.editable ? MANUAL_CELL_CLASS : "bg-slate-50"}>
                         <Input
-                          inputMode="decimal"
+                          inputMode="numeric"
                           disabled={!batch.data.initialMode.editable || isSaving}
                           readOnly={!batch.data.initialMode.editable}
                           value={initialValues[company.companyName] ?? ""}
                           onChange={(event) => updateInitial(company.companyName, event.target.value)}
                           placeholder="n/a"
-                          className={`h-10 min-w-[91px] rounded-xl text-right font-semibold ${
+                          className={`h-8 min-w-[112px] rounded-xl text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(initialValues[company.companyName] ?? ""))} ${
                             touchedInitial.has(company.companyName)
                               ? "border-emerald-300 bg-emerald-50"
                               : batch.data.initialMode.editable
@@ -625,13 +723,15 @@ export default function AnnualForecastEntryBatchWorkspace({
                           }`}
                         />
                       </TableCell>
-                      <TableCell className="text-right font-semibold">{formatPetyrCurrencyValue(fcOngoing)}</TableCell>
-                      <TableCell className={`${CONFIDENCE_STICKY_CLASS} ${company.isForecastActive ? "bg-amber-50" : "bg-slate-50"}`}>
+                      <TableCell className={`text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(fcOngoing))}`}>
+                        {formatPetyrIntegerCurrencyValue(fcOngoing)}
+                      </TableCell>
+                      <TableCell className={`${CONFIDENCE_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} ${company.isForecastActive ? "bg-amber-50" : "bg-slate-50"}`}>
                         <select
                           value={confidenceValues[company.companyName] ?? ""}
                           disabled={isSaving}
                           onChange={(event) => updateConfidence(company.companyName, event.target.value)}
-                          className={`h-10 min-w-[130px] rounded-xl border px-3 text-sm ${
+                          className={`h-8 min-w-[130px] rounded-xl border px-3 text-sm ${
                             touchedConfidence.has(company.companyName) ? "border-emerald-300 bg-emerald-50" : "border-amber-200 bg-amber-50"
                           }`}
                         >
@@ -649,6 +749,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                         const aiPlaceholder = !cell.savedForecast.hasSavedValue && cell.aiForecast.value !== null
                           ? formatInputValue(cell.aiForecast.value)
                           : "";
+                        const currentInputValue = values[key] ?? "";
                         const inputClass =
                           sourceState === "accepted_ai"
                             ? "border-violet-300 bg-violet-50"
@@ -663,32 +764,36 @@ export default function AnnualForecastEntryBatchWorkspace({
                         return (
                           <TableCell key={key} className={MANUAL_CELL_CLASS}>
                             <Input
-                              inputMode="decimal"
+                              inputMode="numeric"
                               disabled={isSaving}
                               placeholder={aiPlaceholder || "n/a"}
-                              value={values[key] ?? ""}
+                              value={currentInputValue}
                               onFocus={() => acceptAiPlaceholder(company, cell)}
                               onClick={() => acceptAiPlaceholder(company, cell)}
                               onChange={(event) => updateValue(company, cell, event.target.value)}
-                              className={`h-10 min-w-[91px] rounded-xl text-right font-semibold ${inputClass}`}
+                              className={`h-8 min-w-[112px] rounded-xl text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(currentInputValue || aiPlaceholder))} ${inputClass}`}
                             />
                             {sourceState ? (
                               <div className="mt-1 text-right text-[11px] font-medium text-slate-500">
                                 {sourceState === "accepted_ai" ? "AI confirmed" : "Manual"}
                               </div>
                             ) : cell.savedForecast.hasSavedValue ? (
-                              <div className="mt-1 text-right text-[11px] text-slate-500">
-                                {cell.savedForecast.valueSource === "ai_confirmed" ? "AI confirmed" : "Saved"}
-                                {cell.aiForecast.value !== null ? ` (${formatPetyrCurrencyValue(cell.aiForecast.value)} AI Forecast)` : ""}
-                              </div>
+                              <SavedForecastStatus
+                                label={cell.savedForecast.valueSource === "ai_confirmed" ? "AI confirmed" : "Saved"}
+                                aiForecastValue={cell.aiForecast.value}
+                              />
                             ) : aiPlaceholder ? (
                               <div className="mt-1 text-right text-[11px] text-blue-700">Forecast AI</div>
                             ) : null}
                           </TableCell>
                         );
                       }) : null}
-                      <TableCell className="text-right font-medium">{formatPetyrCurrencyValue(company.revenue)}</TableCell>
-                      <TableCell className="text-right font-medium">{formatPetyrCurrencyValue(company.planned)}</TableCell>
+                      <TableCell className={`text-right font-medium ${mutedNumericClass(isEmptyOrZeroDisplay(company.revenue))}`}>
+                        {formatPetyrIntegerCurrencyValue(company.revenue)}
+                      </TableCell>
+                      <TableCell className={`text-right font-medium ${mutedNumericClass(isEmptyOrZeroDisplay(company.planned))}`}>
+                        {formatPetyrIntegerCurrencyValue(company.planned)}
+                      </TableCell>
                       <TableCell className="text-right">{percentLabel(percentages.revenuePct)}</TableCell>
                       <TableCell className="text-right">{percentLabel(percentages.plannedPct)}</TableCell>
                       <TableCell className="text-right">{percentLabel(percentages.uncoveredPct)}</TableCell>
@@ -697,7 +802,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                           href={buildHistoryUrl(company.companyName, batch.data.selectedYear, company.csmName)}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex min-h-10 w-[190px] items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium leading-snug text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+                          className="inline-flex min-h-8 w-[190px] items-start rounded-xl border border-slate-200 bg-white px-3 py-1 text-sm font-medium leading-snug text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
                         >
                           See latest logs of {company.companyName}
                         </a>
@@ -708,54 +813,10 @@ export default function AnnualForecastEntryBatchWorkspace({
               ) : (
                 <TableRow>
                   <TableCell colSpan={visibleBusinessUnitCount + 11} className="bg-slate-50 py-8 text-center text-sm text-slate-500">
-                    No companies available for this CSM.
+                    No companies available for the selected CSM filter.
                   </TableCell>
                 </TableRow>
               )}
-              {batch.data.companies.length > 0 ? (
-                <TableRow className="border-t-2 border-cyan-200 bg-cyan-50 hover:bg-cyan-50">
-                  <TableCell className={`${COMPANY_STICKY_CLASS} border-r border-cyan-200 bg-cyan-50`}>
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-cyan-800">
-                      {batch.data.selectedYear} CSM Forecast
-                    </div>
-                    <div className="mt-1 text-xs font-medium text-cyan-700">Portfolio total</div>
-                  </TableCell>
-                  <TableCell className="min-w-[120px] bg-cyan-50" aria-label="No active status for total row" />
-                  <TableCell className="w-[104px] min-w-[104px] bg-cyan-50 text-right font-bold text-cyan-950">
-                    {formatPetyrCurrencyValue(annualSummary.initialTotal)}
-                  </TableCell>
-                  <TableCell className="min-w-[150px] bg-cyan-50 text-right font-bold text-cyan-950">
-                    {formatPetyrCurrencyValue(annualSummary.total)}
-                  </TableCell>
-                  <TableCell
-                    className={`${CONFIDENCE_STICKY_CLASS} bg-cyan-50`}
-                    aria-label="No confidence value for total row"
-                  />
-                  {showBusinessUnits
-                    ? annualSummary.byBusinessUnit.map((item) => (
-                        <TableCell key={`total-${item.businessUnit}`} className="min-w-[105px] bg-cyan-50 text-right font-bold text-cyan-950">
-                          {formatPetyrCurrencyValue(item.value)}
-                        </TableCell>
-                      ))
-                    : null}
-                  <TableCell className="min-w-[150px] bg-cyan-50 text-right font-bold text-cyan-950">
-                    {formatPetyrCurrencyValue(annualSummary.revenue)}
-                  </TableCell>
-                  <TableCell className="min-w-[150px] bg-cyan-50 text-right font-bold text-cyan-950">
-                    {formatPetyrCurrencyValue(annualSummary.planned)}
-                  </TableCell>
-                  <TableCell className="min-w-[170px] bg-cyan-50 text-right font-semibold text-cyan-950">
-                    {percentLabel(annualSummary.percentages.revenuePct)}
-                  </TableCell>
-                  <TableCell className="min-w-[170px] bg-cyan-50 text-right font-semibold text-cyan-950">
-                    {percentLabel(annualSummary.percentages.plannedPct)}
-                  </TableCell>
-                  <TableCell className="min-w-[180px] bg-cyan-50 text-right font-semibold text-cyan-950">
-                    {percentLabel(annualSummary.percentages.uncoveredPct)}
-                  </TableCell>
-                  <TableCell className="min-w-[220px] bg-cyan-50" aria-label="No logs for total row" />
-                </TableRow>
-              ) : null}
             </TableBody>
           </Table>
         </div>

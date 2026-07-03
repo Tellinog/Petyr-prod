@@ -77,6 +77,22 @@ export function isPetyrAnnualConfidence(value: string): value is PetyrAnnualConf
   return PETYR_ANNUAL_CONFIDENCE_VALUES.includes(value as PetyrAnnualConfidence);
 }
 
+export function shouldRequireAnnualOngoingConfidence(input: {
+  ongoingForecastChanged: boolean;
+  hasExistingConfidence: boolean;
+}) {
+  return input.ongoingForecastChanged && !input.hasExistingConfidence;
+}
+
+export function resolveAnnualEntryInitialForecast<T>(input: {
+  initialModeEditable: boolean;
+  submittedInitialForecast: T | null;
+  derivedInitialForecast: T | null;
+}) {
+  if (!input.initialModeEditable) return input.submittedInitialForecast;
+  return input.submittedInitialForecast ?? input.derivedInitialForecast;
+}
+
 export function calculateAnnualForecastOngoing(values: Array<number | null | undefined>) {
   return values.reduce<number>((sum, value) => {
     if (typeof value !== "number" || !Number.isFinite(value)) return sum;

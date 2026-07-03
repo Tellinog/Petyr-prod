@@ -20,6 +20,69 @@ Each entry must include:
 
 ## 2026-07-03
 
+- **Area:** Petyr / Forecast Entry / Table density and status labels
+- **Change:** Reduced Monthly Forecast Entry and Annual Forecast Entry table body vertical padding, top-aligned table body cell content and compacted the table input controls. Saved/Saved CSM forecast and AI-confirmed labels now render the related AI Forecast reference on a separate line, and the AI Forecast reference uses the same blue treatment as the AI legend.
+- **Reason:** Product requested denser Forecast Entry rows, top-aligned fields and clearer multi-line Saved/AI Forecast labels.
+- **Impact:** UI layout changed only for Monthly and Annual Forecast Entry tables. No database schema, API contract, permissions, forecast calculations, Redash/PostgreSQL data flow or audit persistence changed.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/README.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-03
+
+- **Area:** Petyr / Forecast Entry / Business Unit column order
+- **Change:** Added a Forecast Entry-specific Business Unit display order for both Monthly Forecast Entry and Annual Forecast Entry: QA, UX/Experience, Accessibility, Security, FTE, TA, AI, OTHER/Other, Express, Community. Forecast Entry displays stored `Other` as `OTHER`.
+- **Reason:** Product requested the Business Unit columns in Monthly and Annual Forecast Entry be ordered to speed up CSM checks.
+- **Impact:** UI column ordering changed only in Forecast Entry batch payloads/tables. Official Business Unit values, save validation, stored values, Redash/PostgreSQL data flow, schema, permissions, calculations and audit persistence are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/petyr/constants.ts`, `apps/forecasting-app/src/services/forecastEntryBatchService.ts`, `apps/forecasting-app/src/services/annualForecastEntryBatchService.ts`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-03
+
+- **Area:** Petyr / Forecast Entry / Numeric cell display
+- **Change:** Updated Monthly Forecast Entry and Annual Forecast Entry numeric cells to display integer monetary values without decimal cents, round entered values to integers, keep Italian thousands separators, widen Annual numeric input columns for eight-digit values plus separators, and mute zero/empty numeric cells with softer grey text.
+- **Reason:** Product requested Forecast Entry numeric cells sized for maximum shown values of eight digits with two separators, no decimal/cents display, and quieter styling for empty or zero cells so populated cells stand out.
+- **Impact:** UI display and Forecast Entry input normalization changed only. No database schema, API contract, permissions, Redash/PostgreSQL data flow, forecast ownership rules or save-session audit model changed.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/petyr/formatters.ts`, `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-03
+
+- **Area:** Petyr / Forecast Entry / Annual table portfolio total
+- **Change:** Moved the Annual Forecast Entry highlighted `Portfolio total` row from the bottom of the table to the first body row directly under the table headers and above the first company row.
+- **Reason:** Product requested that the portfolio total in Annual Forecast Entry be visible at the top of the table between the headers and the first company.
+- **Impact:** UI ordering changed only. Annual read/save APIs, schema, permissions, forecast calculations, Redash/PostgreSQL data flow and audit persistence are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-03
+
+- **Area:** Petyr / Forecast Entry / Annual Forecast Initial save
+- **Change:** Fixed Annual Forecast Entry saves so an explicitly entered Forecast Initial value is preserved in `forecast_annual_entry.initial_forecast` instead of being replaced by existing Forecast Ongoing Business Unit totals. Confidence is now required only when Forecast Ongoing Business Unit values change and no existing annual confidence is saved, so Initial-only saves no longer require confidence.
+- **Reason:** Product reported that saving Initial Forecast copied the existing Ongoing value into Initial and that confidence belongs to Forecast Ongoing, not Initial Forecast.
+- **Impact:** Annual Forecast Entry save behavior changed only. Forecast Ongoing BU persistence, active status saves, Initial edit window checks, Redash/PostgreSQL data flow, permissions and schema are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/petyr/annualForecastEntryRules.ts`, `apps/forecasting-app/src/services/annualForecastEntryBatchService.ts`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/tests/annualForecastEntryRules.test.ts`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-03
+
+- **Area:** Petyr / Forecast Entry / Annual CSM filter
+- **Change:** Changed Annual Forecast Entry from a single CSM selector to a CSM multi-select. `GET /api/petyr/forecast-entry/annual-batch` now accepts repeated `csmName` parameters, returns `selectedCsms`, reads the combined annual portfolio for all selected CSMs and validates saves against the selected CSM set. Monthly Forecast Entry remains single-CSM; Annual synchronizes back to Monthly only when exactly one CSM is selected.
+- **Reason:** Product requested selecting multiple CSMs at once in Annual Forecast Entry and seeing all companies for the selected CSMs.
+- **Impact:** UI/API behavior changed only for Annual Forecast Entry filtering. No database schema, Redash source, permissions, forecast calculations, monthly workflow or persistence semantics changed.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/app/api/petyr/forecast-entry/annual-batch/route.ts`, `apps/forecasting-app/src/services/annualForecastEntryBatchService.ts`, `apps/forecasting-app/src/services/petyrDataService.ts`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-03
+
+- **Area:** Petyr / Forecast Entry / Annual table sticky headers
+- **Change:** Raised the pinned Annual Forecast Entry `Company` and `Confidence` table headers above the horizontally scrolling header cells while keeping the pinned body cells unchanged.
+- **Reason:** Product requested that when the Annual Forecast Entry table scrolls to the right, both the sticky columns and their headers remain visible.
+- **Impact:** UI layout behavior changed only. Annual read/save APIs, schema, permissions, forecast calculations, Redash/PostgreSQL data flow and audit persistence are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+## 2026-07-03
+
 - **Area:** Platform / Petyr deployment / Access Layer callbacks
 - **Change:** Updated the active Petyr production host from `https://petyr.draftapps.it` to `https://petyr.unguess-internal.net` across root env examples, Docker Compose defaults, deploy docs, architecture docs, Petyr and Redash Ingestor auth examples, Access Layer tool descriptors and auth tests. Next.js Server Actions allowed origins now include `petyr.unguess-internal.net` and no longer include `petyr.draftapps.it`.
 - **Reason:** Product requested that the application work on `https://petyr.unguess-internal.net/` instead of `https://petyr.draftapps.it/`.

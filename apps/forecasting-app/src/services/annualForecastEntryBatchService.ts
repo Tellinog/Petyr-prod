@@ -1,6 +1,11 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { PETYR_BUSINESS_UNITS, normalizePetyrBusinessUnit, type PetyrBusinessUnit } from "@/lib/petyr/constants";
+import {
+  PETYR_BUSINESS_UNITS,
+  PETYR_FORECAST_ENTRY_BUSINESS_UNITS,
+  normalizePetyrBusinessUnit,
+  type PetyrBusinessUnit
+} from "@/lib/petyr/constants";
 import { startPetyrPerformanceTimer } from "@/lib/petyr/performance";
 import { resolvePreferredCsmName } from "@/lib/petyr/csmIdentity";
 import {
@@ -11,6 +16,8 @@ import {
   getAnnualForecastEntryYearOptions,
   isPetyrAnnualConfidence,
   isValidAnnualForecastEntryYear,
+  resolveAnnualEntryInitialForecast,
+  shouldRequireAnnualOngoingConfidence,
   type PetyrAnnualConfidence,
   type PetyrAnnualForecastValueSource
 } from "@/lib/petyr/annualForecastEntryRules";
@@ -58,6 +65,7 @@ type ValidatedAnnualBuValue = {
 type ValidatedAnnualUpdate = {
   companyName: string;
   activeStatus: boolean | null;
+  hasInitialForecast: boolean;
   initialForecast: Prisma.Decimal | null;
   confidence: PetyrAnnualConfidence | null;
   values: ValidatedAnnualBuValue[];
@@ -75,6 +83,7 @@ export class AnnualForecastEntryBatchError extends Error {
 
 export type AnnualForecastEntryBatchQuery = {
   csmName?: unknown;
+  csmNames?: unknown;
   year?: unknown;
   preferredCsmName?: unknown;
   warmup?: unknown;
@@ -114,6 +123,7 @@ export type AnnualForecastEntryBatchCompany = {
 
 export type AnnualForecastEntryBatchData = {
   selectedCsm: string;
+  selectedCsms: string[];
   csmOptions: string[];
   selectedYear: number;
   defaultYear: number;
@@ -128,6 +138,7 @@ export type AnnualForecastEntryBatchDataResult = PetyrDataServiceResult<AnnualFo
 
 export type AnnualForecastEntryBatchSaveInput = {
   csmName?: unknown;
+  csmNames?: unknown;
   year?: unknown;
   createdBy?: unknown;
   updates?: unknown;
@@ -153,12 +164,28 @@ function normalizeKey(value: string) {
   return value.trim().toLowerCase();
 }
 
+function parseRequestedCsmNames(input: { csmName?: unknown; csmNames?: unknown }) {
+  const rawValues = Array.isArray(input.csmNames) ? input.csmNames : input.csmNames ? [input.csmNames] : input.csmName ? [input.csmName] : [];
+  const names = rawValues.flatMap((value) => {
+    if (typeof value !== "string") return [];
+    return value.split(",").map((item) => item.trim()).filter(Boolean);
+  });
+  const seen = new Set<string>();
+
+  return names.filter((name) => {
+    const key = normalizeKey(name);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function annualCacheKey(input: AnnualForecastEntryBatchQuery, selectedYear: number, initialWindowOverrideToken: string) {
   return [
     "annual",
     selectedYear,
     initialWindowOverrideToken,
-    normalizeKey(asString(input.csmName)),
+    parseRequestedCsmNames(input).map(normalizeKey).sort().join(","),
     normalizeKey(asString(input.preferredCsmName))
   ].join(":");
 }
@@ -249,16 +276,19 @@ function toCompanyOptions(rows: Awaited<ReturnType<typeof getForecastEntryCompan
 }
 
 function selectCsm(input: AnnualForecastEntryBatchQuery, companies: CompanyOption[]) {
-  const requestedCsm = asString(input.csmName);
+  const requestedCsms = parseRequestedCsmNames(input);
   const csmOptions = [...new Set(companies.map((company) => company.csmName || "Unassigned"))].sort((left, right) =>
     left.localeCompare(right)
   );
-  const preferredCsm = requestedCsm ? null : resolvePreferredCsmName(input.preferredCsmName, csmOptions);
-  const selected = requestedCsm || preferredCsm || csmOptions[0] || "Unassigned";
+  const preferredCsm = requestedCsms.length > 0 ? null : resolvePreferredCsmName(input.preferredCsmName, csmOptions);
+  const selectedCsms = requestedCsms.length > 0 ? requestedCsms : [preferredCsm || csmOptions[0] || "Unassigned"];
+  const selected = selectedCsms.join(", ");
+  const missingSelected = selectedCsms.filter((csmName) => !csmOptions.some((option) => normalizeKey(option) === normalizeKey(csmName)));
 
   return {
     selectedCsm: selected,
-    csmOptions: selected && !csmOptions.includes(selected) ? [selected, ...csmOptions] : csmOptions
+    selectedCsms,
+    csmOptions: [...missingSelected, ...csmOptions]
   };
 }
 
@@ -391,7 +421,7 @@ function buildAnnualCompany(input: {
   } | null;
   annualRows: Map<PetyrBusinessUnit, { value: Prisma.Decimal; initialForecast: Prisma.Decimal | null; valueSource: string; updatedAt: Date }>;
 }): AnnualForecastEntryBatchCompany {
-  const businessUnits = PETYR_BUSINESS_UNITS.map<AnnualForecastEntryBatchCell>((businessUnit) => {
+  const businessUnits = PETYR_FORECAST_ENTRY_BUSINESS_UNITS.map<AnnualForecastEntryBatchCell>((businessUnit) => {
     const saved = input.annualRows.get(businessUnit);
     const ai = input.portfolio.annualAiForecastsByBusinessUnit.get(businessUnit);
 
@@ -464,10 +494,12 @@ export async function getAnnualForecastEntryBatch(
       const diagnostics: string[] = [...initialWindowOverrides.diagnostics];
       const scopedPortfolio = await getAnnualForecastEntryScopedPortfolio({
         csmName: input.csmName,
+        csmNames: input.csmNames,
         preferredCsmName: input.preferredCsmName,
         year: selectedYear
       });
       let selectedCsm: string;
+      let selectedCsms: string[];
       let csmOptions: string[];
       let scopedCompanies: CompanyOption[];
       let portfolioData: Map<string, PetyrAnnualForecastEntryPortfolioCompany>;
@@ -477,6 +509,7 @@ export async function getAnnualForecastEntryBatch(
       if (scopedPortfolio) {
         diagnostics.push(...scopedPortfolio.diagnostics);
         selectedCsm = scopedPortfolio.selectedCsm;
+        selectedCsms = scopedPortfolio.selectedCsms;
         csmOptions = scopedPortfolio.csmOptions;
         scopedCompanies = scopedPortfolio.companies;
         portfolioData = scopedPortfolio.portfolio;
@@ -489,9 +522,10 @@ export async function getAnnualForecastEntryBatch(
         const companies = toCompanyOptions(companiesResult.data);
         const selection = selectCsm(input, companies);
         selectedCsm = selection.selectedCsm;
+        selectedCsms = selection.selectedCsms;
         csmOptions = selection.csmOptions;
-        const selectedCsmKey = normalizeKey(selectedCsm);
-        scopedCompanies = companies.filter((company) => normalizeKey(company.csmName || "Unassigned") === selectedCsmKey);
+        const selectedCsmKeys = new Set(selectedCsms.map(normalizeKey));
+        scopedCompanies = companies.filter((company) => selectedCsmKeys.has(normalizeKey(company.csmName || "Unassigned")));
         const portfolioResult = await getAnnualForecastEntryPortfolioCompanies({ companies: scopedCompanies, year: selectedYear });
         diagnostics.push(...portfolioResult.diagnostics);
         portfolioData = portfolioResult.data;
@@ -564,6 +598,7 @@ export async function getAnnualForecastEntryBatch(
           diagnostics: uniqueDiagnostics(diagnostics),
           data: {
             selectedCsm,
+            selectedCsms,
             csmOptions,
             selectedYear,
             defaultYear: getAnnualForecastEntryDefaultYear(today),
@@ -571,7 +606,7 @@ export async function getAnnualForecastEntryBatch(
             initialMode: getAnnualForecastEntryInitialMode(selectedYear, today, {
               adminUnlocked: isInitialForecastYearAdminUnlocked(initialWindowOverrides.overrides, selectedYear)
             }),
-            businessUnits: [...PETYR_BUSINESS_UNITS],
+            businessUnits: [...PETYR_FORECAST_ENTRY_BUSINESS_UNITS],
             confidenceOptions: ["01 High", "02 Mid", "03 Low"],
             companies: sortAnnualCompanies(batchCompanies)
           }
@@ -659,9 +694,9 @@ function validateUpdates(updates: unknown): ValidatedAnnualUpdate[] {
     }
 
     const activeStatus = typeof update.activeStatus === "boolean" ? update.activeStatus : null;
-    const initialForecast =
-      Object.prototype.hasOwnProperty.call(update, "initialForecast") ? parseMoney(update.initialForecast) : null;
-    if (Object.prototype.hasOwnProperty.call(update, "initialForecast") && !initialForecast) {
+    const hasInitialForecast = Object.prototype.hasOwnProperty.call(update, "initialForecast");
+    const initialForecast = hasInitialForecast ? parseMoney(update.initialForecast) : null;
+    if (hasInitialForecast && !initialForecast) {
       throw new AnnualForecastEntryBatchError(`${companyName}: Forecast Initial must be numeric and greater than or equal to 0.`, 400);
     }
 
@@ -674,6 +709,7 @@ function validateUpdates(updates: unknown): ValidatedAnnualUpdate[] {
     return {
       companyName,
       activeStatus,
+      hasInitialForecast,
       initialForecast,
       confidence,
       values: validateAnnualValues(update.values)
@@ -737,10 +773,12 @@ export async function saveAnnualForecastEntryBatch(
   const initialMode = getAnnualForecastEntryInitialMode(year, currentDate, {
     adminUnlocked: isInitialForecastYearAdminUnlocked(initialWindowOverrides.overrides, year)
   });
-  const csmName = asString(input.csmName);
-  if (!csmName) {
-    throw new AnnualForecastEntryBatchError("csmName is required.", 400);
+  const selectedCsms = parseRequestedCsmNames(input);
+  if (selectedCsms.length === 0) {
+    throw new AnnualForecastEntryBatchError("At least one csmName is required.", 400);
   }
+  const csmName = selectedCsms.join(", ");
+  const selectedCsmKeys = new Set(selectedCsms.map(normalizeKey));
 
   const updates = validateUpdates(input.updates);
   const createdBy = asString(input.createdBy) || csmName || SAVE_USER_FALLBACK;
@@ -748,15 +786,27 @@ export async function saveAnnualForecastEntryBatch(
   const companiesResult = await getForecastEntryCompanies();
   const companyOptions = toCompanyOptions(companiesResult.data);
   const companyOptionsByKey = new Map(companyOptions.map((company) => [normalizeKey(company.companyName), company]));
+  const allowedBatch = await getAnnualForecastEntryBatch({ csmNames: selectedCsms, year });
+  const allowedCompanyOptionsByKey = new Map(
+    allowedBatch.data.companies.map((company) => [
+      normalizeKey(company.companyName),
+      {
+        companyName: company.companyName,
+        csmName: company.csmName,
+        isForecastActive: company.isForecastActive,
+        priorityScore: 0
+      } satisfies CompanyOption
+    ])
+  );
   const detailsByKey = new Map<string, PetyrCompanyDetail>();
 
   for (const update of updates) {
-    const option = companyOptionsByKey.get(normalizeKey(update.companyName));
+    const option = allowedCompanyOptionsByKey.get(normalizeKey(update.companyName)) ?? companyOptionsByKey.get(normalizeKey(update.companyName));
     if (!option) {
       throw new AnnualForecastEntryBatchError(`${update.companyName} is not available in Forecast Entry customer portfolio.`, 400);
     }
-    if (normalizeKey(option.csmName || "Unassigned") !== normalizeKey(csmName)) {
-      throw new AnnualForecastEntryBatchError(`${update.companyName} is not assigned to selected CSM ${csmName}.`, 400);
+    if (!allowedCompanyOptionsByKey.has(normalizeKey(update.companyName)) || !selectedCsmKeys.has(normalizeKey(option.csmName || "Unassigned"))) {
+      throw new AnnualForecastEntryBatchError(`${update.companyName} is not assigned to selected CSM filter ${csmName}.`, 400);
     }
 
     const detail = await getCompanyDetail(option.companyName, year);
@@ -771,7 +821,7 @@ export async function saveAnnualForecastEntryBatch(
     const saveSessionIds: string[] = [];
 
     for (const update of updates) {
-      const option = companyOptionsByKey.get(normalizeKey(update.companyName));
+      const option = allowedCompanyOptionsByKey.get(normalizeKey(update.companyName)) ?? companyOptionsByKey.get(normalizeKey(update.companyName));
       const detail = option ? detailsByKey.get(normalizeKey(option.companyName)) : null;
       if (!option || !detail) continue;
 
@@ -785,7 +835,7 @@ export async function saveAnnualForecastEntryBatch(
       const activeChanged = update.activeStatus !== null && update.activeStatus !== currentActiveStatus;
       const confidenceChanged = update.confidence !== null && update.confidence !== existingEntry?.ongoingConfidence;
 
-      if (update.initialForecast !== null && !initialMode.editable && hasDecimalChanged(existingEntry?.initialForecast, update.initialForecast)) {
+      if (update.hasInitialForecast && !initialMode.editable && hasDecimalChanged(existingEntry?.initialForecast, update.initialForecast)) {
         throw new AnnualForecastEntryBatchError(`${resolvedCompanyName}: ${initialMode.reason}`, 423);
       }
 
@@ -810,12 +860,12 @@ export async function saveAnnualForecastEntryBatch(
         const existing = annualByBusinessUnit.get(row.businessUnit);
         return hasDecimalChanged(existing?.value, row.value) || existing?.source !== row.valueSource;
       });
-      const effectiveInitialForecast = (() => {
-        if (!initialMode.editable) return update.initialForecast;
+      const derivedInitialForecast = (() => {
+        if (!initialMode.editable || changedValues.length === 0) return null;
 
         const initialValuesByBusinessUnit = new Map<PetyrBusinessUnit, Prisma.Decimal>();
         for (const [businessUnit, row] of annualByBusinessUnit.entries()) {
-          const initialValue = row.initialForecast ?? row.value;
+          const initialValue = row.initialForecast;
           if (initialValue) initialValuesByBusinessUnit.set(businessUnit, initialValue);
         }
         for (const row of changedValues) {
@@ -825,11 +875,21 @@ export async function saveAnnualForecastEntryBatch(
 
         return [...initialValuesByBusinessUnit.values()].reduce((sum, value) => sum.plus(value), new Prisma.Decimal(0));
       })();
+      const effectiveInitialForecast = resolveAnnualEntryInitialForecast({
+        initialModeEditable: initialMode.editable,
+        submittedInitialForecast: update.hasInitialForecast ? update.initialForecast : null,
+        derivedInitialForecast
+      });
       const initialChanged = hasDecimalChanged(existingEntry?.initialForecast, effectiveInitialForecast);
 
       const rowModified = activeChanged || initialChanged || changedValues.length > 0;
-      if (rowModified && update.confidence === null && !existingEntry?.ongoingConfidence) {
-        throw new AnnualForecastEntryBatchError(`${resolvedCompanyName}: Confidence is required on modified annual rows.`, 400);
+      if (
+        shouldRequireAnnualOngoingConfidence({
+          ongoingForecastChanged: changedValues.length > 0,
+          hasExistingConfidence: Boolean(existingEntry?.ongoingConfidence)
+        }) && update.confidence === null
+      ) {
+        throw new AnnualForecastEntryBatchError(`${resolvedCompanyName}: Confidence is required when Forecast Ongoing changes.`, 400);
       }
 
       if (!rowModified && !confidenceChanged) continue;
@@ -1009,6 +1069,6 @@ export async function saveAnnualForecastEntryBatch(
     saveSessionIds: written.saveSessionIds,
     companiesSaved: written.saveSessionIds.length,
     noChanges: written.saveSessionIds.length === 0,
-    batch: await getAnnualForecastEntryBatch({ csmName, year })
+    batch: await getAnnualForecastEntryBatch({ csmNames: selectedCsms, year })
   };
 }
