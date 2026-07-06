@@ -86,8 +86,8 @@ Rules:
   values are modified without an existing confidence value, and accepts only
   `01 High`, `02 Mid` and `03 Low`.
 - Monthly Forecast Entry can sort the visible company portfolio by Company.
-- Annual Forecast Entry can sort visible rows by Company, Active, Forecast
-  Initial, Forecast Ongoing and Confidence.
+- Annual Forecast Entry can sort visible rows by Company, Forecast Initial,
+  Forecast Ongoing and Confidence.
 - Annual Forecast Entry shows all active and inactive rows by default, and the
   Active column can filter the visible table to all, active only or inactive
   only without changing persisted company status. The Annual portfolio total row

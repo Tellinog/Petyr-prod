@@ -24,7 +24,7 @@ type Notice = {
 };
 
 type SourceState = "accepted_ai" | "manual_edit";
-type AnnualSortKey = "company" | "active" | "initial" | "ongoing" | "confidence";
+type AnnualSortKey = "company" | "initial" | "ongoing" | "confidence";
 type AnnualSortDirection = "asc" | "desc";
 type ActiveVisibilityFilter = "all" | "active" | "inactive";
 type AnnualSortState = {
@@ -162,14 +162,13 @@ function nextAnnualSort(current: AnnualSortState, key: AnnualSortKey): AnnualSor
 
   return {
     key,
-    direction: key === "active" ? "asc" : "asc"
+    direction: "asc"
   };
 }
 
 function annualSortLabel(sort: AnnualSortState, key: AnnualSortKey) {
   if (sort.key !== key) return "Sort";
   if (key === "company") return sort.direction === "asc" ? "A-Z" : "Z-A";
-  if (key === "active") return sort.direction === "asc" ? "Active first" : "Inactive first";
   if (key === "confidence") return sort.direction === "asc" ? "High-Low" : "Low-High";
   return sort.direction === "asc" ? "Low-High" : "High-Low";
 }
@@ -182,7 +181,7 @@ function confidenceSortRank(value: string) {
 }
 
 const COMPANY_COLUMN_WIDTH = 220;
-const ACTIVE_COLUMN_WIDTH = 120;
+const ACTIVE_COLUMN_WIDTH = 150;
 const INITIAL_COLUMN_WIDTH = 128;
 const ONGOING_COLUMN_WIDTH = 150;
 const CONFIDENCE_COLUMN_WIDTH = 150;
@@ -403,14 +402,10 @@ export default function AnnualForecastEntryBatchWorkspace({
     if (!annualSort.key) return filteredCompanies;
 
     return [...filteredCompanies].sort((left, right) => {
-      const leftActive = activeValues[left.companyName] ?? left.isForecastActive;
-      const rightActive = activeValues[right.companyName] ?? right.isForecastActive;
       let result = 0;
 
       if (annualSort.key === "company") {
         result = left.companyName.localeCompare(right.companyName);
-      } else if (annualSort.key === "active") {
-        result = (leftActive ? 0 : 1) - (rightActive ? 0 : 1);
       } else if (annualSort.key === "initial") {
         result = currentInitialForecast(left) - currentInitialForecast(right);
       } else if (annualSort.key === "ongoing") {
@@ -704,7 +699,7 @@ export default function AnnualForecastEntryBatchWorkspace({
           {showSavedState ? "Forecast saved." : ""}
         </div>
 
-        <div className="max-h-[calc(100vh-10rem)] overflow-auto rounded-2xl border border-slate-200 bg-white">
+        <div className="max-h-[calc(100vh-2rem)] overflow-auto rounded-2xl border border-slate-200 bg-white">
           <div
             className="sticky top-0 z-50 flex h-16 items-center gap-5 border-b border-slate-200 bg-slate-50 px-4 shadow-[0_1px_0_0_rgba(226,232,240,1)]"
             style={{ minWidth: annualLegendMinWidth }}
@@ -744,23 +739,15 @@ export default function AnnualForecastEntryBatchWorkspace({
                   </button>
                 </TableHead>
                 <TableHead
-                  className={`${HEADER_STICKY_CLASS} min-w-[120px] ${MANUAL_HEADER_CLASS}`}
-                  aria-sort={annualSort.key === "active" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
+                  className={`${HEADER_STICKY_CLASS} min-w-[150px] ${MANUAL_HEADER_CLASS}`}
                 >
-                  <div className="space-y-1">
-                    <button
-                      type="button"
-                      className={`${SORT_BUTTON_BASE_CLASS} border-amber-200 hover:border-amber-300 hover:bg-amber-50`}
-                      onClick={() => setAnnualSort((current) => nextAnnualSort(current, "active"))}
-                    >
-                      <span>Active</span>
-                      <span className="text-[11px] font-semibold text-slate-500">{annualSortLabel(annualSort, "active")}</span>
-                    </button>
+                  <div className="flex min-h-9 items-center gap-2 rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-semibold text-slate-800 shadow-sm">
+                    <span className="shrink-0">Active</span>
                     <select
                       value={activeVisibilityFilter}
                       disabled={isLoading || isSaving}
                       onChange={(event) => setActiveVisibilityFilter(event.target.value as ActiveVisibilityFilter)}
-                      className="h-8 w-full rounded-lg border border-amber-200 bg-white px-2 text-xs font-medium text-slate-700"
+                      className="h-7 min-w-0 flex-1 rounded-lg border border-amber-200 bg-white px-2 text-xs font-medium text-slate-700"
                       aria-label="Filter companies by active status"
                     >
                       <option value="all">All</option>
@@ -832,7 +819,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                     </div>
                     <div className="mt-1 text-xs font-medium text-cyan-700">Portfolio total</div>
                   </TableCell>
-                  <TableCell className="min-w-[120px] bg-cyan-50" aria-label="No active status for total row" />
+                  <TableCell className="min-w-[150px] bg-cyan-50" aria-label="No active status for total row" />
                   <TableCell className={`w-[128px] min-w-[128px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(annualSummary.initialTotal))}`}>
                     {formatPetyrIntegerCurrencyValue(annualSummary.initialTotal)}
                   </TableCell>

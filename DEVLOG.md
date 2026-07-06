@@ -18,6 +18,22 @@ Each entry must include:
 
 ---
 
+## 2026-07-06
+
+- **Area:** Petyr / Forecast Entry / Monthly and Annual table scroll
+- **Change:** Increased the internal scroll area height for both Monthly Forecast Entry and Annual Forecast Entry tables so the page can scroll further before the table itself starts scrolling, maximizing the visible table area on screen.
+- **Reason:** Product requested that Forecast Entry tables begin their own vertical scrolling only once users reach the bottom of the page, so more rows remain visible at once.
+- **Impact:** UI table scrolling behavior changed only. Read/save APIs, database schema, permissions, Redash/PostgreSQL data flow, forecast calculations, active status persistence and audit logging are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecast Entry / Annual Active column header
+- **Change:** Removed sorting from the Annual Forecast Entry Active column and changed the Active header layout so the label and visibility filter dropdown sit side by side in the same header control. The Active filter still supports all, active-only and inactive-only visible rows, and the portfolio total continues to follow the visible rows.
+- **Reason:** Product requested removing Active-column sorting and making the Active header/filter more compact.
+- **Impact:** UI table behavior changed only. Read/save APIs, database schema, permissions, Redash/PostgreSQL data flow, forecast calculations, active status persistence and audit logging are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
 ## 2026-07-03
 
 - **Area:** Petyr / Forecast Entry / Table sorting and active visibility

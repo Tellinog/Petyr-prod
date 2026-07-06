@@ -588,7 +588,7 @@ function updateValue(company: ForecastEntryBatchCompany, cell: ForecastEntryBatc
             </div>
           </div>
 
-          <div className="max-h-[calc(100vh-18rem)] overflow-auto rounded-2xl border border-slate-200 bg-white">
+          <div className="max-h-[calc(100vh-2rem)] overflow-auto rounded-2xl border border-slate-200 bg-white">
             <Table className="min-w-max [&_tbody_td]:align-top [&_tbody_td]:py-[5px]">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">

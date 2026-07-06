@@ -479,7 +479,7 @@ Table rules:
   filter, including all selected CSMs when multiple CSMs are selected;
 - default sorting is active companies first, inactive companies with Revenue or
   Planned second, inactive companies without Revenue or Planned last;
-- the Company, Active, Forecast Initial, Forecast Ongoing and Confidence
+- the Company, Forecast Initial, Forecast Ongoing and Confidence
   headers can sort the currently visible Annual rows without changing
   persistence or the selected CSM/year filters;
 - inactive companies remain visible with muted styling by default;

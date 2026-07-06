@@ -336,7 +336,7 @@ Annual Forecast Entry rules:
   exist;
 - default ordering is active companies first, then inactive companies with
   Revenue or Planned, then inactive companies without Revenue or Planned;
-- the Company, Active, Forecast Initial, Forecast Ongoing and Confidence
+- the Company, Forecast Initial, Forecast Ongoing and Confidence
   headers can sort the currently visible Annual Forecast Entry rows without
   changing persistence or the selected CSM/year filters;
 - inactive rows remain visible with muted styling by default;
