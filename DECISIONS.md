@@ -13,6 +13,16 @@ Each decision should include:
 
 ---
 
+## 2026-07-07 - Expand Petyr planned campaign status rules and flag stale non-completed campaigns
+
+- **Status:** Accepted.
+- **Context:** Planned future campaign revenue previously included only `Setup` and `Recruiting` for Management/AI flows, while Annual Forecast Entry also included future `Running`. Product clarified that planning-like Redash campaign statuses should count as planned when their end date is future, and that `Running` should not appear as both Revenue and Planned for the same date window.
+- **Decision:** Planned future campaign revenue includes future campaigns, from tomorrow through selected-year end, whose status is `Draft`, `Plan`, `Planned`, `Planning`, `Pipeline`, `Tentative`, `Proposal`, `Proposed`, `Setup`, `Recruiting` or `Running`. `Running` with end date today or earlier remains eligible only for Revenue/closed-current logic when otherwise valid. Campaigns whose end date is today or earlier but whose status is not `Completed` must surface as Company Detail relevant insights for source-data correction.
+- **Alternatives discarded:** Keeping `Setup`/`Recruiting` as the only planned statuses; keeping `Running` excluded from Management/AI planned future while included in Annual Forecast Entry; silently counting stale non-completed campaigns without an operational alert.
+- **Reason:** The future/past date window should decide whether `Running` is planned or revenue, while planning-like statuses represent planned work and should not be dropped from planned future. Stale non-completed past campaigns can distort counts and need operator visibility.
+- **Consequences:** Management View, Annual Forecast Entry, AI deterministic preview and planned-source diagnostics now share the expanded planned status rule. Company Detail relevant insights can show a new `Past campaign not completed` warning.
+- **Related docs:** `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `docs/petyr/AI_FORECASTING_DESIGN.md`, `DEVLOG.md`.
+
 ## 2026-07-03 - Move Petyr production host back to petyr.unguess-internal.net
 
 - **Status:** Accepted.

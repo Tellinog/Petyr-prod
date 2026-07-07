@@ -163,7 +163,7 @@ function RowSignalDetails({ row }: { row: PetyrAiForecastManualForecastRow }) {
         <SummaryCard label="Historical weighted" value={metricMoney(explainability.historicalWeightedBaseline)} helper={metricReason(explainability.historicalWeightedBaseline)} />
         <SummaryCard label="Seasonality" value={metricMoney(explainability.seasonalitySignal)} helper={metricReason(explainability.seasonalitySignal)} />
         <SummaryCard label="Run-rate" value={metricMoney(explainability.runRateSignal)} helper={metricReason(explainability.runRateSignal)} />
-        <SummaryCard label="Planned floor" value={metricMoney(explainability.plannedCampaignsValue)} helper="Valid Setup/Recruiting planned future value." />
+        <SummaryCard label="Planned floor" value={metricMoney(explainability.plannedCampaignsValue)} helper="Valid future planning-like, Setup, Recruiting or Running campaign value." />
         <SummaryCard label="Baseline" value={metricMoney(explainability.baselineForecast)} helper={explainability.weightingMode.replaceAll("_", " ")} />
         <SummaryCard label="Model adjustment" value={formatSignedMoney(explainability.finalAiAdjustment.value)} helper="Interpretation-only; forecast value stays deterministic." />
       </div>

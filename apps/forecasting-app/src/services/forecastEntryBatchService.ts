@@ -417,9 +417,19 @@ function validateBatchValues(values: unknown) {
       throw new ForecastEntryBatchError(`Forecast Entry batch save contains duplicate values for ${businessUnit}.`, 400);
     }
 
+    if (typeof row.value === "string" && !row.value.trim()) {
+      throw new ForecastEntryBatchError(
+        `Forecast Entry value for ${businessUnit} is empty. Enter a non-negative number, or enter 0 to save zero.`,
+        400
+      );
+    }
+
     const value = parseMoney(row.value);
     if (!value) {
-      throw new ForecastEntryBatchError(`Forecast Entry value for ${businessUnit} must be a non-negative numeric value.`, 400);
+      throw new ForecastEntryBatchError(
+        `Forecast Entry value for ${businessUnit} must be a non-negative numeric value. Use digits only, or enter 0 to save zero.`,
+        400
+      );
     }
 
     const sourceState = asString(row.sourceState);

@@ -212,17 +212,18 @@ Use only valid future planned campaigns for the selected company, Business Unit
 and target month/year. Planned future campaign eligibility follows the Petyr
 status allowlist:
 
+- include `Draft`, `Plan`, `Planned`, `Planning`, `Pipeline`, `Tentative`,
+  `Proposal` and `Proposed`;
 - include `Setup`;
 - include `Recruiting`;
-- exclude `Running` from planned future;
+- include `Running` only when the campaign end date is tomorrow or later;
 - exclude completed, aborted, cancelled/canceled, deleted, rejected, lost,
   archived, missing or unknown statuses unless a future documented decision adds
   them.
 
-`Running` belongs to revenue/closed/current-activity reasoning, not planned
-future pipeline. The baseline may use `Running` only through closed revenue,
-current activity or non-planned signal features when the revenue rules make that
-coherent.
+`Running` with end date today or in the past belongs to revenue/closed/current-
+activity reasoning when the revenue rules make that coherent. Future `Running`
+campaigns are planned future pipeline and may contribute to the planned floor.
 
 ### Agreement residual allocation
 

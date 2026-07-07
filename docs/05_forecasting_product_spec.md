@@ -161,7 +161,9 @@ apps/forecasting-app/src/services/petyrAlertService.ts
 They are deterministic and do not use an LLM. Alerts read PostgreSQL-backed Petyr
 read models and cover agreement expiry within 60 days, high residuals, inactive
 companies, missing forecast updates, locked past months, closed revenue under forecast,
-CSM forecast materially below AI forecast and Business Units below historical pace.
+CSM forecast materially below AI forecast, Business Units below historical pace and
+Company Detail campaigns whose end date is today or in the past but whose status is
+not `Completed`.
 CSM Overview and Company Detail can display each alert with severity, evidence,
 suggested action and a target link. CSM Overview hides inactive-company and locked
 past-month alerts from its CSM-facing alert list.
@@ -288,6 +290,12 @@ Normal batch table rules:
 - from day 16: active field is Ongoing Forecast;
 - the inactive monthly forecast field and Closed Revenue YTD are visible only when a BU is expanded;
 - in expanded Business Unit groups, Previous Month Forecast is shown to the left of Ongoing Forecast and Closed Revenue YTD is shown to the right of Ongoing Forecast;
+- Monthly Forecast Entry shows a highlighted portfolio-total row directly under
+  the table headers and above the first company row. The first cell shows the
+  all-Business-Unit active forecast total for the selected CSM/month, each
+  visible Business Unit column shows its portfolio total, expanded Business
+  Units show separate Previous Month Forecast, Ongoing Forecast and Closed
+  Revenue YTD totals, and the Note cell remains empty;
 - editable monthly forecast columns should be wide enough for their header labels;
 - numeric Monthly Forecast Entry cells display integer monetary values without
   decimal cents, keep Italian thousands separators and stay wide enough for
@@ -394,8 +402,10 @@ Annual Forecast Entry rules:
 - Closed Revenue YTD is selected-year campaign revenue closed through today, read from
   PostgreSQL-backed materialized data;
 - Planned This Year is selected-year campaign revenue with end date from tomorrow through
-  December 31 and status `Setup`, `Recruiting` or `Running`, read from the same
-  PostgreSQL-backed materialized data for this Annual Entry workflow;
+  December 31 and planning-like status (`Draft`, `Plan`, `Planned`, `Planning`,
+  `Pipeline`, `Tentative`, `Proposal`, `Proposed`), `Setup`, `Recruiting` or
+  future `Running`, read from the same PostgreSQL-backed materialized data for this
+  Annual Entry workflow;
 - percentages are labelled `Revenue / Forecast Ongoing`, `Planned / Forecast Ongoing`, and
   `Uncovered / Forecast Ongoing`, with `n/a` when Forecast Ongoing is zero or missing;
 - each effective annual save creates `forecast_save_session` and
@@ -612,8 +622,14 @@ Management metrics:
 - if the frozen Initial Forecast baseline is missing, Management View shows `n/a`;
 - Closed revenue YTD comes from Redash campaign revenue rows through the current date;
 - Closed revenue + planned adds campaign revenue with campaign end date from tomorrow through year end only when `isValidPlannedFutureCampaign(...)` classifies the campaign status as planned future;
-- planned future campaign statuses are a closed allowlist: `Setup` and `Recruiting`;
-- `Running`, `Completed`, `Aborted`, `Cancelled`, `Canceled`, `Deleted`, `Rejected`, `Lost`, `Archived` and unknown/missing statuses are excluded from planned future; unknown/missing statuses are diagnosed and require a later business decision before inclusion;
+- planned future campaign statuses are a closed allowlist: planning-like statuses
+  (`Draft`, `Plan`, `Planned`, `Planning`, `Pipeline`, `Tentative`, `Proposal`,
+  `Proposed`), `Setup`, `Recruiting` and future `Running`;
+- `Running` with end date today or in the past is Revenue/closed-current timing
+  when otherwise eligible, not Planned. `Completed`, `Aborted`, `Cancelled`,
+  `Canceled`, `Deleted`, `Rejected`, `Lost`, `Archived` and unknown/missing
+  statuses are excluded from planned future; unknown/missing statuses are diagnosed
+  and require a later business decision before inclusion;
 - forecast values are not used for planned-through-year-end and must not be confused with Yearly Objective.
 
 Objective rules:

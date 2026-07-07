@@ -40,7 +40,7 @@ type CompanyDetailPageProps = {
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const ACTIVE_OR_PLANNED_CAMPAIGN_STATUSES = new Set(["running", "setup", "recruiting"]);
+const ACTIVE_OR_PLANNED_CAMPAIGN_STATUSES = new Set(["running", "draft", "plan", "planned", "planning", "pipeline", "tentative", "proposal", "proposed", "setup", "recruiting"]);
 const COMPLETED_CAMPAIGN_STATUSES = new Set(["completed"]);
 
 const ALERT_TYPE_LABELS: Record<PetyrAlertType, string> = {
@@ -52,7 +52,8 @@ const ALERT_TYPE_LABELS: Record<PetyrAlertType, string> = {
   past_month_locked: "Past month locked",
   actual_under_forecast: "Closed revenue under forecast",
   csm_forecast_below_ai_forecast: "CSM forecast below AI forecast",
-  business_unit_below_historical_pace: "Business Unit below historical pace"
+  business_unit_below_historical_pace: "Business Unit below historical pace",
+  past_campaign_not_completed: "Past campaign not completed"
 };
 
 async function addCompanyLogNote(formData: FormData) {
@@ -198,6 +199,11 @@ function statusKey(value: string | null | undefined) {
   return (value ?? "").trim().toLowerCase();
 }
 
+function isActiveOrPlannedCampaignStatus(value: string | null | undefined) {
+  const status = statusKey(value);
+  return ACTIVE_OR_PLANNED_CAMPAIGN_STATUSES.has(status) || status.includes("plan");
+}
+
 function dateTimeValue(value: string | null | undefined) {
   if (!value) return Number.NaN;
 
@@ -233,7 +239,7 @@ function getVisibleCampaignRows(rows: PetyrCompanyDetail["campaigns"]) {
 
   sortedRows.forEach((row, index) => {
     const key = campaignRowKey(row, index);
-    const isActiveOrPlanned = ACTIVE_OR_PLANNED_CAMPAIGN_STATUSES.has(statusKey(row.status));
+    const isActiveOrPlanned = isActiveOrPlannedCampaignStatus(row.status);
     const isLatestCompleted = latestCompleted === row;
 
     if (!isActiveOrPlanned && !isLatestCompleted) return;

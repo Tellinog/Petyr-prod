@@ -313,7 +313,7 @@ function isInvalidCampaignStatus(status: string) {
 }
 
 function isPlanningOnlyStatus(status: string) {
-  return ["draft", "planned", "planning", "pipeline", "tentative", "proposed", "setup", "recruiting"].some((token) =>
+  return ["draft", "plan", "pipeline", "tentative", "proposal", "proposed", "setup", "recruiting"].some((token) =>
     status.includes(token)
   );
 }
@@ -340,7 +340,7 @@ function isPlannedCampaign(campaign: PetyrCampaignDetail, year: number, today: D
   if (campaignDate.getTime() < tomorrow.getTime() || campaignDate.getTime() > yearEnd.getTime()) return false;
 
   const status = campaignStatusKey(campaign.status);
-  return status === "setup" || status === "recruiting" || status === "running";
+  return status === "running" || isPlanningOnlyStatus(status);
 }
 
 function summarizeRevenueAndPlanned(detail: PetyrCompanyDetail, year: number, today: Date) {
@@ -654,9 +654,19 @@ function validateAnnualValues(values: unknown) {
       throw new AnnualForecastEntryBatchError(`Annual Forecast Entry save contains duplicate values for ${businessUnit}.`, 400);
     }
 
+    if (typeof row.value === "string" && !row.value.trim()) {
+      throw new AnnualForecastEntryBatchError(
+        `Annual forecast value for ${businessUnit} is empty. Enter a non-negative number, or enter 0 to save zero.`,
+        400
+      );
+    }
+
     const value = parseMoney(row.value);
     if (!value) {
-      throw new AnnualForecastEntryBatchError(`Annual forecast value for ${businessUnit} must be numeric and greater than or equal to 0.`, 400);
+      throw new AnnualForecastEntryBatchError(
+        `Annual forecast value for ${businessUnit} must be numeric and greater than or equal to 0. Use digits only, or enter 0 to save zero.`,
+        400
+      );
     }
 
     const sourceState = asString(row.sourceState);
@@ -695,9 +705,19 @@ function validateUpdates(updates: unknown): ValidatedAnnualUpdate[] {
 
     const activeStatus = typeof update.activeStatus === "boolean" ? update.activeStatus : null;
     const hasInitialForecast = Object.prototype.hasOwnProperty.call(update, "initialForecast");
+    if (hasInitialForecast && typeof update.initialForecast === "string" && !update.initialForecast.trim()) {
+      throw new AnnualForecastEntryBatchError(
+        `${companyName}: Forecast Initial is empty. Enter a non-negative number, or enter 0 to save zero.`,
+        400
+      );
+    }
+
     const initialForecast = hasInitialForecast ? parseMoney(update.initialForecast) : null;
     if (hasInitialForecast && !initialForecast) {
-      throw new AnnualForecastEntryBatchError(`${companyName}: Forecast Initial must be numeric and greater than or equal to 0.`, 400);
+      throw new AnnualForecastEntryBatchError(
+        `${companyName}: Forecast Initial must be numeric and greater than or equal to 0. Use digits only, or enter 0 to save zero.`,
+        400
+      );
     }
 
     const confidenceValue = asString(update.confidence);

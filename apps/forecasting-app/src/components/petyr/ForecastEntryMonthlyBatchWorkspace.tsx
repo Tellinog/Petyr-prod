@@ -136,6 +136,10 @@ function mutedNumericClass(isMuted: boolean) {
   return isMuted ? "text-slate-400 placeholder:text-slate-300" : "text-slate-900 placeholder:text-slate-400";
 }
 
+function monthlyTotalCellClass(value: number) {
+  return `border-l border-cyan-200 bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(value))}`;
+}
+
 function monthlyCompanySortLabel(direction: MonthlyCompanySortDirection) {
   return direction === "asc" ? "A-Z" : "Z-A";
 }
@@ -229,6 +233,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedState, setShowSavedState] = useState(false);
+  const [savedSummary, setSavedSummary] = useState("");
   const savedStateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeEntryTab, setActiveEntryTab] = useState("monthly");
   const [annualBatch, setAnnualBatch] = useState<AnnualForecastEntryBatchDataResult | null>(initialAnnualBatch);
@@ -268,7 +273,8 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     };
   }, []);
 
-  function markSavedState() {
+  function markSavedState(summary: string) {
+    setSavedSummary(summary);
     setShowSavedState(true);
 
     if (savedStateTimeoutRef.current) {
@@ -277,6 +283,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
 
     savedStateTimeoutRef.current = setTimeout(() => {
       setShowSavedState(false);
+      setSavedSummary("");
       savedStateTimeoutRef.current = null;
     }, 5000);
   }
@@ -381,10 +388,20 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     }
   }
 
-function updateValue(company: ForecastEntryBatchCompany, cell: ForecastEntryBatchCell, value: string) {
-  const key = cellKey(company.companyName, cell.businessUnit);
+  function updateValue(company: ForecastEntryBatchCompany, cell: ForecastEntryBatchCell, value: string) {
+    const key = cellKey(company.companyName, cell.businessUnit);
     setValues((existing) => ({ ...existing, [key]: formatPetyrIntegerInputDraft(value) }));
     setSourceStates((existing) => ({ ...existing, [key]: "manual_edit" }));
+  }
+
+  function currentForecastValue(company: ForecastEntryBatchCompany, cell: ForecastEntryBatchCell, forecastType: MonthlyForecastType) {
+    const key = cellKey(company.companyName, cell.businessUnit);
+    const parsed = parseMoneyInput(values[key] ?? "");
+
+    if (forecastType === editableForecastType && sourceStates[key] && parsed !== null) return parsed;
+
+    const forecast = forecastForType(cell, forecastType);
+    return forecast?.hasSavedCsmValue ? forecast.value ?? 0 : 0;
   }
 
   function updateNote(companyName: string, value: string) {
@@ -440,15 +457,17 @@ function updateValue(company: ForecastEntryBatchCompany, cell: ForecastEntryBatc
         throw new Error(payload.error ?? payload.detail ?? "Unable to save Forecast Entry batch.");
       }
 
+      const successText = payload.noChanges
+        ? "No changes detected"
+        : `Saved ${payload.forecastUpserts} value(s) across ${payload.companiesSaved} compan${payload.companiesSaved === 1 ? "y" : "ies"}.`;
+
       setBatch(payload.batch);
       setNotice({
         type: "success",
-        text: payload.noChanges
-          ? "No changes detected"
-          : `Saved ${payload.forecastUpserts} value(s) across ${payload.companiesSaved} compan${payload.companiesSaved === 1 ? "y" : "ies"}.`
+        text: successText
       });
       if (!payload.noChanges) {
-        markSavedState();
+        markSavedState(successText);
       }
     } catch (error) {
       setNotice({
@@ -470,6 +489,48 @@ function updateValue(company: ForecastEntryBatchCompany, cell: ForecastEntryBatc
       return monthlyCompanySortDirection === "asc" ? result : -result;
     });
   }, [batch.data.companies, monthlyCompanySortDirection]);
+
+  const monthlySummary = useMemo(() => {
+    const byBusinessUnit = Object.fromEntries(
+      batch.data.businessUnits.map((businessUnit) => [
+        businessUnit,
+        {
+          previous_month: 0,
+          ongoing: 0,
+          active: 0,
+          closed: 0
+        }
+      ])
+    ) as Record<string, { previous_month: number; ongoing: number; active: number; closed: number }>;
+    let activeTotal = 0;
+
+    for (const company of monthlyCompanies) {
+      for (const cell of company.businessUnits) {
+        const previousMonth = currentForecastValue(company, cell, "previous_month");
+        const ongoing = currentForecastValue(company, cell, "ongoing");
+        const active = editableForecastType === "ongoing" ? ongoing : previousMonth;
+        const closed = cell.closedRevenue ?? 0;
+        const totals = byBusinessUnit[cell.businessUnit] ?? {
+          previous_month: 0,
+          ongoing: 0,
+          active: 0,
+          closed: 0
+        };
+
+        totals.previous_month += previousMonth;
+        totals.ongoing += ongoing;
+        totals.active += active;
+        totals.closed += closed;
+        byBusinessUnit[cell.businessUnit] = totals;
+        activeTotal += active;
+      }
+    }
+
+    return {
+      activeTotal,
+      byBusinessUnit
+    };
+  }, [batch.data.businessUnits, editableForecastType, monthlyCompanies, sourceStates, values]);
 
 
   return (
@@ -661,8 +722,50 @@ function updateValue(company: ForecastEntryBatchCompany, cell: ForecastEntryBatc
               </TableHeader>
               <TableBody>
                 {monthlyCompanies.length > 0 ? (
-                  monthlyCompanies.map((company) => (
-                    <TableRow key={company.companyName}>
+                  <>
+                    <TableRow className="border-b-2 border-cyan-200 bg-cyan-50 hover:bg-cyan-50">
+                      <TableCell className="sticky left-0 z-20 min-w-[240px] border-r border-cyan-200 bg-cyan-50">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-cyan-800">
+                          {selectedMonthLabel} CSM Forecast
+                        </div>
+                        <div className="mt-1 text-xs font-medium text-cyan-700">Portfolio total</div>
+                        <div className={`mt-1 text-sm font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(monthlySummary.activeTotal))}`}>
+                          {formatPetyrIntegerCurrencyValue(monthlySummary.activeTotal)}
+                        </div>
+                      </TableCell>
+                      {batch.data.businessUnits.flatMap((businessUnit) => {
+                        const expanded = expandedBusinessUnits.has(businessUnit);
+                        const totals = monthlySummary.byBusinessUnit[businessUnit] ?? {
+                          previous_month: 0,
+                          ongoing: 0,
+                          active: 0,
+                          closed: 0
+                        };
+
+                        if (!expanded) {
+                          return [
+                            <TableCell key={`total-${businessUnit}-active`} className={`min-w-[190px] ${monthlyTotalCellClass(totals.active)}`}>
+                              {formatPetyrIntegerCurrencyValue(totals.active)}
+                            </TableCell>
+                          ];
+                        }
+
+                        return [
+                          <TableCell key={`total-${businessUnit}-previous_month`} className={`min-w-[190px] ${monthlyTotalCellClass(totals.previous_month)}`}>
+                            {formatPetyrIntegerCurrencyValue(totals.previous_month)}
+                          </TableCell>,
+                          <TableCell key={`total-${businessUnit}-ongoing`} className={`min-w-[190px] ${monthlyTotalCellClass(totals.ongoing)}`}>
+                            {formatPetyrIntegerCurrencyValue(totals.ongoing)}
+                          </TableCell>,
+                          <TableCell key={`total-${businessUnit}-closed`} className={`min-w-[170px] ${monthlyTotalCellClass(totals.closed)}`}>
+                            {formatPetyrIntegerCurrencyValue(totals.closed)}
+                          </TableCell>
+                        ];
+                      })}
+                      <TableCell className="min-w-[260px] bg-cyan-50" aria-label="No note for total row" />
+                    </TableRow>
+                    {monthlyCompanies.map((company) => (
+                      <TableRow key={company.companyName}>
                       <TableCell className="sticky left-0 z-10 min-w-[240px] bg-white">
                         <Link
                           href={buildCompanyDetailPageUrl(company.companyName, batch.data.year, company.csmName)}
@@ -751,8 +854,9 @@ function updateValue(company: ForecastEntryBatchCompany, cell: ForecastEntryBatc
                           className="min-h-12 rounded-xl"
                         />
                       </TableCell>
-                    </TableRow>
-                  ))
+                      </TableRow>
+                    ))}
+                  </>
                 ) : (
                   <TableRow>
                     <TableCell colSpan={tableColumnCount} className="bg-slate-50 py-8 text-center text-sm text-slate-500">
@@ -800,18 +904,26 @@ function updateValue(company: ForecastEntryBatchCompany, cell: ForecastEntryBatc
       </Tabs>
       {activeEntryTab === "monthly" ? (
         <>
-          <Button
-            className={`fixed bottom-5 right-5 z-50 h-12 min-w-[112px] rounded-xl px-6 shadow-lg shadow-slate-900/20 ${
-              showSavedState ? "bg-emerald-600 text-white hover:bg-emerald-600" : ""
-            }`}
-            type="button"
-            disabled={isLocked || isSaving || isLoading}
-            onClick={saveBatch}
-          >
-            {isSaving ? "Saving" : "Save"}
-          </Button>
+          <div className="fixed bottom-5 right-5 z-50 flex max-w-[360px] flex-col items-end gap-3">
+            {showSavedState && savedSummary ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-right shadow-lg shadow-emerald-950/10">
+                <div className="text-sm font-bold text-emerald-950">Forecast saved</div>
+                <div className="mt-1 text-sm font-medium text-emerald-800">{savedSummary}</div>
+              </div>
+            ) : null}
+            <Button
+              className={`h-12 min-w-[112px] rounded-xl px-6 shadow-lg shadow-slate-900/20 ${
+                showSavedState ? "bg-emerald-600 text-white hover:bg-emerald-600" : ""
+              }`}
+              type="button"
+              disabled={isLocked || isSaving || isLoading}
+              onClick={saveBatch}
+            >
+              {isSaving ? "Saving" : "Save"}
+            </Button>
+          </div>
           <div className="sr-only" aria-live="polite">
-            {showSavedState ? "Forecast saved." : ""}
+            {showSavedState ? `Forecast saved. ${savedSummary}` : ""}
           </div>
         </>
       ) : null}

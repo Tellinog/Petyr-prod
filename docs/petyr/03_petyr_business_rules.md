@@ -86,6 +86,12 @@ Rules:
   values are modified without an existing confidence value, and accepts only
   `01 High`, `02 Mid` and `03 Low`.
 - Monthly Forecast Entry can sort the visible company portfolio by Company.
+- Monthly Forecast Entry shows a highlighted portfolio-total row directly under
+  the table headers and above the first company row. The first cell shows the
+  all-Business-Unit active forecast total for the selected CSM/month, each
+  visible Business Unit column shows its portfolio total, expanded Business
+  Units show separate Previous Month Forecast, Ongoing Forecast and Closed
+  Revenue YTD totals, and the Note cell remains empty.
 - Annual Forecast Entry can sort visible rows by Company, Forecast Initial,
   Forecast Ongoing and Confidence.
 - Annual Forecast Entry shows all active and inactive rows by default, and the
@@ -110,10 +116,9 @@ Rules:
 - The legend row includes a Business Unit collapse/show button immediately after the legend chips; collapsed mode hides all BU input columns and keeps Active through Confidence plus Closed Revenue YTD through Logs visible.
 - Editable Annual Entry columns use a subtle manual-entry background, while consolidated/read-only columns remain visually quieter.
 - Annual Entry revenue/planned columns are labelled Closed Revenue YTD and Planned This Year; ratio columns explicitly use Forecast Ongoing; the history action is labelled Logs and each row link says `See latest logs of <company>`.
-- Annual Entry Planned includes future `Setup`, `Recruiting` and `Running`
-  campaigns for the selected year in this workflow. This does not change the
-  broader Management View planned-through-year-end rule unless a future decision
-  updates it.
+- Annual Entry Planned includes future planning-like statuses (`Draft`, `Plan`,
+  `Planned`, `Planning`, `Pipeline`, `Tentative`, `Proposal`, `Proposed`),
+  `Setup`, `Recruiting` and `Running` campaigns for the selected year.
 
 ## Initial Forecast
 
@@ -175,14 +180,23 @@ diagnostic/admin warning.
 Planned through year end comes from future Redash campaigns, not future CSM
 forecast values.
 
-Planned future includes only these campaign statuses:
+Planned future includes only future campaigns, from tomorrow through year end,
+with these campaign statuses:
 
+- Draft
+- Plan
+- Planned
+- Planning
+- Pipeline
+- Tentative
+- Proposal
+- Proposed
 - Setup
 - Recruiting
+- Running
 
 Planned future excludes:
 
-- Running
 - Completed
 - Aborted
 - Cancelled
@@ -193,9 +207,13 @@ Planned future excludes:
 - Archived
 
 Missing or unknown statuses must be diagnosed and excluded until there is a
-new documented business decision. `Running` is not planned future; it is handled
-only by the closed revenue/revenue logic when the campaign date and status make
-it eligible there.
+new documented business decision. `Running` is Planned only when its campaign
+end date is tomorrow or later; `Running` with end date today or in the past is
+handled by the closed revenue/revenue logic when otherwise eligible there.
+
+Campaigns whose end date is today or in the past but whose status is not
+`Completed` must appear as Company Detail relevant insights so operators can
+correct the source status or date before the mismatch compromises the counts.
 
 ## Agreement operational alerts
 

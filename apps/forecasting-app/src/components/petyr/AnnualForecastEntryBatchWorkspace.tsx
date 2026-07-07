@@ -224,6 +224,7 @@ export default function AnnualForecastEntryBatchWorkspace({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedState, setShowSavedState] = useState(false);
+  const [savedSummary, setSavedSummary] = useState("");
   const [showBusinessUnits, setShowBusinessUnits] = useState(true);
   const [isCsmDropdownOpen, setIsCsmDropdownOpen] = useState(false);
   const [annualSort, setAnnualSort] = useState<AnnualSortState>({ key: null, direction: "asc" });
@@ -271,7 +272,8 @@ export default function AnnualForecastEntryBatchWorkspace({
     return () => document.removeEventListener("mousedown", closeCsmDropdownOnOutsideClick);
   }, []);
 
-  function markSavedState() {
+  function markSavedState(summary: string) {
+    setSavedSummary(summary);
     setShowSavedState(true);
 
     if (savedStateTimeoutRef.current) {
@@ -280,6 +282,7 @@ export default function AnnualForecastEntryBatchWorkspace({
 
     savedStateTimeoutRef.current = setTimeout(() => {
       setShowSavedState(false);
+      setSavedSummary("");
       savedStateTimeoutRef.current = null;
     }, 5000);
   }
@@ -542,16 +545,24 @@ export default function AnnualForecastEntryBatchWorkspace({
         throw new Error(payload.error ?? payload.detail ?? "Unable to save Annual Forecast Entry.");
       }
 
+      const successText = payload.noChanges
+        ? "No changes detected"
+        : [
+            `Saved annual changes for ${payload.companiesSaved} compan${payload.companiesSaved === 1 ? "y" : "ies"}`,
+            `${payload.forecastUpserts} Forecast Ongoing value(s)`,
+            `${payload.metadataUpserts} annual metadata update(s)`,
+            `${payload.activeStatusUpdates} Active status update(s)`,
+            `${payload.changeLogRows} log row(s)`
+          ].join(". ") + ".";
+
       resetLocalState(payload.batch);
       onBatchChange?.(payload.batch);
       setNotice({
         type: "success",
-        text: payload.noChanges
-          ? "No changes detected"
-          : `Saved annual changes for ${payload.companiesSaved} compan${payload.companiesSaved === 1 ? "y" : "ies"}.`
+        text: successText
       });
       if (!payload.noChanges) {
-        markSavedState();
+        markSavedState(successText);
       }
     } catch (error) {
       setNotice({
@@ -682,7 +693,13 @@ export default function AnnualForecastEntryBatchWorkspace({
 
         {notice ? <PetyrInlineNotice tone={notice.type === "success" ? "success" : "danger"}>{notice.text}</PetyrInlineNotice> : null}
 
-        <div className="fixed bottom-5 right-5 z-50">
+        <div className="fixed bottom-5 right-5 z-50 flex max-w-[420px] flex-col items-end gap-3">
+          {showSavedState && savedSummary ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-right shadow-lg shadow-emerald-950/10">
+              <div className="text-sm font-bold text-emerald-950">Annual forecast saved</div>
+              <div className="mt-1 text-sm font-medium text-emerald-800">{savedSummary}</div>
+            </div>
+          ) : null}
           <Button
             type="button"
             className={`h-12 min-w-[112px] rounded-xl px-6 shadow-lg shadow-slate-900/20 ${
@@ -696,7 +713,7 @@ export default function AnnualForecastEntryBatchWorkspace({
         </div>
 
         <div className="sr-only" aria-live="polite">
-          {showSavedState ? "Forecast saved." : ""}
+          {showSavedState ? `Forecast saved. ${savedSummary}` : ""}
         </div>
 
         <div className="max-h-[calc(100vh-2rem)] overflow-auto rounded-2xl border border-slate-200 bg-white">

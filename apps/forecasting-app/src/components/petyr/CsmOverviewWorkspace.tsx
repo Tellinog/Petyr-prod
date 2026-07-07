@@ -25,7 +25,8 @@ const ALERT_TYPE_LABELS: Record<PetyrAlertType, string> = {
   past_month_locked: "Locked month",
   actual_under_forecast: "Closed revenue under forecast",
   csm_forecast_below_ai_forecast: "CSM below AI",
-  business_unit_below_historical_pace: "BU below history"
+  business_unit_below_historical_pace: "BU below history",
+  past_campaign_not_completed: "Past campaign not completed"
 };
 const CSM_OVERVIEW_HIDDEN_ALERT_TYPES = new Set<PetyrAlertType>(["company_inactive", "past_month_locked"]);
 

@@ -60,10 +60,10 @@ const INVALID_CAMPAIGN_STATUS_TOKENS = [
 
 const PLANNING_ONLY_STATUS_TOKENS = [
   "draft",
-  "planned",
-  "planning",
+  "plan",
   "pipeline",
   "tentative",
+  "proposal",
   "proposed",
   "setup",
   "recruiting"

@@ -202,7 +202,12 @@ Expand/Collapse control is rendered as a button at the right edge of the group
 header. When a Business Unit is expanded, Previous Month Forecast appears to the
 left of Ongoing Forecast and Closed Revenue YTD remains to the right of Ongoing
 Forecast. The Monthly Company header can sort the loaded portfolio by company
-name ascending or descending. Monthly numeric Forecast Entry cells show integer values without
+name ascending or descending. Monthly shows a highlighted portfolio-total row
+directly under the table headers and above the first company row: the first cell
+shows the all-Business-Unit active forecast total for the selected CSM/month,
+each visible Business Unit column shows its portfolio total, expanded Business
+Units show separate Previous Month Forecast, Ongoing Forecast and Closed Revenue
+YTD totals, and the Note cell remains empty. Monthly numeric Forecast Entry cells show integer values without
 decimal cents, keep Italian thousands separators, are sized for values up to
 eight digits plus separators and mute zero/empty cells in a softer grey. Monthly
 table body rows use compact vertical padding and top-align cell content; saved

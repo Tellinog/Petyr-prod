@@ -17,7 +17,7 @@ const COMMERCIAL_ROUNDING_GRANULARITY = 100;
 const GROWTH_THRESHOLD = 1.15;
 const OVER_CONSUMPTION_THRESHOLD = 1.2;
 const SUMMER_SLOWDOWN_THRESHOLD = 0.85;
-const PLANNED_FUTURE_STATUSES = new Set(["setup", "recruiting"]);
+const PLANNED_FUTURE_STATUSES = new Set(["running"]);
 const INVALID_STATUS_TOKENS = [
   "abort",
   "cancel",
@@ -34,10 +34,10 @@ const INVALID_STATUS_TOKENS = [
 ];
 const PLANNING_ONLY_STATUS_TOKENS = [
   "draft",
-  "planned",
-  "planning",
+  "plan",
   "pipeline",
   "tentative",
+  "proposal",
   "proposed",
   "setup",
   "recruiting"
@@ -533,7 +533,7 @@ function isPlannedFutureCampaign(campaign: PetyrCampaignDetail, currentDate: Dat
   const dateParts = campaignDateParts(campaign);
 
   if (!dateParts) return false;
-  if (!PLANNED_FUTURE_STATUSES.has(status)) return false;
+  if (!PLANNED_FUTURE_STATUSES.has(status) && !isPlanningOnlyCampaignStatus(status)) return false;
 
   return startOfLocalDay(dateParts.date).getTime() > startOfLocalDay(currentDate).getTime();
 }

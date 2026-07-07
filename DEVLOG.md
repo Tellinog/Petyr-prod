@@ -18,6 +18,29 @@ Each entry must include:
 
 ---
 
+## 2026-07-07
+
+- **Area:** Petyr / Forecast Entry / Save confirmation and numeric validation
+- **Change:** Added visible floating save-confirmation summaries beside the Monthly and Annual Forecast Entry Save buttons. Monthly now repeats the saved value/company count returned by the batch save API, while Annual shows companies saved, Forecast Ongoing value upserts, annual metadata updates, Active status updates and change-log rows. Clarified Forecast Entry numeric validation errors so touched empty cells explain that users must enter a non-negative number or `0` to save zero.
+- **Reason:** Product requested a clearly visible confirmation of what was saved for both Monthly and Annual Forecast Entry, and clarification for the non-negative numeric value error when no negative value was visible.
+- **Impact:** UI feedback and validation copy changed only. Save APIs, database schema, permissions, Redash/PostgreSQL data flow, forecast persistence semantics, empty-cell semantics and audit logging are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/src/services/forecastEntryBatchService.ts`, `apps/forecasting-app/src/services/annualForecastEntryBatchService.ts`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecast Entry / Monthly table portfolio total
+- **Change:** Added a highlighted Monthly Forecast Entry portfolio-total row directly under the table headers and above the first company row. The row shows the selected CSM/month active forecast total across all Business Units in the first cell, per-visible-Business-Unit totals in the Business Unit columns, separate Previous Month/Ongoing/Closed Revenue totals for expanded Business Units and an empty Note cell.
+- **Reason:** Product requested Monthly Forecast Entry to mirror Annual Forecast Entry's top total-row logic and visual treatment.
+- **Impact:** UI table aggregation changed only. Monthly read/save APIs, database schema, permissions, Redash/PostgreSQL data flow, forecast persistence, notes and audit logging are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Campaign revenue and planned status rules
+- **Change:** Expanded planned future campaign eligibility to include future planning-like statuses (`Draft`, `Plan`, `Planned`, `Planning`, `Pipeline`, `Tentative`, `Proposal`, `Proposed`), `Setup`, `Recruiting` and future `Running`; kept `Running` with end date today or earlier in Revenue/closed-current timing when otherwise valid; added a Company Detail relevant insight for campaigns whose end date is today or earlier but status is not `Completed`.
+- **Reason:** Product clarified that planning-like campaign statuses should count as planned, and that `Running` should be separated by end-date window instead of appearing as both Revenue and Planned.
+- **Impact:** Management View planned future, Annual Forecast Entry Planned This Year, deterministic AI planned floors, planned diagnostics and Company Detail relevant insights changed. Redash ingestion, database schema, permissions, CSM forecast persistence and annual/monthly save contracts are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/services/petyrDataService.ts`, `apps/forecasting-app/src/services/annualForecastEntryBatchService.ts`, `apps/forecasting-app/src/services/petyrAiForecastStrategyService.ts`, `apps/forecasting-app/src/services/petyrAlertService.ts`, `apps/forecasting-app/src/services/petyrAiForecastCompanyIntelligenceService.ts`, `apps/forecasting-app/src/services/petyrClosedRevenueOngoingBackfillService.ts`, `apps/forecasting-app/src/services/petyrAiPreviewBacktestService.ts`, `apps/forecasting-app/scripts/backfill-2026-closed-revenue-to-ongoing-forecast.mjs`, `apps/forecasting-app/src/app/forecasting/company/[companyName]/page.tsx`, `apps/forecasting-app/src/components/petyr/PetyrAiForecastCompanyAction.tsx`, `apps/forecasting-app/src/components/petyr/ForecastEntryFaq.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `docs/petyr/AI_FORECASTING_DESIGN.md`, `DECISIONS.md`, `DEVLOG.md`.
+- **Follow-up:** Review real Redash status values after the next sync to confirm whether additional spelling variants need a documented mapping.
+
 ## 2026-07-06
 
 - **Area:** Petyr / Forecast Entry / Monthly and Annual table scroll

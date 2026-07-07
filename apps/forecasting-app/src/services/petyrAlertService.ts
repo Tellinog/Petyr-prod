@@ -34,7 +34,8 @@ export type PetyrAlertType =
   | "past_month_locked"
   | "actual_under_forecast"
   | "csm_forecast_below_ai_forecast"
-  | "business_unit_below_historical_pace";
+  | "business_unit_below_historical_pace"
+  | "past_campaign_not_completed";
 
 export type PetyrAlertSeverity = "info" | "warning" | "critical";
 
@@ -45,6 +46,7 @@ export type PetyrAlert = {
   companyName: string;
   csmName: string;
   businessUnit?: string;
+  campaignName?: string;
   agreementName?: string;
   agreementExpiry?: string | null;
   residualAmount?: number;
@@ -154,6 +156,10 @@ function isAgreementStatusActive(agreement: Pick<PetyrAgreementDetail, "status" 
   }
 
   return true;
+}
+
+function isCompletedCampaignStatus(status: string | null | undefined) {
+  return normalizeKey(status) === "completed";
 }
 
 function resolveYear(value: number | undefined, today: Date, diagnostics: string[]) {
@@ -713,6 +719,39 @@ function buildCompanyAgreementExpiringAlerts(
   });
 }
 
+function buildCompanyPastCampaignStatusAlerts(
+  detail: PetyrCompanyDetail,
+  companyName: string,
+  year: number,
+  month: number,
+  currentDate: Date
+) {
+  const csmName = detail.overview?.csmName ?? "Unassigned";
+
+  return detail.campaigns.flatMap((campaign): PetyrAlert[] => {
+    const endDate = parseDate(campaign.endDate);
+    if (!endDate || daysUntil(endDate, currentDate) > 0 || isCompletedCampaignStatus(campaign.status)) return [];
+
+    return [
+      {
+        id: alertId("past_campaign_not_completed", companyName, campaign.name, campaign.endDate, campaign.status),
+        type: "past_campaign_not_completed",
+        severity: "warning",
+        companyName,
+        csmName,
+        campaignName: campaign.name,
+        businessUnit: campaign.businessUnit,
+        message: `${campaign.name} ended on ${campaign.endDate ?? "n/a"} but status is ${campaign.status || "Unknown"}.`,
+        explanation: "Campaign end date is on or before today, so it can affect closed-revenue timing. A non-Completed status should be reviewed because it can make Revenue and Planned calculations misleading.",
+        suggestedAction: "Review the campaign status in the source data and set it to Completed when the campaign is truly closed, or correct the end date if the campaign is still future/running.",
+        targetUrl: companyUrl(companyName, year),
+        year,
+        month
+      }
+    ];
+  });
+}
+
 export async function getPetyrAlerts(input: PetyrAlertQuery = {}): Promise<PetyrDataServiceResult<PetyrAlert[]>> {
   const diagnostics: string[] = [];
   const currentDate = input.currentDate ?? new Date();
@@ -805,7 +844,8 @@ export function buildPetyrCompanyAlertsFromDetail(
       [
         ...alerts,
         ...buildCompanyAgreementExpiringAlerts(detail, resolvedCompanyName, year, month, currentDate),
-        ...buildCompanyExpiredAgreementResidualAlerts(detail, resolvedCompanyName, year, month, currentDate)
+        ...buildCompanyExpiredAgreementResidualAlerts(detail, resolvedCompanyName, year, month, currentDate),
+        ...buildCompanyPastCampaignStatusAlerts(detail, resolvedCompanyName, year, month, currentDate)
       ],
       input.limit
     ),

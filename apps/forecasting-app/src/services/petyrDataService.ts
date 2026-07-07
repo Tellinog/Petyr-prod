@@ -42,9 +42,20 @@ const INVALID_CAMPAIGN_STATUS_TOKENS = [
   "archiv",
   "invalid"
 ];
-const PLANNED_FUTURE_INCLUDED_STATUSES = new Set(["setup", "recruiting"]);
+const PLANNED_FUTURE_INCLUDED_STATUSES = new Set([
+  "draft",
+  "plan",
+  "planned",
+  "planning",
+  "pipeline",
+  "tentative",
+  "proposal",
+  "proposed",
+  "setup",
+  "recruiting",
+  "running"
+]);
 const PLANNED_FUTURE_EXCLUDED_STATUSES = new Set([
-  "running",
   "completed",
   "aborted",
   "cancelled",
@@ -2735,7 +2746,7 @@ function isInvalidCampaignStatus(status: string) {
 }
 
 function isPlanningOnlyCampaignStatus(status: string) {
-  return ["draft", "planned", "planning", "pipeline", "tentative", "proposed", "setup", "recruiting"].some((token) => status.includes(token));
+  return ["draft", "plan", "pipeline", "tentative", "proposal", "proposed", "setup", "recruiting"].some((token) => status.includes(token));
 }
 
 function classifyPlannedFutureCampaignStatus(row: MaterializedCampaignRow): {
@@ -2746,7 +2757,7 @@ function classifyPlannedFutureCampaignStatus(row: MaterializedCampaignRow): {
   const status = rawStatus.toLowerCase();
 
   if (!status) return { classification: "missing", rawStatus };
-  if (PLANNED_FUTURE_INCLUDED_STATUSES.has(status)) return { classification: "planned", rawStatus };
+  if (PLANNED_FUTURE_INCLUDED_STATUSES.has(status) || isPlanningOnlyCampaignStatus(status)) return { classification: "planned", rawStatus };
   if (PLANNED_FUTURE_EXCLUDED_STATUSES.has(status) || isInvalidCampaignStatus(status)) {
     return { classification: "excluded", rawStatus };
   }
@@ -2827,7 +2838,7 @@ function flushPlannedFutureCampaignDiagnostics(
 
   if (excludedCount > 0) {
     diagnostics.push(
-      `Planned future campaign revenue excluded ${excludedCount} future campaign row(s) with non-planned status (${formatCountMap(collector.excludedStatusCounts)}). Planned future includes only Setup and Recruiting. Examples: ${diagnosticList(collector.excludedStatusExamples)}.`
+      `Planned future campaign revenue excluded ${excludedCount} future campaign row(s) with non-planned status (${formatCountMap(collector.excludedStatusCounts)}). Planned future includes draft/plan/planning/pipeline/tentative/proposal, Setup, Recruiting and future Running statuses. Examples: ${diagnosticList(collector.excludedStatusExamples)}.`
     );
   }
 }
@@ -3609,7 +3620,7 @@ export async function getManagementView(year: number) {
         businessUnitAggregates: managementAggregates.businessUnitAggregates,
         csmAggregates: managementAggregates.csmAggregates,
         csmDenominatorNote: "CSM percentages require a dedicated CSM yearly objective. No CSM target is configured by default, so Petyr shows n/a and does not create a fallback target.",
-        plannedSourceNote: "Closed revenue + planned uses Redash closed campaign revenue through today plus future Redash campaign revenue through year end only when campaign status is Setup or Recruiting. Ongoing Forecast shows current latest annual forecast rows when available, but forecast values are not used in planned-through-year-end.",
+        plannedSourceNote: "Closed revenue + planned uses Redash closed campaign revenue through today plus future Redash campaign revenue through year end for planning-like statuses, Setup, Recruiting and future Running. Ongoing Forecast shows current latest annual forecast rows when available, but forecast values are not used in planned-through-year-end.",
         monthlyTrend,
         companies,
         csmSummaries: buildCsmSummaries({
@@ -3650,7 +3661,7 @@ export async function getManagementView(year: number) {
         businessUnitAggregates: managementAggregates.businessUnitAggregates,
         csmAggregates: managementAggregates.csmAggregates,
         csmDenominatorNote: "CSM percentages require a dedicated CSM yearly objective. No CSM target is configured by default, so Petyr shows n/a and does not create a fallback target.",
-        plannedSourceNote: "Closed revenue + planned uses Redash closed campaign revenue through today plus future Redash campaign revenue through year end only when campaign status is Setup or Recruiting. Ongoing Forecast shows current latest annual forecast rows when available, but forecast values are not used in planned-through-year-end.",
+        plannedSourceNote: "Closed revenue + planned uses Redash closed campaign revenue through today plus future Redash campaign revenue through year end for planning-like statuses, Setup, Recruiting and future Running. Ongoing Forecast shows current latest annual forecast rows when available, but forecast values are not used in planned-through-year-end.",
         monthlyTrend,
         companies: [],
         csmSummaries: [],
@@ -4793,7 +4804,8 @@ function isAnnualEntryPlannedCampaign(row: MaterializedCampaignRow, year: number
   const yearEnd = new Date(year, 11, 31);
   if (campaignDate.getTime() < tomorrow.getTime() || campaignDate.getTime() > yearEnd.getTime()) return false;
 
-  return ["setup", "recruiting", "running"].includes(annualEntryStatusKey(normalizeCellValue(row.campaign_status)));
+  const status = annualEntryStatusKey(normalizeCellValue(row.campaign_status));
+  return PLANNED_FUTURE_INCLUDED_STATUSES.has(status) || isPlanningOnlyCampaignStatus(status);
 }
 
 export async function getAnnualForecastEntryPortfolioCompanies(input: {

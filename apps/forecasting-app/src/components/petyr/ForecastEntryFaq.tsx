@@ -127,8 +127,8 @@ export function ForecastEntryFaq() {
           </p>
           <p>
             Historical weighting favors recent revenue and comparable same-month history. Run-rate uses completed current-year months when available,
-            otherwise recent history, and dampens volatile data. Planned campaigns use only the documented future-planned statuses: Setup and
-            Recruiting.
+            otherwise recent history, and dampens volatile data. Planned campaigns use only the documented future-planned statuses: planning-like statuses, Setup,
+            Recruiting, and future Running.
           </p>
         </ForecastEntryFaqItem>
 

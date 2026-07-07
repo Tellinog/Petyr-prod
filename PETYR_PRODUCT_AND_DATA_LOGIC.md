@@ -362,6 +362,12 @@ Monthly Forecast Entry table rules:
 - when a Business Unit is expanded, Previous Month Forecast is shown to the left
   of Ongoing Forecast and Closed Revenue YTD is shown to the right of Ongoing
   Forecast;
+- Monthly Forecast Entry shows a highlighted portfolio-total row directly under
+  the table headers and above the first company row. The first cell shows the
+  all-Business-Unit active forecast total for the selected CSM/month, each
+  visible Business Unit column shows its portfolio total, expanded Business
+  Units show separate Previous Month Forecast, Ongoing Forecast and Closed
+  Revenue YTD totals, and the Note cell remains empty;
 - Monthly Forecast Entry displays Business Unit columns in this CSM check order:
   QA, UX/Experience, Accessibility, Security, FTE, TA, AI, OTHER/Other, Express,
   Community;
@@ -540,8 +546,9 @@ Annual Revenue / Planned:
 
 - Closed Revenue YTD is selected-year campaign revenue closed through today;
 - Planned This Year is selected-year future campaign revenue from tomorrow through
-  December 31 for statuses `Setup`, `Recruiting` and `Running` in the Annual
-  Forecast Entry workflow;
+  December 31 for planning-like statuses (`Draft`, `Plan`, `Planned`,
+  `Planning`, `Pipeline`, `Tentative`, `Proposal`, `Proposed`), `Setup`,
+  `Recruiting` and future `Running` campaigns;
 - ratio columns are labelled `Revenue / Forecast Ongoing`,
   `Planned / Forecast Ongoing` and `Uncovered / Forecast Ongoing`;
 - both revenue and planned values read from PostgreSQL materialized Redash-derived data, never Redash
@@ -624,7 +631,9 @@ and campaign date <= December 31 of selected year
 
 Rules:
 
-- use future planned/confirmed/draft campaigns according to the status logic implemented in the data service;
+- use future campaigns with planning-like statuses (`Draft`, `Plan`, `Planned`,
+  `Planning`, `Pipeline`, `Tentative`, `Proposal`, `Proposed`), `Setup`,
+  `Recruiting` and future `Running`;
 - do not use future CSM forecast as planned through year end;
 - do not use AI forecast as planned through year end.
 
@@ -1333,9 +1342,11 @@ Deterministic baseline strategies:
 - Run-rate: use current-year or trailing-period closed revenue pace as a
   stabilizer, dampened when activity is volatile or sparse.
 - Planned campaigns: include only valid future planned campaigns for the target
-  month and Business Unit. `Setup` and `Recruiting` are planned future;
-  `Running` is not planned future and belongs only to revenue/closed/current
-  activity reasoning when eligible there.
+  month and Business Unit. Planning-like statuses (`Draft`, `Plan`, `Planned`,
+  `Planning`, `Pipeline`, `Tentative`, `Proposal`, `Proposed`), `Setup`,
+  `Recruiting` and future `Running` are planned future. `Running` with end date
+  today or in the past belongs to revenue/closed/current-activity reasoning when
+  eligible there.
 - Agreement residual allocation: consider only active agreements with `residual > 0` and future expiry. Link agreements to campaigns by company plus agreement name, estimate remaining months to expiry, allocate residual over time, attribute to Business Units through sanitized title tokens, linked-agreement history, then company+BU history fallback, and cap only the agreement-linked forecast component so it cannot exceed the residual allowance. Linked planned campaigns above the allowance create a local watchout signal.
 
 The LLM intelligence layer:
@@ -1490,7 +1501,9 @@ Do not require LLM:
 - expired agreement with residual;
 - inactive company;
 - forecast not updated;
-- past month locked.
+- past month locked;
+- past campaign not completed, for Company Detail campaigns whose end date is
+  today or in the past but whose status is not `Completed`.
 
 `agreement expiring within 60 days` must include only agreements whose expiry
 date is today or in the future and within 60 days. Expired agreements must not
