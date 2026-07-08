@@ -71,8 +71,10 @@ function resolveMonthLevelMode(params: ForecastEntryModeParams): ForecastEntryMo
   }
 
   const isPast = params.year < currentYear || (params.year === currentYear && params.month < currentMonth);
-  const isCurrent = params.year === currentYear && params.month === currentMonth;
   const isFuture = params.year > currentYear || (params.year === currentYear && params.month > currentMonth);
+  const ongoingCutoff = new Date(params.year, params.month - 2, 15);
+  const currentDayStart = new Date(currentYear, currentMonth - 1, currentDay);
+  const isOngoingWindowOpen = currentDayStart >= ongoingCutoff;
 
   if (isPast) {
     return buildLockedMode({
@@ -82,21 +84,12 @@ function resolveMonthLevelMode(params: ForecastEntryModeParams): ForecastEntryMo
     });
   }
 
-  if (isCurrent && currentDay <= 15) {
-    return buildMode({
-      editable: true,
-      editableForecastType: "previous_month",
-      label: "Edit previous-month forecast",
-      reason: "Until the 15th included, the CSM can edit the previous-month forecast for the current month."
-    });
-  }
-
-  if (isCurrent && currentDay > 15) {
+  if (isOngoingWindowOpen) {
     return buildMode({
       editable: true,
       editableForecastType: "ongoing",
       label: "Edit ongoing forecast",
-      reason: "From the 16th onward, only the ongoing forecast is editable for the current month."
+      reason: "From the 15th of the previous month, only the ongoing forecast is editable for the selected month."
     });
   }
 
@@ -105,7 +98,7 @@ function resolveMonthLevelMode(params: ForecastEntryModeParams): ForecastEntryMo
       editable: true,
       editableForecastType: "previous_month",
       label: "Edit future previous-month forecast",
-      reason: "Future months can be planned through the previous-month forecast field."
+      reason: "Before the 15th of the previous month, the selected future month uses the previous-month forecast field."
     });
   }
 
@@ -159,33 +152,38 @@ const diagnosticCases: ForecastEntryModeDiagnosticCase[] = [
     expected: { editable: false, editableForecastType: null, locked: true }
   },
   {
-    name: "current month through the 15th edits previous-month forecast",
-    params: { year: 2026, month: 5, currentDate: dateFor(2026, 5, 15) },
-    expected: { editable: true, editableForecastType: "previous_month", locked: false }
-  },
-  {
-    name: "current month after the 15th edits ongoing forecast",
-    params: { year: 2026, month: 5, currentDate: dateFor(2026, 5, 16) },
+    name: "current month edits ongoing forecast before the current-month 15th",
+    params: { year: 2026, month: 7, currentDate: dateFor(2026, 7, 8) },
     expected: { editable: true, editableForecastType: "ongoing", locked: false }
   },
   {
-    name: "future month edits previous-month forecast",
-    params: { year: 2026, month: 6, currentDate: dateFor(2026, 5, 16) },
+    name: "next month before previous-month cutoff edits previous-month forecast",
+    params: { year: 2026, month: 8, currentDate: dateFor(2026, 7, 8) },
+    expected: { editable: true, editableForecastType: "previous_month", locked: false }
+  },
+  {
+    name: "next month from previous-month 15th edits ongoing forecast",
+    params: { year: 2026, month: 8, currentDate: dateFor(2026, 7, 15) },
+    expected: { editable: true, editableForecastType: "ongoing", locked: false }
+  },
+  {
+    name: "later future month before its previous-month cutoff edits previous-month forecast",
+    params: { year: 2026, month: 9, currentDate: dateFor(2026, 7, 16) },
     expected: { editable: true, editableForecastType: "previous_month", locked: false }
   },
   {
     name: "AI forecast is never editable",
-    params: { year: 2026, month: 5, currentDate: dateFor(2026, 5, 10), forecastType: "ai_forecast" },
-    expected: { editable: false, editableForecastType: "previous_month", locked: true }
+    params: { year: 2026, month: 7, currentDate: dateFor(2026, 7, 8), forecastType: "ai_forecast" },
+    expected: { editable: false, editableForecastType: "ongoing", locked: true }
   },
   {
     name: "closed revenue is never editable",
-    params: { year: 2026, month: 6, currentDate: dateFor(2026, 5, 16), forecastType: "actuals" },
+    params: { year: 2026, month: 8, currentDate: dateFor(2026, 7, 8), forecastType: "actuals" },
     expected: { editable: false, editableForecastType: "previous_month", locked: true }
   },
   {
     name: "non-active monthly forecast type is locked",
-    params: { year: 2026, month: 5, currentDate: dateFor(2026, 5, 10), forecastType: "ongoing" },
+    params: { year: 2026, month: 8, currentDate: dateFor(2026, 7, 8), forecastType: "ongoing" },
     expected: { editable: false, editableForecastType: "previous_month", locked: true }
   }
 ];

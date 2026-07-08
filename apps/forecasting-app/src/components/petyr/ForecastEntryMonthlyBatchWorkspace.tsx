@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +35,10 @@ type Notice = {
 type SourceState = "accepted_ai" | "manual_edit";
 type MonthlyForecastType = "previous_month" | "ongoing";
 type MonthlyCompanySortDirection = "asc" | "desc";
+type MonthlySortState =
+  | { key: "company"; direction: MonthlyCompanySortDirection }
+  | { key: "business_unit"; businessUnit: string };
+type ActiveVisibilityFilter = "all" | "active" | "inactive";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const NOTE_ONLY_MESSAGE = "Company note requires at least one active forecast value entered, accepted from AI or modified.";
@@ -144,6 +148,17 @@ function monthlyCompanySortLabel(direction: MonthlyCompanySortDirection) {
   return direction === "asc" ? "A-Z" : "Z-A";
 }
 
+function monthlyBusinessUnitSortLabel(sort: MonthlySortState, businessUnit: string) {
+  return sort.key === "business_unit" && sort.businessUnit === businessUnit ? "High-Low" : "Sort";
+}
+
+function isPastMonthlyPeriod(year: number, month: number) {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  return year < currentYear || (year === currentYear && month < currentMonth);
+}
+
 function valuesFromBatch(batch: ForecastEntryBatchDataResult) {
   const editableType = batch.data.entryMode.editableForecastType;
   const values: Record<string, string> = {};
@@ -156,6 +171,10 @@ function valuesFromBatch(batch: ForecastEntryBatchDataResult) {
   }
 
   return values;
+}
+
+function activeValuesFromBatch(batch: ForecastEntryBatchDataResult) {
+  return Object.fromEntries(batch.data.companies.map((company) => [company.companyName, company.isForecastActive]));
 }
 
 function companyHasTouchedValue(company: ForecastEntryBatchCompany, sourceStates: Record<string, SourceState | undefined>) {
@@ -239,12 +258,18 @@ export default function ForecastEntryMonthlyBatchWorkspace({
   const [annualBatch, setAnnualBatch] = useState<AnnualForecastEntryBatchDataResult | null>(initialAnnualBatch);
   const [isAnnualLoading, setIsAnnualLoading] = useState(false);
   const [annualLoadAttempted, setAnnualLoadAttempted] = useState(Boolean(initialAnnualBatch));
-  const [monthlyCompanySortDirection, setMonthlyCompanySortDirection] = useState<MonthlyCompanySortDirection>("asc");
+  const [monthlySort, setMonthlySort] = useState<MonthlySortState>({ key: "company", direction: "asc" });
+  const [activeValues, setActiveValues] = useState<Record<string, boolean>>(() => activeValuesFromBatch(initialBatch));
+  const [touchedActive, setTouchedActive] = useState<Set<string>>(() => new Set());
+  const [activeVisibilityFilter, setActiveVisibilityFilter] = useState<ActiveVisibilityFilter>("all");
 
   const editableForecastType = batch.data.entryMode.editableForecastType;
   const isLocked = batch.data.entryMode.locked || !editableForecastType;
   const activeLabel = forecastTypeLabel(editableForecastType);
   const selectedMonthLabel = `${monthLabel(batch.data.month)} ${batch.data.year}`;
+  const isPastSelectedPeriod = isPastMonthlyPeriod(batch.data.year, batch.data.month);
+  const compactBusinessUnitHeader = isPastSelectedPeriod ? "Closed Revenue" : activeLabel;
+  const closedRevenueHeader = isPastSelectedPeriod ? "Closed Revenue" : "Closed Revenue YTD";
 
   const companyDetailHref = batch.data.companies[0]
     ? buildCompanyDetailPageUrl(batch.data.companies[0].companyName, batch.data.year, batch.data.companies[0].csmName)
@@ -252,7 +277,9 @@ export default function ForecastEntryMonthlyBatchWorkspace({
 
   useEffect(() => {
     setValues(valuesFromBatch(batch));
+    setActiveValues(activeValuesFromBatch(batch));
     setSourceStates({});
+    setTouchedActive(new Set());
     setNotes({});
     setDraftMonth(String(batch.data.month));
     setDraftYear(String(batch.data.year));
@@ -404,27 +431,56 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     return forecast?.hasSavedCsmValue ? forecast.value ?? 0 : 0;
   }
 
+  function monthlyBusinessUnitSortValue(company: ForecastEntryBatchCompany, businessUnit: string) {
+    const cell = company.businessUnits.find((item) => item.businessUnit === businessUnit);
+    if (!cell) return 0;
+    if (isPastSelectedPeriod) return cell.closedRevenue ?? 0;
+
+    const forecastType = (editableForecastType ?? "previous_month") as MonthlyForecastType;
+    const key = cellKey(company.companyName, cell.businessUnit);
+    const parsed = parseMoneyInput(values[key] ?? "");
+    if (sourceStates[key] && parsed !== null) return parsed;
+
+    const forecast = forecastForType(cell, forecastType);
+    if (forecast?.hasSavedCsmValue) return forecast.value ?? 0;
+
+    return cell.aiForecast.value ?? 0;
+  }
+
+  function currentCompanyForecastTotal(company: ForecastEntryBatchCompany) {
+    const forecastType = (editableForecastType ?? "previous_month") as MonthlyForecastType;
+    return company.businessUnits.reduce((sum, cell) => sum + currentForecastValue(company, cell, forecastType), 0);
+  }
+
   function updateNote(companyName: string, value: string) {
     setNotes((existing) => ({ ...existing, [companyName]: value }));
   }
 
+  function updateActive(companyName: string, value: boolean) {
+    setActiveValues((existing) => ({ ...existing, [companyName]: value }));
+    setTouchedActive((existing) => new Set(existing).add(companyName));
+  }
+
   async function saveBatch() {
-    if (isLocked || !editableForecastType) return;
+    const hasActiveChanges = touchedActive.size > 0;
+    if ((isLocked || !editableForecastType) && !hasActiveChanges) return;
 
     const updates = [];
 
     for (const company of batch.data.companies) {
       const note = notes[company.companyName]?.trim() ?? "";
       const saveValues = getCompanySaveValues(company, editableForecastType, values, sourceStates);
+      const hasActive = touchedActive.has(company.companyName);
 
-      if (note && saveValues.length === 0) {
+      if (note && saveValues.length === 0 && !hasActive) {
         setNotice({ type: "error", text: `${company.companyName}: ${NOTE_ONLY_MESSAGE}` });
         return;
       }
 
-      if (note || companyHasTouchedValue(company, sourceStates)) {
+      if (note || companyHasTouchedValue(company, sourceStates) || hasActive) {
         updates.push({
           companyName: company.companyName,
+          activeStatus: hasActive ? activeValues[company.companyName] : undefined,
           note,
           values: saveValues
         });
@@ -459,7 +515,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
 
       const successText = payload.noChanges
         ? "No changes detected"
-        : `Saved ${payload.forecastUpserts} value(s) across ${payload.companiesSaved} compan${payload.companiesSaved === 1 ? "y" : "ies"}.`;
+        : `Saved ${payload.forecastUpserts} value(s) and ${payload.activeStatusUpdates ?? 0} Active status update(s) across ${payload.companiesSaved} compan${payload.companiesSaved === 1 ? "y" : "ies"}.`;
 
       setBatch(payload.batch);
       setNotice({
@@ -479,16 +535,34 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     }
   }
 
+  function handleSaveKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter" || isSaving) return;
+
+    event.preventDefault();
+    void saveBatch();
+  }
+
   const tableColumnCount = useMemo(() => {
-    return 2 + batch.data.businessUnits.reduce((sum, businessUnit) => sum + (expandedBusinessUnits.has(businessUnit) ? 3 : 1), 0);
+    return 3 + batch.data.businessUnits.reduce((sum, businessUnit) => sum + (expandedBusinessUnits.has(businessUnit) ? 3 : 1), 0);
   }, [batch.data.businessUnits, expandedBusinessUnits]);
   const periodSelectionChanged = draftMonth !== String(batch.data.month) || draftYear !== String(batch.data.year);
   const monthlyCompanies = useMemo(() => {
-    return [...batch.data.companies].sort((left, right) => {
+    return batch.data.companies.filter((company) => {
+      const isActive = activeValues[company.companyName] ?? company.isForecastActive;
+      if (activeVisibilityFilter === "active") return isActive;
+      if (activeVisibilityFilter === "inactive") return !isActive;
+      return true;
+    }).sort((left, right) => {
+      if (monthlySort.key === "business_unit") {
+        const result = monthlyBusinessUnitSortValue(right, monthlySort.businessUnit) - monthlyBusinessUnitSortValue(left, monthlySort.businessUnit);
+        if (result !== 0) return result;
+        return left.companyName.localeCompare(right.companyName);
+      }
+
       const result = left.companyName.localeCompare(right.companyName);
-      return monthlyCompanySortDirection === "asc" ? result : -result;
+      return monthlySort.direction === "asc" ? result : -result;
     });
-  }, [batch.data.companies, monthlyCompanySortDirection]);
+  }, [activeValues, activeVisibilityFilter, batch.data.companies, editableForecastType, isPastSelectedPeriod, monthlySort, sourceStates, values]);
 
   const monthlySummary = useMemo(() => {
     const byBusinessUnit = Object.fromEntries(
@@ -503,6 +577,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
       ])
     ) as Record<string, { previous_month: number; ongoing: number; active: number; closed: number }>;
     let activeTotal = 0;
+    let closedTotal = 0;
 
     for (const company of monthlyCompanies) {
       for (const cell of company.businessUnits) {
@@ -523,14 +598,17 @@ export default function ForecastEntryMonthlyBatchWorkspace({
         totals.closed += closed;
         byBusinessUnit[cell.businessUnit] = totals;
         activeTotal += active;
+        closedTotal += closed;
       }
     }
 
     return {
       activeTotal,
+      closedTotal,
       byBusinessUnit
     };
   }, [batch.data.businessUnits, editableForecastType, monthlyCompanies, sourceStates, values]);
+  const compactPortfolioTotal = isPastSelectedPeriod ? monthlySummary.closedTotal : monthlySummary.activeTotal;
 
 
   return (
@@ -582,7 +660,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
           <PetyrInlineNotice tone={isLocked ? "warning" : "success"}>
             {isLocked
               ? batch.data.entryMode.reason
-              : `${activeLabel} is editable for ${selectedMonthLabel}. Other forecast fields and Closed Revenue YTD are read-only.`}
+              : `${activeLabel} is editable for ${selectedMonthLabel}. Other forecast fields and ${closedRevenueHeader} are read-only.`}
           </PetyrInlineNotice>
 
           <div className="sticky top-0 z-40 space-y-2 border-b border-slate-200 bg-white/95 pb-2 pt-1 backdrop-blur">
@@ -644,7 +722,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
               <LegendChip className="border-violet-300 bg-violet-100" label="CSM validated from AI" />
               <LegendChip className="border-emerald-300 bg-emerald-100" label="CSM manually edited" />
               <LegendChip className="border-slate-300 bg-white" label="Saved CSM forecast" />
-              <LegendChip className="border-amber-300 bg-amber-100" label="Closed Revenue YTD read-only" />
+              <LegendChip className="border-amber-300 bg-amber-100" label={`${closedRevenueHeader} read-only`} />
               <LegendChip className="border-slate-300 bg-slate-200" label="Locked forecast field" />
             </div>
           </div>
@@ -656,16 +734,39 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                   <TableHead
                     className="sticky left-0 top-0 z-40 min-w-[240px] bg-white shadow-[0_1px_0_0_rgba(226,232,240,1)]"
                     rowSpan={2}
-                    aria-sort={monthlyCompanySortDirection === "asc" ? "ascending" : "descending"}
+                    aria-sort={monthlySort.key === "company" ? (monthlySort.direction === "asc" ? "ascending" : "descending") : "none"}
                   >
                     <button
                       type="button"
                       className="inline-flex h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
-                      onClick={() => setMonthlyCompanySortDirection((current) => (current === "asc" ? "desc" : "asc"))}
+                      onClick={() =>
+                        setMonthlySort((current) => ({
+                          key: "company",
+                          direction: current.key === "company" && current.direction === "asc" ? "desc" : "asc"
+                        }))
+                      }
                     >
                       <span>Company</span>
-                      <span className="text-xs font-semibold text-slate-500">{monthlyCompanySortLabel(monthlyCompanySortDirection)}</span>
+                      <span className="text-xs font-semibold text-slate-500">
+                        {monthlySort.key === "company" ? monthlyCompanySortLabel(monthlySort.direction) : "Sort"}
+                      </span>
                     </button>
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 min-w-[150px] bg-amber-50 shadow-[0_1px_0_0_rgba(226,232,240,1)]" rowSpan={2}>
+                    <div className="flex min-h-8 items-center gap-2 rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-semibold text-slate-800 shadow-sm">
+                      <span className="shrink-0">Active</span>
+                      <select
+                        value={activeVisibilityFilter}
+                        disabled={isLoading || isSaving}
+                        onChange={(event) => setActiveVisibilityFilter(event.target.value as ActiveVisibilityFilter)}
+                        className="h-7 min-w-0 flex-1 rounded-lg border border-amber-200 bg-white px-2 text-xs font-medium text-slate-700"
+                        aria-label="Filter companies by active status"
+                      >
+                        <option value="all">All</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
+                    </div>
                   </TableHead>
                   {batch.data.businessUnits.map((businessUnit) => {
                     const expanded = expandedBusinessUnits.has(businessUnit);
@@ -675,17 +776,26 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                         className="sticky top-0 z-30 min-w-[190px] border-l border-slate-200 bg-slate-50 text-center shadow-[0_1px_0_0_rgba(226,232,240,1)]"
                         colSpan={expanded ? 3 : 1}
                       >
-                        <button
-                          type="button"
-                          className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
-                          onClick={() => toggleBusinessUnit(businessUnit)}
-                          aria-expanded={expanded}
-                        >
-                          <span>{formatBusinessUnitDisplayName(businessUnit)}</span>
-                          <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                            {expanded ? "Collapse" : "Expand"}
-                          </span>
-                        </button>
+                        <div className="flex w-full items-center gap-2">
+                          <button
+                            type="button"
+                            className="flex min-h-9 flex-1 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+                            onClick={() => toggleBusinessUnit(businessUnit)}
+                            aria-expanded={expanded}
+                          >
+                            <span>{formatBusinessUnitDisplayName(businessUnit)}</span>
+                            <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                              {expanded ? "Collapse" : "Expand"}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className="min-h-9 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+                            onClick={() => setMonthlySort({ key: "business_unit", businessUnit })}
+                          >
+                            {monthlyBusinessUnitSortLabel(monthlySort, businessUnit)}
+                          </button>
+                        </div>
                       </TableHead>
                     );
                   })}
@@ -699,7 +809,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                     if (!expanded) {
                       return [
                       <TableHead key={`${businessUnit}-active`} className="sticky top-12 z-30 min-w-[190px] border-l border-slate-200 bg-white text-xs text-slate-700 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
-                        {activeLabel}
+                        {compactBusinessUnitHeader}
                       </TableHead>
                       ];
                     }
@@ -714,7 +824,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                         </TableHead>
                       )),
                       <TableHead key={`${businessUnit}-closed`} className="sticky top-12 z-30 min-w-[170px] border-l border-slate-200 bg-amber-50 text-xs text-amber-900 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
-                        Closed Revenue YTD
+                        {closedRevenueHeader}
                       </TableHead>
                     ];
                   })}
@@ -723,16 +833,17 @@ export default function ForecastEntryMonthlyBatchWorkspace({
               <TableBody>
                 {monthlyCompanies.length > 0 ? (
                   <>
-                    <TableRow className="border-b-2 border-cyan-200 bg-cyan-50 hover:bg-cyan-50">
-                      <TableCell className="sticky left-0 z-20 min-w-[240px] border-r border-cyan-200 bg-cyan-50">
+                    <TableRow className="sticky top-24 z-20 border-b-2 border-cyan-200 bg-cyan-50 shadow-[0_1px_0_0_rgba(165,243,252,1)] hover:bg-cyan-50">
+                      <TableCell className="sticky left-0 z-30 min-w-[240px] border-r border-cyan-200 bg-cyan-50">
                         <div className="text-[11px] font-semibold uppercase tracking-wide text-cyan-800">
-                          {selectedMonthLabel} CSM Forecast
+                          {selectedMonthLabel} {isPastSelectedPeriod ? "Closed Revenue" : "CSM Forecast"}
                         </div>
                         <div className="mt-1 text-xs font-medium text-cyan-700">Portfolio total</div>
-                        <div className={`mt-1 text-sm font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(monthlySummary.activeTotal))}`}>
-                          {formatPetyrIntegerCurrencyValue(monthlySummary.activeTotal)}
+                        <div className={`mt-1 text-sm font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(compactPortfolioTotal))}`}>
+                          {formatPetyrIntegerCurrencyValue(compactPortfolioTotal)}
                         </div>
                       </TableCell>
+                      <TableCell className="min-w-[150px] bg-cyan-50" aria-label="No active status for total row" />
                       {batch.data.businessUnits.flatMap((businessUnit) => {
                         const expanded = expandedBusinessUnits.has(businessUnit);
                         const totals = monthlySummary.byBusinessUnit[businessUnit] ?? {
@@ -743,9 +854,10 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                         };
 
                         if (!expanded) {
+                          const compactTotal = isPastSelectedPeriod ? totals.closed : totals.active;
                           return [
-                            <TableCell key={`total-${businessUnit}-active`} className={`min-w-[190px] ${monthlyTotalCellClass(totals.active)}`}>
-                              {formatPetyrIntegerCurrencyValue(totals.active)}
+                            <TableCell key={`total-${businessUnit}-active`} className={`min-w-[190px] ${monthlyTotalCellClass(compactTotal)}`}>
+                              {formatPetyrIntegerCurrencyValue(compactTotal)}
                             </TableCell>
                           ];
                         }
@@ -765,7 +877,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                       <TableCell className="min-w-[260px] bg-cyan-50" aria-label="No note for total row" />
                     </TableRow>
                     {monthlyCompanies.map((company) => (
-                      <TableRow key={company.companyName}>
+                      <TableRow key={company.companyName} className={company.isForecastActive ? "" : "bg-slate-50 text-slate-500 opacity-75"}>
                       <TableCell className="sticky left-0 z-10 min-w-[240px] bg-white">
                         <Link
                           href={buildCompanyDetailPageUrl(company.companyName, batch.data.year, company.csmName)}
@@ -773,7 +885,20 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                         >
                           {company.companyName}
                         </Link>
-                        <div className="mt-1 text-xs text-slate-500">{company.isForecastActive ? "Active" : "Inactive"}</div>
+                        <div className={`mt-1 text-xs font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(currentCompanyForecastTotal(company)))}`}>
+                          Totale forecast BU: {formatPetyrIntegerCurrencyValue(currentCompanyForecastTotal(company))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="min-w-[150px] border-l border-slate-200 bg-amber-50">
+                        <label className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={activeValues[company.companyName] ?? company.isForecastActive}
+                            disabled={isSaving}
+                            onChange={(event) => updateActive(company.companyName, event.target.checked)}
+                          />
+                          {activeValues[company.companyName] ? "ON" : "OFF"}
+                        </label>
                       </TableCell>
                       {company.businessUnits.flatMap((cell) => {
                         const expanded = expandedBusinessUnits.has(cell.businessUnit);
@@ -804,6 +929,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                                 onFocus={() => acceptAiPlaceholder(company, cell)}
                                 onClick={() => acceptAiPlaceholder(company, cell)}
                                 onChange={(event) => updateValue(company, cell, event.target.value)}
+                                onKeyDown={handleSaveKeyDown}
                                 className={`h-8 w-full min-w-[158px] rounded-xl text-right font-semibold ${mutedNumericClass(mutedInput)} ${isLocked ? "bg-slate-100" : activeInputClass}`}
                               />
                               {sourceState ? (
@@ -819,6 +945,17 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                         );
 
                         if (!expanded) {
+                          if (isPastSelectedPeriod) {
+                            return [
+                              <TableCell
+                                key={`${key}-active`}
+                                className={`min-w-[190px] border-l border-slate-200 bg-amber-50 text-right font-medium ${mutedNumericClass(isEmptyOrZeroDisplay(cell.closedRevenue))}`}
+                              >
+                                {formatPetyrIntegerCurrencyValue(cell.closedRevenue)}
+                              </TableCell>
+                            ];
+                          }
+
                           return [renderEditableCell("active")];
                         }
 
@@ -916,7 +1053,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                 showSavedState ? "bg-emerald-600 text-white hover:bg-emerald-600" : ""
               }`}
               type="button"
-              disabled={isLocked || isSaving || isLoading}
+              disabled={(isLocked && touchedActive.size === 0) || isSaving || isLoading}
               onClick={saveBatch}
             >
               {isSaving ? "Saving" : "Save"}

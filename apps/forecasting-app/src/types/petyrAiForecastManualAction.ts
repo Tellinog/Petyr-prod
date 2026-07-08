@@ -215,6 +215,7 @@ export type PetyrAiForecastOpenRouterDebug = {
     | "llm_preview_not_requested"
     | "missing_api_key"
     | "no_eligible_future_months"
+    | "no_active_future_residual_agreement"
     | "cached_output_reused"
     | null;
   selectedModel: string | null;

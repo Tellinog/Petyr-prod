@@ -18,6 +18,92 @@ Each entry must include:
 
 ---
 
+## 2026-07-08
+
+- **Area:** Petyr / AI Forecasting / Business Unit eligibility
+- **Change:** Aligned deterministic numeric AI Forecast Business Unit normalization with the shared Petyr normalizer, including `UX` -> `Experience`, and restricted numeric AI Forecast candidate/cache rows to Business Units where the selected company has positive historical closed revenue. Planned future value or generic agreement residual alone no longer creates a Business Unit AI Forecast row with no company revenue history.
+- **Reason:** Product reported AI Forecast values appearing under the `AI` Business Unit for companies that had never done AI work, and clarified that Business Units with no past company revenue should not receive AI Forecast rows.
+- **Impact:** New manual/daily deterministic AI Forecast generations can produce fewer Business Unit rows. Existing stale `ai_forecast_cache` rows are not automatically deleted by this code change; they will be replaced/omitted on regeneration or can be cleaned in a separate controlled task. CSM forecast, annual forecast, Initial Forecast, closed revenue, Redash data, management objectives, permissions and schema are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/petyr/constants.ts`, `apps/forecasting-app/src/services/petyrAiForecastStrategyService.ts`, `apps/forecasting-app/tests/aiForecastIntelligence.test.ts`, `apps/forecasting-app/README.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/AI_FORECASTING_DESIGN.md`, `docs/petyr/03_petyr_business_rules.md`, `DECISIONS.md`, `BACKLOG.md`, `DEVLOG.md`.
+- **Follow-up:** Consider a one-off read-only audit and controlled cleanup for pre-existing `AI` cache rows generated before this rule.
+
+- **Area:** Petyr / Forecast Entry / Keyboard save
+- **Change:** Added Enter-to-save behavior to editable Monthly Forecast Entry numeric cells and Annual Forecast Entry editable Initial, Forecast Ongoing Business Unit and Confidence fields. The keyboard path uses the same save handlers as the floating Save buttons, including the same floating confirmation summary after an effective save.
+- **Reason:** Product requested that pressing Enter after entering a value saves the forecast and shows the same confirmation shown after pressing the floating Save button.
+- **Impact:** UI interaction changed only. Save APIs, validation, audit logs, database schema, Redash/PostgreSQL data flow, forecast calculations and permissions are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecast Entry / Portfolio total sticky row
+- **Change:** Made the highlighted portfolio-total row stay visible while scrolling down both Monthly Forecast Entry and Annual Forecast Entry, positioned below the already sticky table headers.
+- **Reason:** Product requested the Portfolio total row to remain visible during vertical table scroll, like the headers.
+- **Impact:** UI table scrolling behavior changed only. Forecast calculations, save APIs, audit logs, database schema, Redash/PostgreSQL data flow, active status filtering and permissions are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/README.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecast Entry / Business Unit sorting
+- **Change:** Added Business Unit column sorting to Monthly Forecast Entry and Annual Forecast Entry. Each BU header can now order the visible company rows from highest to lowest value for that BU, considering locally edited/current saved values and AI placeholder values where no CSM value is saved.
+- **Reason:** Product requested a way to sort each Business Unit column by descending BU value in Forecast Entry, including both saved values and placeholder values.
+- **Impact:** UI table ordering changed only. Forecast persistence, save APIs, audit logs, database schema, Redash/PostgreSQL data flow, active status filtering and forecast calculations are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/README.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecast Entry / Company row totals
+- **Change:** Added a company-level Business Unit forecast total under each company name in Monthly Forecast Entry and Annual Forecast Entry. In Monthly, the total replaces the previous company-status label position and sums the currently active Business Unit forecast values for that row. In Annual, the total appears between the company name and CSM label and sums the saved or locally edited Business Unit Forecast Ongoing values.
+- **Reason:** Product requested direct company-level visibility of the total forecast entered across Business Units in both Monthly and Annual Forecast Entry.
+- **Impact:** UI display changed only. Forecast persistence, save APIs, audit logs, database schema, Redash/PostgreSQL data flow, company active status behavior, Monthly/Annual editability rules and backend aggregation logic are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/README.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecast Entry / Monthly editability window
+- **Change:** Changed Monthly Forecast Entry editability so the selected month switches from Previous Month Forecast to Ongoing Forecast on the 15th of the previous month. Current-month selections therefore show/edit Ongoing Forecast even before the current month's 15th, while future months remain on Previous Month Forecast until their previous-month cutoff is reached. Past months remain read-only.
+- **Reason:** Product corrected the monthly forecast entry cutoff: Ongoing Forecast must become active earlier, on the 15th of the month before the selected forecast month.
+- **Impact:** Monthly compact Business Unit columns, editable input field selection and server-side batch save validation now use the corrected cutoff. Database schema, Redash/PostgreSQL data flow, permissions, annual workflow, closed revenue, AI Forecast and saved forecast persistence semantics are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/forecastEntryMode.ts`, `apps/forecasting-app/README.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecasting / Admin-only analytical sections
+- **Change:** Restricted Management View `Current year trend` and `Revenue per Business Unit` to users with `petyr:admin`. Restricted Company Detail `Month-by-month trend`, `Revenue per Business Unit`, `Business Unit current-year view` and `Relevant company insights` to users with `petyr:admin`.
+- **Reason:** Product requested those analytical/detail sections to be visible only to admins.
+- **Impact:** UI visibility changed only. Forecasting read models, APIs, database schema, Redash/PostgreSQL data flow, forecast calculations, save behavior and permission keys are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/PetyrMVPRendering.tsx`, `apps/forecasting-app/src/app/forecasting/company/[companyName]/page.tsx`, `apps/forecasting-app/README.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecast Entry / Annual legend copy
+- **Change:** Updated the Annual Forecast Entry legend so the green chip now identifies current-session manual CSM edits, the yellow chip is labelled `Saved`, and the previous white `Saved value` chip was removed because it had no clear matching table treatment.
+- **Reason:** Product requested clearer wording for the green/yellow legend states and noted that the separate `Saved value` legend item was not coherent with the table.
+- **Impact:** UI copy changed only in Annual Forecast Entry. Forecast values, save behavior, audit logs, APIs, database schema, permissions and Redash/PostgreSQL data flow are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / AI Forecasting / Numeric cache generation
+- **Change:** Changed numeric AI Forecast generation so deterministic/manual rows are calculated only when the selected company has at least one agreement expiring after the current date with residual value greater than 0. Repeated persistence for the same company, Business Unit, year, month and model version now upserts the existing `ai_forecast_cache` row instead of skipping it. Current-month ineligibility remains non-destructive: it does not clear already saved current-month AI Forecast cache rows.
+- **Reason:** Product clarified that without a future residual agreement there is no forecast basis, and that same-key AI Forecast cache rows may be overwritten without changing CSM-owned forecast data.
+- **Impact:** Daily/manual numeric AI Forecast saved-row counts can include updated rows. Companies without qualifying future residual agreements return no numeric AI Forecast rows and write no cache rows. CSM forecast, annual forecast, Initial Forecast, closed revenue, management objectives, Redash data and schema are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/services/petyrAiForecastStrategyService.ts`, `apps/forecasting-app/src/services/petyrAiForecastCompanyIntelligenceService.ts`, `apps/forecasting-app/src/types/petyrAiForecastManualAction.ts`, `apps/forecasting-app/tests/aiForecastIntelligence.test.ts`, `apps/forecasting-app/README.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/AI_FORECASTING_DESIGN.md`, `DECISIONS.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecast Entry / Monthly company status and past-month revenue
+- **Change:** Added an `Active` column to Monthly Forecast Entry immediately after Company, with the same all/active/inactive header filter and checkbox interaction used in Annual Forecast Entry. Monthly saves can now persist Active/Inactive changes with save-session/change-log audit and clear numeric AI Forecast cache rows when a company is set inactive. For past selected months, collapsed Business Unit columns now show the selected-month read-only `Closed Revenue` value instead of a forecast input, and the closed-revenue header/legend uses `Closed Revenue` rather than `Closed Revenue YTD`.
+- **Reason:** Product requested Monthly Forecast Entry to expose company status like Annual Forecast Entry and to show monthly closed revenue, with simplified header wording, when users select a month before the current one.
+- **Impact:** Monthly Forecast Entry UI and save behavior changed. Monthly forecast editability, Redash/PostgreSQL data flow, schema, annual workflow and forecast calculations are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/services/forecastEntryBatchService.ts`, `apps/forecasting-app/README.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecasting / Company Detail status
+- **Change:** Connected the Company Detail Forecast status to `company_forecast_status`, defaulting missing explicit status to Active instead of `n/a`, and added an autosaved Active/Inactive control for users with `petyr:forecast:write`. Added `POST /api/petyr/company-status` and a dedicated status save service that writes save-session/change-log audit rows and clears numeric AI Forecast cache rows when a company is set inactive.
+- **Reason:** Product reported that Company Detail Forecast status was not aligned with the effective company status and always appeared as `n/a`, and requested it to be visible, editable and autosaved.
+- **Impact:** Company Detail can now write only company active/inactive status and company notes; monthly/annual forecast values remain read-only there. PostgreSQL/Redash data flow, schema and forecast calculations are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/app/forecasting/company/[companyName]/page.tsx`, `apps/forecasting-app/src/components/petyr/CompanyForecastStatusAutosave.tsx`, `apps/forecasting-app/src/app/api/petyr/company-status/route.ts`, `apps/forecasting-app/src/services/companyForecastStatusService.ts`, `apps/forecasting-app/README.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecasting / Company Detail permissions
+- **Change:** Restricted the full Company Detail `Support details` area to users with `petyr:admin`, including `Company context and extra metrics` plus the existing support evidence tables.
+- **Reason:** Product requested `Company context and extra metrics` to follow the same admin-only visibility as the rest of the Support details area.
+- **Impact:** UI visibility changed only. Company Detail remains readable with `petyr:read`; company notes still require `petyr:forecast:write`; PostgreSQL reads, Redash isolation, forecast calculations, schema, API contracts and save behavior are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/app/forecasting/company/[companyName]/page.tsx`, `apps/forecasting-app/README.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
 ## 2026-07-07
 
 - **Area:** Petyr / Forecast Entry / Save confirmation and numeric validation

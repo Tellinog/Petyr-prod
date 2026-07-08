@@ -236,6 +236,7 @@ Rules:
 
 - do not invent new Business Units;
 - normalize safely when possible;
+- normalize `UX` to the official `Experience` Business Unit;
 - map missing or unknown BU values to `Other`;
 - add diagnostics for unknown values;
 - preserve the official list in views and filters.
@@ -259,12 +260,12 @@ This is the forecast inserted by the CSM before or at the beginning of the refer
 
 Editable:
 
-- current month until day 15 included;
-- future months.
+- selected future months before the 15th of their previous month.
 
 Read-only:
 
 - past months.
+- selected current/future months once their Ongoing Forecast window has opened.
 
 ### 8.2 Ongoing forecast
 
@@ -272,12 +273,13 @@ This is the revised forecast during the month, when the CSM has more information
 
 Editable:
 
-- current month only, from day 16 onward.
+- current month;
+- selected future months from the 15th of their previous month onward.
 
 Not editable:
 
 - past months;
-- future months.
+- selected future months before the 15th of their previous month.
 
 Exceptional 2026 DB alignment:
 
@@ -341,9 +343,9 @@ Expected output:
 Rules:
 
 - if month < current month: read-only;
-- if month = current month and day <= 15: edit previous-month forecast;
-- if month = current month and day > 15: edit ongoing forecast;
-- if month > current month: edit previous-month forecast.
+- if current date is on or after the 15th of the month before the selected
+  month: edit ongoing forecast;
+- otherwise, for future selected months: edit previous-month forecast.
 
 Past months are never editable.
 
@@ -351,7 +353,23 @@ Monthly Forecast Entry table rules:
 
 - the Company header can sort the loaded monthly portfolio by company name
   ascending or descending;
+- each Monthly Business Unit header can sort the currently visible rows from
+  highest to lowest value for that Business Unit. Sorting uses the saved or
+  locally edited active forecast value when present, and the AI placeholder
+  value when no CSM value is saved;
+- each Monthly company row shows the company-level total of the currently
+  active Business Unit forecast values directly under the company name,
+  replacing the previous company-status label in that position;
+- Monthly Forecast Entry includes an `Active` column immediately after Company,
+  before the Business Unit groups. The header uses the same all/active/inactive
+  visibility filter as Annual Forecast Entry. The per-row checkbox saves the
+  company active/inactive status to `company_forecast_status`, creates normal
+  save-session/change-log audit rows and clears numeric AI Forecast cache rows
+  when the company is set inactive;
 - Business Unit groups start collapsed and show only the active editable field;
+- when the selected month is before the current month, collapsed Business Unit
+  groups show the selected-month `Closed Revenue` value instead of a forecast
+  input, because past monthly forecast values are read-only;
 - Expand/Collapse must look like an actionable button and sit at the far right
   of the Business Unit group header;
 - the Monthly table uses its own vertical scroll area; the CSM, Month, Year and
@@ -360,14 +378,18 @@ Monthly Forecast Entry table rules:
   table headers stay fixed at the top of the table while users scroll down the
   portfolio;
 - when a Business Unit is expanded, Previous Month Forecast is shown to the left
-  of Ongoing Forecast and Closed Revenue YTD is shown to the right of Ongoing
-  Forecast;
+  of Ongoing Forecast and the read-only closed revenue column is shown to the
+  right of Ongoing Forecast. For past selected months the column label is
+  `Closed Revenue`; otherwise it remains `Closed Revenue YTD`;
 - Monthly Forecast Entry shows a highlighted portfolio-total row directly under
   the table headers and above the first company row. The first cell shows the
-  all-Business-Unit active forecast total for the selected CSM/month, each
-  visible Business Unit column shows its portfolio total, expanded Business
-  Units show separate Previous Month Forecast, Ongoing Forecast and Closed
-  Revenue YTD totals, and the Note cell remains empty;
+  all-Business-Unit active forecast total for editable/current or future months
+  and the all-Business-Unit Closed Revenue total for past selected months. Each
+  visible Business Unit column follows the same compact value, expanded Business
+  Units show separate Previous Month Forecast, Ongoing Forecast and read-only
+  closed revenue totals, and the Active and Note cells remain empty. The
+  portfolio-total row stays visible below the sticky headers while users scroll
+  down the Monthly portfolio;
 - Monthly Forecast Entry displays Business Unit columns in this CSM check order:
   QA, UX/Experience, Accessibility, Security, FTE, TA, AI, OTHER/Other, Express,
   Community;
@@ -380,7 +402,7 @@ Monthly Forecast Entry table rules:
 - Monthly table body rows use compact vertical padding and top-align cell
   content. Saved forecast labels and related AI Forecast references render on
   separate lines, and the AI Forecast reference uses the AI legend color;
-- Closed Revenue YTD is read-only.
+- Closed Revenue / Closed Revenue YTD is read-only.
 
 ---
 
@@ -488,11 +510,18 @@ Table rules:
 - the Company, Forecast Initial, Forecast Ongoing and Confidence
   headers can sort the currently visible Annual rows without changing
   persistence or the selected CSM/year filters;
+- each visible Annual Business Unit header can sort the currently visible rows
+  from highest to lowest value for that Business Unit. Sorting uses saved or
+  locally edited Forecast Ongoing values when present, and the AI placeholder
+  value when no CSM value is saved;
 - inactive companies remain visible with muted styling by default;
 - the Active column can filter the visible Annual rows to all companies, active
   companies only or inactive companies only; this is a client-side table view
   filter and does not modify `company_forecast_status`;
 - company names link to Company Detail;
+- each Annual company row shows the company-level total of saved or locally
+  edited Business Unit Forecast Ongoing values directly under the company name
+  and above the CSM label;
 - Logs opens Company Detail at the company logs anchor in a new tab and each
   row action is labelled `See latest logs of <company>`;
 - the Company and Confidence columns remain visible during horizontal scroll,
@@ -501,7 +530,9 @@ Table rules:
 - the selected Annual CSM filter summary is shown as a highlighted total row directly
   under the table headers and above the first company row, with no Active, Confidence or Logs value, and with
   Forecast Initial, Forecast Ongoing, visible Business Unit totals, Closed
-  Revenue YTD, Planned This Year and ratio values aligned under their columns;
+  Revenue YTD, Planned This Year and ratio values aligned under their columns.
+  The highlighted total row stays visible below the sticky headers while users
+  scroll down the Annual portfolio;
   when the Active visibility filter is used, this summary reflects the visible
   rows;
 - Forecast Entry may display the official `Experience` Business Unit as `UX`
@@ -841,8 +872,8 @@ Expected sections in approved rendering:
 - Monthly Aggregate;
 - Business Unit View;
 - Single CSM View;
-- Current year trend;
-- Revenue per Business Unit.
+- Current year trend, visible only to users with `petyr:admin`;
+- Revenue per Business Unit, visible only to users with `petyr:admin`.
 
 The view must aggregate real PostgreSQL/Redash data plus Petyr forecast tables.
 
@@ -1047,30 +1078,31 @@ It must not be the main editing area.
 
 ## 24. Company Detail
 
-Company Detail is analytical and read-only.
+Company Detail is analytical and read-only for forecast values.
 
 Company Detail uses the shared Petyr workspace shell with the same descriptive header card and section navigation as Management View, CSM Overview and Forecast Entry. It remains read-only for forecast data edits, but users must be able to change CSM filter, company, previous/next company and year through the Forecast Entry-style navigator backed by the Forecast Entry company ordering and the same recent Company Ownership workspace association rule used by Forecast Entry Monthly and Annual. The year/load control appears to the left of previous/next company navigation, and previous/next navigation must not repeat the CSM name.
+The explicitly labelled Forecast status in the Company Detail header is connected to `company_forecast_status`. Users with `petyr:forecast:write` can change it between Active and Inactive directly from Company Detail; the change autosaves, creates a save session/change log row, and when set to Inactive clears numeric AI Forecast cache rows for that company. This status control does not make monthly or annual forecast values editable in Company Detail.
 
 It must show:
 
 - company;
 - assigned CSM context, without repeating the CSM as a primary KPI card;
-- explicitly labelled Forecast status next to the Forecast Entry link;
+- explicitly labelled Forecast status next to the Forecast Entry link, autosaved for users with `petyr:forecast:write`;
 - active agreements;
 - agreement value;
 - agreement residual;
 - agreement expiry date;
 - total Initial Forecast for the selected year as a primary KPI;
-- monthly trend;
+- monthly trend, visible only to users with `petyr:admin`;
 - Business Unit summary with orange closed revenue, gray Initial Forecast and previous-month forecast markers colored green/yellow against Initial Forecast;
-- Business Unit current-year view showing Business Unit totals with Ongoing Forecast, AI Forecast and Closed Revenue YTD; users can expand a Business Unit to show the individual selected-year months with closed revenue, previous-month forecast, ongoing forecast and AI Forecast;
-- relevant company insights, showing only active rule-based categories;
-- company note form below Business Unit current-year view and above Relevant company insights, saving note-only company log entries without changing forecast values;
+- Business Unit current-year view, visible only to users with `petyr:admin`, showing Business Unit totals with Ongoing Forecast, AI Forecast and Closed Revenue YTD; admins can expand a Business Unit to show the individual selected-year months with closed revenue, previous-month forecast, ongoing forecast and AI Forecast;
+- relevant company insights, visible only to users with `petyr:admin` and showing only active rule-based categories;
+- company note form saving note-only company log entries without changing forecast values;
 - company campaigns showing the latest chronologically completed campaign plus running or planned campaigns by default, with all other campaigns behind an explicit expansion control;
 - agreements and residual evidence showing agreements whose expiry date is after the moment of viewing by default, with expired or undated agreements behind an explicit expansion control;
 - Company logs directly below agreement/residual evidence, containing notes and forecast changes, showing the latest three logs by default with an expansion control for previous logs;
 - company active status;
-- admin-only Revenue by Business Unit detail, Monthly forecast rows, Annual forecast rows and AI forecast cache support tables.
+- admin-only Support details area, including Company context and extra metrics, Revenue by Business Unit detail, Monthly forecast rows, Annual forecast rows and AI forecast cache support tables.
 
 Company Detail must show Company logs, including note-only entries and forecast save sessions, but must not be the main monthly forecast editing area. It must not expose the AI Forecast apply action, numeric AI Forecast row generation or CSM-facing Forecast Intelligence generation; those actions belong outside Company Detail. Company Detail must not load or render the latest successful Forecast Intelligence sentinel row for the selected company and year. Any future company-level intelligence experience must be redesigned in separate documented scope. Admin-only Data diagnostics must be available from the floating bottom-right menu instead of a support card in the body.
 
@@ -1289,7 +1321,9 @@ Accepted deterministic automation:
 - inactive cleanup: before processing active companies, delete numeric
   `ai_forecast_cache` rows for companies explicitly marked inactive;
 - persistence: `ai_forecast_cache` only;
-- model version: daily append-only value such as `petyr_deterministic_preview_v1@YYYY-MM-DD`;
+- model version: daily value such as `petyr_deterministic_preview_v1@YYYY-MM-DD`;
+- repeat runs for the same company, Business Unit, year, month and model
+  version overwrite the existing AI Forecast cache row instead of skipping it;
 - no OpenRouter call, Forecast Intelligence call, CSM forecast write, annual forecast write,
   management objective write, Initial Forecast write, closed revenue write or Redash write.
 
@@ -1311,6 +1345,13 @@ deterministic local forecast + local business signals + consultative LLM intelli
 Rules:
 
 - Petyr computes every numeric forecast value locally from PostgreSQL-backed historical closed revenue, seasonality, run-rate, planned target-month campaigns, trend/seasonality signals and agreement residual allocation where available;
+- Petyr must not calculate numeric AI Forecast rows for a company unless the
+  selected year detail has at least one agreement whose expiry date is after the
+  current date and whose residual value is greater than 0;
+- Petyr must generate numeric AI Forecast rows only for Business Units where
+  that selected company has positive historical closed revenue; planned future
+  value or generic agreement residual alone must not create an AI Forecast row
+  for a Business Unit where the company has never had revenue;
 - all monetary forecast values exposed or saved by AI Forecast are rounded to integer EUR; confidence, ratios and attribution shares may remain decimal;
 - CSM-entered monthly and annual forecast values are comparison/reference data only and must not be sent to OpenRouter or used to calculate `aiForecastValue`;
 - Petyr may keep internal consultative scenarios for deterministic support tooling, but Forecast Intelligence must not request, validate, render, chart or expose rounding/adjustment scenarios;
@@ -1327,6 +1368,8 @@ Manual MVP month eligibility:
 
 - AI Forecast must not write past months;
 - AI Forecast must not write the current month;
+- the fact that the current month is not eligible for writing must not delete or
+  clear an already saved current-month AI Forecast cache row;
 - AI Forecast can generate or update only future months of the selected year;
 - if the selected year is before the current year, there are no eligible months;
 - if the selected year is after the current year, all months 1-12 are eligible;

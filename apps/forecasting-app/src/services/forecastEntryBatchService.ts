@@ -14,6 +14,7 @@ import {
   type PetyrForecastValueContext
 } from "@/services/petyrDataService";
 import { getForecastEntryCachedRead, invalidateForecastEntryReadCache } from "@/services/forecastEntryReadCache";
+import { clearNumericAiForecastCacheForCompany } from "@/services/petyrAiForecastCacheCleanupService";
 
 const SAVE_SOURCE = "Forecast Entry Batch";
 const SAVE_USER_FALLBACK = "petyr-forecast-entry-batch";
@@ -22,6 +23,7 @@ const NO_CHANGES_DETECTED_MESSAGE = "No changes detected";
 const BUSINESS_UNITS = new Set<string>(PETYR_BUSINESS_UNITS);
 const SOURCE_STATES = new Set(["accepted_ai", "manual_edit"]);
 const FORECAST_ENTRY_BUSINESS_UNIT_RANK = new Map(PETYR_FORECAST_ENTRY_BUSINESS_UNITS.map((businessUnit, index) => [businessUnit, index]));
+const COMPANY_FIELD_BUSINESS_UNIT = "__company__";
 
 export class ForecastEntryBatchError extends Error {
   status: number;
@@ -90,6 +92,7 @@ export type ForecastEntryBatchSaveValueInput = {
 export type ForecastEntryBatchSaveCompanyInput = {
   companyName?: unknown;
   note?: unknown;
+  activeStatus?: unknown;
   values?: unknown;
 };
 
@@ -106,6 +109,7 @@ export type ForecastEntryBatchSaveResult = {
   ok: true;
   forecastType: EditableForecastType;
   forecastUpserts: number;
+  activeStatusUpdates: number;
   changeLogRows: number;
   saveSessionIds: string[];
   companiesSaved: number;
@@ -130,6 +134,7 @@ type ValidatedBatchValue = {
 type ValidatedCompanyUpdate = {
   companyName: string;
   note: string;
+  activeStatus: boolean | null;
   values: ValidatedBatchValue[];
 };
 
@@ -399,6 +404,13 @@ function validateForecastType(input: ForecastEntryBatchSaveInput, year: number, 
   return mode.editableForecastType;
 }
 
+function resolveSaveForecastType(input: ForecastEntryBatchSaveInput, year: number, month: number, hasForecastValueUpdates: boolean) {
+  if (hasForecastValueUpdates) return validateForecastType(input, year, month);
+
+  const mode = getForecastEntryMode({ year, month });
+  return mode.editableForecastType ?? "ongoing";
+}
+
 function validateBatchValues(values: unknown) {
   if (!Array.isArray(values)) {
     return [];
@@ -462,9 +474,15 @@ function validateUpdates(updates: unknown): ValidatedCompanyUpdate[] {
     return {
       companyName,
       note: asString(update.note),
+      activeStatus: typeof update.activeStatus === "boolean" ? update.activeStatus : null,
       values: validateBatchValues(update.values)
     };
   });
+}
+
+function statusLogValue(value: boolean | null | undefined) {
+  if (value === null || value === undefined) return null;
+  return value ? "active" : "inactive";
 }
 
 function aiForecastByBusinessUnit(context: PetyrForecastEntryContext) {
@@ -486,17 +504,17 @@ function monthlyForecastFor(context: PetyrForecastEntryContext, businessUnit: Pe
 
 export async function saveForecastEntryBatch(input: ForecastEntryBatchSaveInput): Promise<ForecastEntryBatchSaveResult> {
   const { year, month } = parseRequiredTargetPeriod(input);
-  const forecastType = validateForecastType(input, year, month);
   const csmName = asString(input.csmName);
   if (!csmName) {
     throw new ForecastEntryBatchError("csmName is required.", 400);
   }
 
   const updates = validateUpdates(input.updates);
+  const forecastType = resolveSaveForecastType(input, year, month, updates.some((update) => update.values.length > 0));
   const createdBy = asString(input.createdBy) || csmName || SAVE_USER_FALLBACK;
 
   for (const update of updates) {
-    if (update.note && update.values.length === 0) {
+    if (update.note && update.values.length === 0 && update.activeStatus === null) {
       throw new ForecastEntryBatchError(`${update.companyName}: ${NOTE_ONLY_MESSAGE}`, 400);
     }
   }
@@ -513,6 +531,7 @@ export async function saveForecastEntryBatch(input: ForecastEntryBatchSaveInput)
 
   const written = await prisma.$transaction(async (tx) => {
     let forecastUpserts = 0;
+    let activeStatusUpdates = 0;
     let changeLogRows = 0;
     const saveSessionIds: string[] = [];
 
@@ -523,6 +542,9 @@ export async function saveForecastEntryBatch(input: ForecastEntryBatchSaveInput)
       const resolvedCompanyName = context.companyName || update.companyName;
       const resolvedCsmName = context.csmName || context.company?.csmName || csmName || "Unassigned";
       const aiForecasts = aiForecastByBusinessUnit(context);
+      const currentActiveStatus = currentCompanyActiveStatus(context);
+      const nextActiveStatus = update.activeStatus ?? currentActiveStatus;
+      const activeChanged = update.activeStatus !== null && update.activeStatus !== currentActiveStatus;
       const prepared = [];
 
       for (const value of update.values) {
@@ -555,11 +577,11 @@ export async function saveForecastEntryBatch(input: ForecastEntryBatchSaveInput)
       }
 
       const changedValues = prepared.filter((row) => row.changed);
-      if (update.note && changedValues.length === 0) {
+      if (update.note && changedValues.length === 0 && !activeChanged) {
         throw new ForecastEntryBatchError(`${resolvedCompanyName}: ${NOTE_ONLY_MESSAGE}`, 400);
       }
 
-      if (changedValues.length === 0) continue;
+      if (changedValues.length === 0 && !activeChanged) continue;
 
       const saveSession = await tx.forecastSaveSession.create({
         data: {
@@ -570,11 +592,45 @@ export async function saveForecastEntryBatch(input: ForecastEntryBatchSaveInput)
           month,
           forecastType,
           note: update.note || null,
-          companyActiveStatus: currentCompanyActiveStatus(context),
+          companyActiveStatus: nextActiveStatus,
           createdBy
         }
       });
       saveSessionIds.push(saveSession.id);
+
+      if (activeChanged) {
+        await tx.companyForecastStatus.upsert({
+          where: { companyName: resolvedCompanyName },
+          create: {
+            companyName: resolvedCompanyName,
+            isActive: nextActiveStatus,
+            reason: "Monthly Forecast Entry",
+            updatedBy: createdBy
+          },
+          update: {
+            isActive: nextActiveStatus,
+            reason: "Monthly Forecast Entry",
+            updatedBy: createdBy
+          }
+        });
+        if (!nextActiveStatus) {
+          await clearNumericAiForecastCacheForCompany({ companyName: resolvedCompanyName, tx });
+        }
+        activeStatusUpdates += 1;
+
+        await tx.forecastChangeLog.create({
+          data: {
+            saveSessionId: saveSession.id,
+            companyName: resolvedCompanyName,
+            businessUnit: COMPANY_FIELD_BUSINESS_UNIT,
+            fieldName: "active_status",
+            previousValue: statusLogValue(currentActiveStatus),
+            newValue: statusLogValue(nextActiveStatus),
+            createdBy
+          }
+        });
+        changeLogRows += 1;
+      }
 
       for (const preparedValue of changedValues) {
         await tx.forecastMonthly.upsert({
@@ -619,6 +675,7 @@ export async function saveForecastEntryBatch(input: ForecastEntryBatchSaveInput)
 
     return {
       forecastUpserts,
+      activeStatusUpdates,
       changeLogRows,
       saveSessionIds
     };
@@ -630,6 +687,7 @@ export async function saveForecastEntryBatch(input: ForecastEntryBatchSaveInput)
     ok: true,
     forecastType,
     forecastUpserts: written.forecastUpserts,
+    activeStatusUpdates: written.activeStatusUpdates,
     changeLogRows: written.changeLogRows,
     saveSessionIds: written.saveSessionIds,
     companiesSaved: written.saveSessionIds.length,

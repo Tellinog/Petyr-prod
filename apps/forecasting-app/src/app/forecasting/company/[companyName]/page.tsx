@@ -17,6 +17,7 @@ import { CompanyBusinessUnitRevenueChart, CompanyMonthlyTrendChart } from "./Com
 import { PetyrFloatingDiagnosticsMenu } from "@/components/petyr/PetyrFloatingDiagnosticsMenu";
 import { CompanyBusinessUnitMonthlyView } from "@/components/petyr/CompanyBusinessUnitMonthlyView";
 import { CompanyDetailNavigator, type CompanyDetailNavigationOption } from "@/components/petyr/CompanyDetailNavigator";
+import { CompanyForecastStatusAutosave } from "@/components/petyr/CompanyForecastStatusAutosave";
 import {
   PetyrCard,
   PetyrEmptyState,
@@ -177,6 +178,10 @@ function statusLabel(value: boolean | null | undefined) {
   if (value === true) return "Active";
   if (value === false) return "Inactive";
   return "n/a";
+}
+
+function resolveCompanyForecastStatus(...values: Array<boolean | null | undefined>) {
+  return values.find((value): value is boolean => typeof value === "boolean") ?? true;
 }
 
 function alertBadgeVariant(severity: PetyrAlertSeverity): "default" | "secondary" | "outline" {
@@ -356,7 +361,7 @@ function SecondaryCompanyContextSection({
   data: PetyrCompanyDetail;
 }) {
   const overview = data.overview;
-  const activeStatus = data.companyStatus?.isActive ?? overview?.isForecastActive ?? null;
+  const activeStatus = resolveCompanyForecastStatus(data.companyStatus?.isActive, overview?.isForecastActive);
   const expiredAgreementsCount = data.agreements.filter(isExpiredAgreement).length;
   const expiredResidualCount = data.agreements.filter((row) => isExpiredAgreement(row) && row.residualValue > 0).length;
   const contextItems = [
@@ -916,7 +921,7 @@ function CompanyNoteSection({
       <input type="hidden" name="companyName" value={companyName} />
       <input type="hidden" name="csmName" value={csmName} />
       <input type="hidden" name="year" value={selectedYear} />
-      <input type="hidden" name="companyActiveStatus" value={activeStatus === null ? "" : String(activeStatus)} />
+      <input type="hidden" name="companyActiveStatus" value={String(activeStatus)} />
       <Textarea name="note" maxLength={4000} placeholder="Add a company note..." required />
       <button className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800" type="submit">
         Add note
@@ -982,7 +987,11 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
   const csmName = requestedCsmNavigationCompany?.csmName || (hasRequestedCsmInNavigation ? requestedCsmName : "") || overview?.csmName || navigationCompany?.csmName || "Unassigned";
   const forecastEntryHref = buildForecastEntryHref(displayCompanyName, csmName, selectedYear);
   const companyDetailHref = buildCompanyDetailHref(displayCompanyName, selectedYear);
-  const activeStatus = data.companyStatus?.isActive ?? overview?.isForecastActive ?? navigationCompany?.isForecastActive ?? null;
+  const activeStatus = resolveCompanyForecastStatus(
+    data.companyStatus?.isActive,
+    overview?.isForecastActive,
+    navigationCompany?.isForecastActive
+  );
   const alertsResult = buildPetyrCompanyAlertsFromDetail(data, displayCompanyName, { year: selectedYear, diagnostics: result.diagnostics });
   const diagnostics = [...new Set([...yearDiagnostics, ...result.diagnostics, ...alertsResult.diagnostics, ...navigationResult.diagnostics])];
   const canViewAdminTools = hasPetyrPermission(identity, PETYR_PERMISSIONS.admin);
@@ -1000,7 +1009,13 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
         description={`Analytical company sheet for ${displayCompanyName}: agreement, closed revenue, residual, AI and company logs context.`}
         actions={
           <>
-            <Badge variant={activeStatus === false ? "outline" : "secondary"}>Forecast status: {statusLabel(activeStatus)}</Badge>
+            <CompanyForecastStatusAutosave
+              companyName={displayCompanyName}
+              csmName={csmName}
+              year={selectedYear}
+              initialIsActive={activeStatus}
+              canEdit={canAddCompanyNotes}
+            />
             <Link
               className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
               href={forecastEntryHref}
@@ -1021,22 +1036,26 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
 
       <PrimaryKpiSection data={data} />
 
-      <PetyrTwoColumnGrid>
-        <SectionCard title="Month-by-month trend" description="Previous-month forecast, ongoing forecast, AI Forecast and closed revenue over time.">
-          <MonthlyTrendSection rows={data.monthlyTrend} />
-        </SectionCard>
+      {canViewAdminTools ? (
+        <>
+          <PetyrTwoColumnGrid>
+            <SectionCard title="Month-by-month trend" description="Previous-month forecast, ongoing forecast, AI Forecast and closed revenue over time.">
+              <MonthlyTrendSection rows={data.monthlyTrend} />
+            </SectionCard>
 
-        <SectionCard title="Revenue per Business Unit" description="Selected-year Business Unit view. Historical multi-year BU comparison is not available in the current company detail payload.">
-          <BusinessUnitRevenueChartSection rows={data.businessUnitSummary} />
-        </SectionCard>
-      </PetyrTwoColumnGrid>
+            <SectionCard title="Revenue per Business Unit" description="Selected-year Business Unit view. Historical multi-year BU comparison is not available in the current company detail payload.">
+              <BusinessUnitRevenueChartSection rows={data.businessUnitSummary} />
+            </SectionCard>
+          </PetyrTwoColumnGrid>
 
-      <SectionCard
-        title="Business Unit current-year view"
-        description="Current-year Business Unit totals. Expand a Business Unit to show the individual months and review the monthly view with closed revenue, previous-month forecast, ongoing forecast and AI Forecast."
-      >
-        <CompanyBusinessUnitMonthlyView rows={data.monthlyBusinessUnitView} />
-      </SectionCard>
+          <SectionCard
+            title="Business Unit current-year view"
+            description="Current-year Business Unit totals. Expand a Business Unit to show the individual months and review the monthly view with closed revenue, previous-month forecast, ongoing forecast and AI Forecast."
+          >
+            <CompanyBusinessUnitMonthlyView rows={data.monthlyBusinessUnitView} />
+          </SectionCard>
+        </>
+      ) : null}
 
 {canAddCompanyNotes ? (
         <SectionCard title="Company note" description="Add a note to this company log without opening Forecast Entry or changing forecast values.">
@@ -1049,9 +1068,11 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
       </SectionCard>
       ) : null}
 
-      <SectionCard title="Relevant company insights" description="Only active rule-based insight evidence is shown for this company.">
-        <AlertsSection rows={alertsResult.data} />
-      </SectionCard>
+      {canViewAdminTools ? (
+        <SectionCard title="Relevant company insights" description="Only active rule-based insight evidence is shown for this company.">
+          <AlertsSection rows={alertsResult.data} />
+        </SectionCard>
+      ) : null}
 
       <SectionCard title="Company campaigns" description="Shows the latest chronologically completed campaign plus campaigns that are running or planned. Other campaign rows are available by expanding the section.">
         <CampaignsSection rows={data.campaigns} />
@@ -1065,19 +1086,18 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
         <ChangeHistorySection rows={data.changeHistory} />
       </SectionCard>
 
-      <section className="space-y-4" aria-label="Company Detail support details">
-        <PetyrSectionTitle
-          title="Support details"
-          description="Secondary operational tables and read-only evidence remain available below the analytical story."
-          actions={<Badge variant="outline">Secondary</Badge>}
-        />
+      {canViewAdminTools ? (
+        <section className="space-y-4" aria-label="Company Detail support details">
+          <PetyrSectionTitle
+            title="Support details"
+            description="Secondary operational tables and read-only evidence remain available below the analytical story."
+            actions={<Badge variant="outline">Secondary</Badge>}
+          />
 
-        <PetyrSupportCard title="Company context and extra metrics" description="Operational context moved below the four primary KPI cards." badge="Context">
-          <SecondaryCompanyContextSection selectedYear={selectedYear} data={data} />
-        </PetyrSupportCard>
+          <PetyrSupportCard title="Company context and extra metrics" description="Operational context moved below the four primary KPI cards." badge="Context">
+            <SecondaryCompanyContextSection selectedYear={selectedYear} data={data} />
+          </PetyrSupportCard>
 
-        {canViewAdminTools ? (
-          <>
             <PetyrSupportCard title="Revenue by Business Unit detail" description="Read-only company totals by official Business Unit for the selected year." badge="Evidence">
               <BusinessUnitSection rows={data.businessUnitSummary} />
             </PetyrSupportCard>
@@ -1093,9 +1113,8 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
             <PetyrSupportCard title="AI forecast cache" description="Generated AI forecast suggestions saved in ai_forecast_cache. They are read-only here; generate or apply AI Forecast only in Forecast Entry." badge="Support">
               <AiForecastCacheSection rows={data.aiForecasts} />
             </PetyrSupportCard>
-          </>
-        ) : null}
-      </section>
+        </section>
+      ) : null}
 
       {canViewAdminTools ? <PetyrFloatingDiagnosticsMenu diagnostics={diagnostics} /> : null}
     </PetyrWorkspaceShell>

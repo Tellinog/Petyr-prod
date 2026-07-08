@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,12 +24,13 @@ type Notice = {
 };
 
 type SourceState = "accepted_ai" | "manual_edit";
-type AnnualSortKey = "company" | "initial" | "ongoing" | "confidence";
+type AnnualSortKey = "company" | "initial" | "ongoing" | "confidence" | "business_unit";
 type AnnualSortDirection = "asc" | "desc";
 type ActiveVisibilityFilter = "all" | "active" | "inactive";
 type AnnualSortState = {
   key: AnnualSortKey | null;
   direction: AnnualSortDirection;
+  businessUnit?: string;
 };
 
 function buildAnnualBatchUrl(csmNames: string[], year: number) {
@@ -166,11 +167,23 @@ function nextAnnualSort(current: AnnualSortState, key: AnnualSortKey): AnnualSor
   };
 }
 
+function nextAnnualBusinessUnitSort(businessUnit: string): AnnualSortState {
+  return {
+    key: "business_unit",
+    direction: "desc",
+    businessUnit
+  };
+}
+
 function annualSortLabel(sort: AnnualSortState, key: AnnualSortKey) {
   if (sort.key !== key) return "Sort";
   if (key === "company") return sort.direction === "asc" ? "A-Z" : "Z-A";
   if (key === "confidence") return sort.direction === "asc" ? "High-Low" : "Low-High";
   return sort.direction === "asc" ? "Low-High" : "High-Low";
+}
+
+function annualBusinessUnitSortLabel(sort: AnnualSortState, businessUnit: string) {
+  return sort.key === "business_unit" && sort.businessUnit === businessUnit ? "High-Low" : "Sort";
 }
 
 function confidenceSortRank(value: string) {
@@ -374,6 +387,12 @@ export default function AnnualForecastEntryBatchWorkspace({
     return null;
   }
 
+  function annualBusinessUnitSortValue(company: AnnualForecastEntryBatchCompany, businessUnit: string) {
+    const cell = company.businessUnits.find((item) => item.businessUnit === businessUnit);
+    if (!cell) return 0;
+    return currentBuValue(company, cell) ?? cell.aiForecast.value ?? 0;
+  }
+
   function currentFcOngoing(company: AnnualForecastEntryBatchCompany) {
     return company.businessUnits.reduce((sum, cell) => sum + (currentBuValue(company, cell) ?? 0), 0);
   }
@@ -413,6 +432,8 @@ export default function AnnualForecastEntryBatchWorkspace({
         result = currentInitialForecast(left) - currentInitialForecast(right);
       } else if (annualSort.key === "ongoing") {
         result = currentFcOngoing(left) - currentFcOngoing(right);
+      } else if (annualSort.key === "business_unit" && annualSort.businessUnit) {
+        result = annualBusinessUnitSortValue(left, annualSort.businessUnit) - annualBusinessUnitSortValue(right, annualSort.businessUnit);
       } else if (annualSort.key === "confidence") {
         const leftRank = confidenceSortRank(confidenceValues[left.companyName] ?? "");
         const rightRank = confidenceSortRank(confidenceValues[right.companyName] ?? "");
@@ -574,6 +595,13 @@ export default function AnnualForecastEntryBatchWorkspace({
     }
   }
 
+  function handleSaveKeyDown(event: KeyboardEvent<HTMLInputElement | HTMLSelectElement>) {
+    if (event.key !== "Enter" || isSaving) return;
+
+    event.preventDefault();
+    void saveBatch();
+  }
+
   const visibleBusinessUnitCount = showBusinessUnits ? batch.data.businessUnits.length : 0;
   const annualTableMinWidth =
     COMPANY_COLUMN_WIDTH +
@@ -724,9 +752,8 @@ export default function AnnualForecastEntryBatchWorkspace({
             <div className="flex items-center gap-x-5 gap-y-2">
               <LegendChip className="border-blue-300 bg-blue-100" label="Forecast AI placeholder" />
               <LegendChip className="border-violet-300 bg-violet-100" label="AI confirmed" />
-              <LegendChip className="border-emerald-300 bg-emerald-100" label="Manual value" />
-              <LegendChip className="border-amber-300 bg-amber-50" label="Manual entry field" />
-              <LegendChip className="border-slate-300 bg-white" label="Saved value" />
+              <LegendChip className="border-emerald-300 bg-emerald-100" label="Manual CSM edit" />
+              <LegendChip className="border-amber-300 bg-amber-50" label="Saved" />
               <LegendChip className="border-slate-300 bg-slate-100" label="Inactive company" />
               <Button
                 type="button"
@@ -814,8 +841,19 @@ export default function AnnualForecastEntryBatchWorkspace({
                 </TableHead>
                 {showBusinessUnits
                   ? batch.data.businessUnits.map((businessUnit) => (
-                      <TableHead key={businessUnit} className={`${HEADER_STICKY_CLASS} min-w-[128px] text-right ${MANUAL_HEADER_CLASS}`}>
-                        {formatBusinessUnitDisplayName(businessUnit)}
+                      <TableHead
+                        key={businessUnit}
+                        className={`${HEADER_STICKY_CLASS} min-w-[128px] text-right ${MANUAL_HEADER_CLASS}`}
+                        aria-sort={annualSort.key === "business_unit" && annualSort.businessUnit === businessUnit ? "descending" : "none"}
+                      >
+                        <button
+                          type="button"
+                          className={`${SORT_BUTTON_BASE_CLASS} items-end border-amber-200 text-right hover:border-amber-300 hover:bg-amber-50`}
+                          onClick={() => setAnnualSort(nextAnnualBusinessUnitSort(businessUnit))}
+                        >
+                          <span>{formatBusinessUnitDisplayName(businessUnit)}</span>
+                          <span className="text-[11px] font-semibold text-slate-500">{annualBusinessUnitSortLabel(annualSort, businessUnit)}</span>
+                        </button>
                       </TableHead>
                     ))
                   : null}
@@ -829,8 +867,8 @@ export default function AnnualForecastEntryBatchWorkspace({
             </TableHeader>
             <TableBody>
               {displayedAnnualCompanies.length > 0 ? (
-                <TableRow className="border-b-2 border-cyan-200 bg-cyan-50 hover:bg-cyan-50">
-                  <TableCell className={`${COMPANY_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} border-r border-cyan-200 bg-cyan-50`}>
+                <TableRow className="sticky top-32 z-30 border-b-2 border-cyan-200 bg-cyan-50 shadow-[0_1px_0_0_rgba(165,243,252,1)] hover:bg-cyan-50">
+                  <TableCell className={`${COMPANY_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} z-40 border-r border-cyan-200 bg-cyan-50`}>
                     <div className="text-[11px] font-semibold uppercase tracking-wide text-cyan-800">
                       {batch.data.selectedYear} CSM Forecast
                     </div>
@@ -844,7 +882,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                     {formatPetyrIntegerCurrencyValue(annualSummary.total)}
                   </TableCell>
                   <TableCell
-                    className={`${CONFIDENCE_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} bg-cyan-50`}
+                    className={`${CONFIDENCE_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} z-40 bg-cyan-50`}
                     aria-label="No confidence value for total row"
                   />
                   {showBusinessUnits
@@ -894,6 +932,9 @@ export default function AnnualForecastEntryBatchWorkspace({
                         >
                           {company.companyName}
                         </Link>
+                        <div className={`mt-1 text-xs font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(fcOngoing))}`}>
+                          Totale forecast BU: {formatPetyrIntegerCurrencyValue(fcOngoing)}
+                        </div>
                         <div className="mt-1 text-xs text-slate-500">{company.csmName}</div>
                       </TableCell>
                       <TableCell className={MANUAL_CELL_CLASS}>
@@ -914,6 +955,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                           readOnly={!batch.data.initialMode.editable}
                           value={initialValues[company.companyName] ?? ""}
                           onChange={(event) => updateInitial(company.companyName, event.target.value)}
+                          onKeyDown={handleSaveKeyDown}
                           placeholder="n/a"
                           className={`h-8 min-w-[112px] rounded-xl text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(initialValues[company.companyName] ?? ""))} ${
                             touchedInitial.has(company.companyName)
@@ -932,6 +974,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                           value={confidenceValues[company.companyName] ?? ""}
                           disabled={isSaving}
                           onChange={(event) => updateConfidence(company.companyName, event.target.value)}
+                          onKeyDown={handleSaveKeyDown}
                           className={`h-8 min-w-[130px] rounded-xl border px-3 text-sm ${
                             touchedConfidence.has(company.companyName) ? "border-emerald-300 bg-emerald-50" : "border-amber-200 bg-amber-50"
                           }`}
@@ -972,6 +1015,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                               onFocus={() => acceptAiPlaceholder(company, cell)}
                               onClick={() => acceptAiPlaceholder(company, cell)}
                               onChange={(event) => updateValue(company, cell, event.target.value)}
+                              onKeyDown={handleSaveKeyDown}
                               className={`h-8 min-w-[112px] rounded-xl text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(currentInputValue || aiPlaceholder))} ${inputClass}`}
                             />
                             {sourceState ? (

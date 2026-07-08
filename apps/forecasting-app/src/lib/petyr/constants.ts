@@ -32,7 +32,7 @@ export const PETYR_FORECAST_INTELLIGENCE_CACHE_MONTH = 0;
 export const FORECAST_TYPES = ["previous_month", "ongoing"] as const;
 export type ForecastType = (typeof FORECAST_TYPES)[number];
 
-export type PetyrBusinessUnitNormalizationReason = "official" | "missing" | "unknown" | "unofficial";
+export type PetyrBusinessUnitNormalizationReason = "official" | "alias" | "missing" | "unknown" | "unofficial";
 
 export type PetyrBusinessUnitNormalization = {
   originalValue: string;
@@ -51,6 +51,11 @@ const PETYR_BUSINESS_UNIT_BY_KEY: Map<string, PetyrBusinessUnit> = new Map(
     businessUnit
   ])
 );
+
+const PETYR_BUSINESS_UNIT_ALIAS_BY_KEY: Map<string, PetyrBusinessUnit> = new Map([
+  ["ux", "Experience"],
+  ["userexperience", "Experience"]
+]);
 
 export function normalizePetyrBusinessUnit(value: string | null | undefined): PetyrBusinessUnitNormalization {
   const originalValue = typeof value === "string" ? value.trim() : "";
@@ -72,6 +77,17 @@ export function normalizePetyrBusinessUnit(value: string | null | undefined): Pe
       originalValue,
       businessUnit: officialBusinessUnit,
       reason: "official",
+      mappedToOtherFallback: false
+    };
+  }
+
+  const aliasBusinessUnit = PETYR_BUSINESS_UNIT_ALIAS_BY_KEY.get(key);
+
+  if (aliasBusinessUnit) {
+    return {
+      originalValue,
+      businessUnit: aliasBusinessUnit,
+      reason: "alias",
       mappedToOtherFallback: false
     };
   }

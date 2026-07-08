@@ -660,48 +660,52 @@ function ManagementView({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle>Current year trend</CardTitle>
-          <CardDescription>Data source: CSM-entered forecast, AI forecast cache when available, closed revenue from Redash/campaign revenue.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="h-[340px]">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
-              <LineChart data={monthlyManagement}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis tickFormatter={formatK} />
-                <Tooltip formatter={formatTooltipValue} />
-                <Legend />
-                <Line type="monotone" dataKey="forecastAI" name="AI Forecast" stroke={chartColors.forecastAI} strokeWidth={3} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="forecastMese" name="Previous-month forecast" stroke={chartColors.forecastMese} strokeWidth={3} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="real" name="Closed revenue" stroke={chartColors.real} strokeWidth={3} dot={{ r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <TrendInsightCard
-            title="Trend reading unavailable"
-            body="Insight unavailable: this golden master view does not generate a narrative trend from chart data yet."
-            action="Review the source-backed chart or the dedicated detail routes before taking action."
-          />
-        </CardContent>
-      </Card>
+      {canViewAdminTools ? (
+        <>
+          <Card className="rounded-2xl border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle>Current year trend</CardTitle>
+              <CardDescription>Data source: CSM-entered forecast, AI forecast cache when available, closed revenue from Redash/campaign revenue.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="h-[340px]">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
+                  <LineChart data={monthlyManagement}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis tickFormatter={formatK} />
+                    <Tooltip formatter={formatTooltipValue} />
+                    <Legend />
+                    <Line type="monotone" dataKey="forecastAI" name="AI Forecast" stroke={chartColors.forecastAI} strokeWidth={3} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="forecastMese" name="Previous-month forecast" stroke={chartColors.forecastMese} strokeWidth={3} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="real" name="Closed revenue" stroke={chartColors.real} strokeWidth={3} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <TrendInsightCard
+                title="Trend reading unavailable"
+                body="Insight unavailable: this golden master view does not generate a narrative trend from chart data yet."
+                action="Review the source-backed chart or the dedicated detail routes before taking action."
+              />
+            </CardContent>
+          </Card>
 
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle>Revenue per Business Unit</CardTitle>
-          <CardDescription>Data source: historical campaign revenue by Business Unit, compared with the current year and previous years.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <BusinessUnitRevenueForecastChart />
-          <TrendInsightCard
-            title="Business Unit insight unavailable"
-            body="Not enough source-backed narrative data is available in this rendering to state a Business Unit opportunity or risk."
-            action="Use the Business Unit chart and dedicated Company Detail route for evidence-backed review."
-          />
-        </CardContent>
-      </Card>
+          <Card className="rounded-2xl border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle>Revenue per Business Unit</CardTitle>
+              <CardDescription>Data source: historical campaign revenue by Business Unit, compared with the current year and previous years.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <BusinessUnitRevenueForecastChart />
+              <TrendInsightCard
+                title="Business Unit insight unavailable"
+                body="Not enough source-backed narrative data is available in this rendering to state a Business Unit opportunity or risk."
+                action="Use the Business Unit chart and dedicated Company Detail route for evidence-backed review."
+              />
+            </CardContent>
+          </Card>
+        </>
+      ) : null}
 
       {canViewAdminTools ? (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">

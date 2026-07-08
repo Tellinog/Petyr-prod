@@ -40,6 +40,7 @@ import {
   getDefaultPetyrAiForecastBaselineWeights,
   resolvePetyrAiForecastBaselineWeightsRead
 } from "../src/services/petyrAiForecastWeightsService";
+import { normalizePetyrBusinessUnit } from "../src/lib/petyr/constants";
 
 const baseRawOutput = {
   stakeholder_notes: [
@@ -1158,6 +1159,13 @@ test("AI Forecast baseline weights fall back when stored payload is invalid", ()
   assert.equal(result.diagnostics.length, 1);
 });
 
+test("shared Petyr Business Unit normalizer maps UX to Experience", () => {
+  const normalized = normalizePetyrBusinessUnit("UX");
+
+  assert.equal(normalized.businessUnit, "Experience");
+  assert.equal(normalized.mappedToOtherFallback, false);
+});
+
 test("deterministic AI Forecast final value rounds to nearest 100 EUR", () => {
   const candidates = buildDeterministicForecastCandidates({
     companyName: "Round Co",
@@ -1169,11 +1177,103 @@ test("deterministic AI Forecast final value rounds to nearest 100 EUR", () => {
     ],
     plannedCampaigns: [],
     campaigns: [],
-    agreements: [],
+    agreements: [
+      {
+        name: "Future Agreement",
+        status: "active",
+        totalValue: 20000,
+        residualValue: 20000,
+        expiryDate: "2026-12-31",
+        agreementDealLink: "",
+        link: ""
+      }
+    ],
     baselineWeights: getDefaultPetyrAiForecastBaselineWeights()
   });
   const qa = candidates.find((candidate) => candidate.businessUnit === "QA");
 
   assert.equal(qa?.baselineForecast, 1234);
   assert.equal(qa?.roundedForecastValue, 1200);
+});
+
+test("deterministic AI Forecast only generates Business Units with historical closed revenue", () => {
+  const candidates = buildDeterministicForecastCandidates({
+    companyName: "No AI History Co",
+    year: 2026,
+    currentDate: new Date("2026-06-24T00:00:00.000Z"),
+    eligibleMonths: [7],
+    historicalPoints: [
+      { businessUnit: "QA", year: 2026, month: 5, closedRevenue: 1234, agreementName: "", campaignName: "" }
+    ],
+    plannedCampaigns: [
+      { businessUnit: "AI", year: 2026, month: 7, value: 5000, agreementName: "Future Agreement", campaignName: "AI planned" }
+    ],
+    campaigns: [],
+    agreements: [
+      {
+        name: "Future Agreement",
+        status: "active",
+        totalValue: 20000,
+        residualValue: 20000,
+        expiryDate: "2026-12-31",
+        agreementDealLink: "",
+        link: ""
+      }
+    ],
+    baselineWeights: getDefaultPetyrAiForecastBaselineWeights()
+  });
+
+  assert.deepEqual([...new Set(candidates.map((candidate) => candidate.businessUnit))], ["QA"]);
+  assert.equal(candidates.some((candidate) => candidate.businessUnit === "AI"), false);
+});
+
+test("deterministic AI Forecast does not calculate without future residual agreement", () => {
+  const baseInput = {
+    companyName: "No Residual Co",
+    year: 2026,
+    currentDate: new Date("2026-06-24T00:00:00.000Z"),
+    eligibleMonths: [7],
+    historicalPoints: [
+      { businessUnit: "QA" as const, year: 2026, month: 5, closedRevenue: 1234, agreementName: "", campaignName: "" }
+    ],
+    plannedCampaigns: [],
+    campaigns: [],
+    baselineWeights: getDefaultPetyrAiForecastBaselineWeights()
+  };
+
+  assert.equal(buildDeterministicForecastCandidates({ ...baseInput, agreements: [] }).length, 0);
+  assert.equal(
+    buildDeterministicForecastCandidates({
+      ...baseInput,
+      agreements: [
+        {
+          name: "Expired Agreement",
+          status: "active",
+          totalValue: 5000,
+          residualValue: 5000,
+          expiryDate: "2026-06-24",
+          agreementDealLink: "",
+          link: ""
+        }
+      ]
+    }).length,
+    0
+  );
+  assert.equal(
+    buildDeterministicForecastCandidates({
+      ...baseInput,
+      agreements: [
+        {
+          name: "Zero Residual Agreement",
+          status: "active",
+          totalValue: 5000,
+          residualValue: 0,
+          expiryDate: "2026-12-31",
+          agreementDealLink: "",
+          link: ""
+        }
+      ]
+    }).length,
+    0
+  );
 });

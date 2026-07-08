@@ -1,4 +1,8 @@
-import { PETYR_BUSINESS_UNITS, type PetyrBusinessUnit } from "../lib/petyr/constants";
+import {
+  PETYR_BUSINESS_UNITS,
+  normalizePetyrBusinessUnit,
+  type PetyrBusinessUnit
+} from "../lib/petyr/constants";
 import type {
   PetyrAgreementDetail,
   PetyrBusinessUnitSummary,
@@ -342,7 +346,7 @@ function isOfficialBusinessUnit(value: string): value is PetyrBusinessUnit {
 }
 
 function normalizeBusinessUnit(value: string): PetyrBusinessUnit {
-  return isOfficialBusinessUnit(value) ? value : "Other";
+  return normalizePetyrBusinessUnit(value).businessUnit;
 }
 
 function sanitizeTitleTokens(value: string) {
@@ -857,10 +861,14 @@ export function weightedSignalBaseline(input: {
 function isActiveFutureResidualAgreement(agreement: PetyrAgreementDetail, currentDate: Date) {
   const expiryDate = parseIsoDate(agreement.expiryDate);
 
-  if (!expiryDate || startOfLocalDay(expiryDate).getTime() < startOfLocalDay(currentDate).getTime()) return false;
+  if (!expiryDate || startOfLocalDay(expiryDate).getTime() <= startOfLocalDay(currentDate).getTime()) return false;
   if (agreement.residualValue <= 0) return false;
 
   return true;
+}
+
+function hasActiveFutureResidualAgreement(agreements: PetyrAgreementDetail[], currentDate: Date) {
+  return agreements.some((agreement) => isActiveFutureResidualAgreement(agreement, currentDate));
 }
 
 function emptyAgreementResidualSignal(): PetyrAiForecastAgreementResidualSignal {
@@ -1098,8 +1106,17 @@ function applyResidualAllocationCap(input: {
 
 
 export function buildDeterministicForecastCandidates(input: BuildCandidateInput) {
+  if (!hasActiveFutureResidualAgreement(input.agreements, input.currentDate)) return [];
+
+  const historicalBusinessUnits = new Set(
+    input.historicalPoints
+      .filter((point) => point.closedRevenue > 0)
+      .map((point) => point.businessUnit)
+  );
+  const eligibleBusinessUnits = PETYR_BUSINESS_UNITS.filter((businessUnit) => historicalBusinessUnits.has(businessUnit));
+
   const candidatesWithoutResidual = input.eligibleMonths.flatMap((month) =>
-    PETYR_BUSINESS_UNITS.map((businessUnit) => {
+    eligibleBusinessUnits.map((businessUnit) => {
       const historicalWeighted = calculateHistoricalWeightedBaseline({
         historicalPoints: input.historicalPoints,
         businessUnit,
@@ -1326,6 +1343,13 @@ export async function buildCompanyBuForecastSignals(
     ...weightsResolution.diagnostics
   );
 
+  const targetYearAgreements = targetYearDetail?.data.agreements ?? [];
+  if (!hasActiveFutureResidualAgreement(targetYearAgreements, currentDate)) {
+    diagnostics.push(
+      "No eligible AI Forecast rows: the selected company has no agreement with expiry after today and residual value greater than 0."
+    );
+  }
+
   const candidates = buildDeterministicForecastCandidates({
     companyName: canonicalCompanyName,
     year,
@@ -1334,7 +1358,7 @@ export async function buildCompanyBuForecastSignals(
     historicalPoints,
     plannedCampaigns,
     campaigns: detailsByYear.flatMap((item) => item.detail.data.campaigns),
-    agreements: targetYearDetail?.data.agreements ?? [],
+    agreements: targetYearAgreements,
     baselineWeights: weightsResolution.weights
   });
 

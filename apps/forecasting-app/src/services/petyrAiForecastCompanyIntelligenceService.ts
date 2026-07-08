@@ -63,7 +63,7 @@ type AiForecastCacheSavedRow = {
   explanation: string;
   modelVersion: string;
   generatedAt: string;
-  action: "created";
+  action: "created" | "updated";
 };
 
 type AiForecastCacheSkippedRow = {
@@ -1135,6 +1135,15 @@ function emptySaveReport(modelVersion: string): AiForecastCacheSaveReport {
   };
 }
 
+function noRowsSkipReason(input: {
+  eligibleMonths: number[];
+  forecastsCount: number;
+}): "no_eligible_future_months" | "no_active_future_residual_agreement" | null {
+  if (input.eligibleMonths.length === 0) return "no_eligible_future_months";
+  if (input.forecastsCount === 0) return "no_active_future_residual_agreement";
+  return null;
+}
+
 export function getPetyrDeterministicAiForecastCacheKey(input: PetyrDeterministicAiForecastCacheKeyInput) {
   return [
     input.companyName.trim().toLowerCase(),
@@ -1150,6 +1159,24 @@ export function isPetyrDeterministicAiForecastCacheDuplicate(input: {
   existingKeys: Set<string>;
 }) {
   return input.existingKeys.has(getPetyrDeterministicAiForecastCacheKey(input.forecast));
+}
+
+function aiForecastCacheUniqueKey(input: {
+  companyName: string;
+  businessUnit: string;
+  year: number;
+  month: number;
+  modelVersion: string;
+}) {
+  return {
+    companyName_businessUnit_year_month_modelVersion: {
+      companyName: input.companyName,
+      businessUnit: input.businessUnit,
+      year: input.year,
+      month: input.month,
+      modelVersion: input.modelVersion
+    }
+  };
 }
 
 async function saveDeterministicForecastRowsToCache(input: {
@@ -1188,59 +1215,53 @@ async function saveDeterministicForecastRowsToCache(input: {
     }
   });
   const existingKeys = new Set(existingRows.map(getPetyrDeterministicAiForecastCacheKey));
-  const rowsToCreate = input.forecasts.filter((forecast) => {
-    const exists = isPetyrDeterministicAiForecastCacheDuplicate({
-      forecast: {
-        companyName: input.companyName,
-        businessUnit: forecast.businessUnit,
-        year: forecast.year,
-        month: forecast.month,
-        modelVersion: input.modelVersion
-      },
-      existingKeys
-    });
-
-    if (exists) {
-      report.skippedRowDetails.push({
-        company: input.companyName,
-        businessUnit: forecast.businessUnit,
-        year: forecast.year,
-        month: forecast.month,
-        modelVersion: input.modelVersion,
-        reason: "skipped_existing_cache"
-      });
-    }
-
-    return !exists;
-  });
-
-  report.skippedRows = report.skippedRowDetails.length;
-  if (rowsToCreate.length === 0) return report;
 
   const savedRows = await prisma.$transaction(async (tx) => {
     const saved: AiForecastCacheSavedRow[] = [];
 
-    for (const forecast of rowsToCreate) {
-      await tx.aiForecastCache.create({
-        data: {
+    for (const forecast of input.forecasts) {
+      const exists = isPetyrDeterministicAiForecastCacheDuplicate({
+        forecast: {
           companyName: input.companyName,
           businessUnit: forecast.businessUnit,
           year: forecast.year,
           month: forecast.month,
-          forecastValue: new Prisma.Decimal(forecast.aiForecastValue),
-          confidenceScore: forecast.confidenceScore === null ? null : new Prisma.Decimal(forecast.confidenceScore),
+          modelVersion: input.modelVersion
+        },
+        existingKeys
+      });
+      const data = {
+        forecastValue: new Prisma.Decimal(forecast.aiForecastValue),
+        confidenceScore: forecast.confidenceScore === null ? null : new Prisma.Decimal(forecast.confidenceScore),
+        explanation: forecast.explanation,
+        generatedAt: input.generatedAt,
+        provider: input.intelligence.provider,
+        providerModel: input.intelligence.model,
+        promptVersion: input.intelligence.promptVersion,
+        inputHash: input.intelligence.inputHash,
+        requestPayloadSummary: input.intelligence.requestPayloadSummary as Prisma.InputJsonValue,
+        validatedOutput: input.intelligence.output as Prisma.InputJsonValue,
+        status: "success",
+        errorMessage: null
+      };
+
+      await tx.aiForecastCache.upsert({
+        where: aiForecastCacheUniqueKey({
+          companyName: input.companyName,
+          businessUnit: forecast.businessUnit,
+          year: forecast.year,
+          month: forecast.month,
+          modelVersion: input.modelVersion
+        }),
+        create: {
+          companyName: input.companyName,
+          businessUnit: forecast.businessUnit,
+          year: forecast.year,
+          month: forecast.month,
           modelVersion: input.modelVersion,
-          explanation: forecast.explanation,
-          generatedAt: input.generatedAt,
-          provider: input.intelligence.provider,
-          providerModel: input.intelligence.model,
-          promptVersion: input.intelligence.promptVersion,
-          inputHash: input.intelligence.inputHash,
-          requestPayloadSummary: input.intelligence.requestPayloadSummary as Prisma.InputJsonValue,
-          validatedOutput: input.intelligence.output as Prisma.InputJsonValue,
-          status: "success",
-          errorMessage: null
-        }
+          ...data
+        },
+        update: data
       });
 
       saved.push({
@@ -1253,7 +1274,7 @@ async function saveDeterministicForecastRowsToCache(input: {
         explanation: forecast.explanation,
         modelVersion: input.modelVersion,
         generatedAt: input.generatedAt.toISOString(),
-        action: "created"
+        action: exists ? "updated" : "created"
       });
     }
 
@@ -1294,70 +1315,64 @@ async function saveDeterministicPreviewRowsToCache(input: {
     }
   });
   const existingKeys = new Set(existingRows.map(getPetyrDeterministicAiForecastCacheKey));
-  const rowsToCreate = input.forecasts.filter((forecast) => {
-    const exists = isPetyrDeterministicAiForecastCacheDuplicate({
-      forecast: {
-        companyName: input.companyName,
-        businessUnit: forecast.businessUnit,
-        year: forecast.year,
-        month: forecast.month,
-        modelVersion: input.modelVersion
-      },
-      existingKeys
-    });
-
-    if (exists) {
-      report.skippedRowDetails.push({
-        company: input.companyName,
-        businessUnit: forecast.businessUnit,
-        year: forecast.year,
-        month: forecast.month,
-        modelVersion: input.modelVersion,
-        reason: "skipped_existing_daily_deterministic_cache"
-      });
-    }
-
-    return !exists;
-  });
-
-  report.skippedRows = report.skippedRowDetails.length;
-  if (rowsToCreate.length === 0) return report;
 
   const savedRows = await prisma.$transaction(async (tx) => {
     const saved: AiForecastCacheSavedRow[] = [];
 
-    for (const forecast of rowsToCreate) {
-      await tx.aiForecastCache.create({
-        data: {
+    for (const forecast of input.forecasts) {
+      const exists = isPetyrDeterministicAiForecastCacheDuplicate({
+        forecast: {
           companyName: input.companyName,
           businessUnit: forecast.businessUnit,
           year: forecast.year,
           month: forecast.month,
-          forecastValue: new Prisma.Decimal(forecast.aiForecastValue),
-          confidenceScore: forecast.confidenceScore === null ? null : new Prisma.Decimal(forecast.confidenceScore),
+          modelVersion: input.modelVersion
+        },
+        existingKeys
+      });
+      const data = {
+        forecastValue: new Prisma.Decimal(forecast.aiForecastValue),
+        confidenceScore: forecast.confidenceScore === null ? null : new Prisma.Decimal(forecast.confidenceScore),
+        explanation: forecast.explanation,
+        generatedAt: input.generatedAt,
+        provider: "petyr",
+        providerModel: "deterministic_preview",
+        promptVersion: "petyr_deterministic_preview_v1",
+        inputHash: null,
+        requestPayloadSummary: {
+          source: "nightly_deterministic_preview",
+          businessUnit: forecast.businessUnit,
+          year: forecast.year,
+          month: forecast.month,
+          drivers: forecast.drivers,
+          confidenceScore: forecast.confidenceScore
+        },
+        validatedOutput: {
+          schema_version: "petyr_local_deterministic_forecast_v1",
+          source: "nightly_deterministic_preview",
+          forecast
+        },
+        status: "success",
+        errorMessage: null
+      };
+
+      await tx.aiForecastCache.upsert({
+        where: aiForecastCacheUniqueKey({
+          companyName: input.companyName,
+          businessUnit: forecast.businessUnit,
+          year: forecast.year,
+          month: forecast.month,
+          modelVersion: input.modelVersion
+        }),
+        create: {
+          companyName: input.companyName,
+          businessUnit: forecast.businessUnit,
+          year: forecast.year,
+          month: forecast.month,
           modelVersion: input.modelVersion,
-          explanation: forecast.explanation,
-          generatedAt: input.generatedAt,
-          provider: "petyr",
-          providerModel: "deterministic_preview",
-          promptVersion: "petyr_deterministic_preview_v1",
-          inputHash: null,
-          requestPayloadSummary: {
-            source: "nightly_deterministic_preview",
-            businessUnit: forecast.businessUnit,
-            year: forecast.year,
-            month: forecast.month,
-            drivers: forecast.drivers,
-            confidenceScore: forecast.confidenceScore
-          },
-          validatedOutput: {
-            schema_version: "petyr_local_deterministic_forecast_v1",
-            source: "nightly_deterministic_preview",
-            forecast
-          },
-          status: "success",
-          errorMessage: null
-        }
+          ...data
+        },
+        update: data
       });
 
       saved.push({
@@ -1370,7 +1385,7 @@ async function saveDeterministicPreviewRowsToCache(input: {
         explanation: forecast.explanation,
         modelVersion: input.modelVersion,
         generatedAt: input.generatedAt.toISOString(),
-        action: "created"
+        action: exists ? "updated" : "created"
       });
     }
 
@@ -1446,7 +1461,11 @@ async function runNonDryRunSave(input: {
   const base = await buildBaseRun({ ...input, modelVersion });
   const diagnostics = uniqueDiagnostics([...base.diagnostics, ...modelSettingResolution.diagnostics]);
 
-  if (base.signals.eligibleMonths.length === 0) {
+  const skipReason = noRowsSkipReason({
+    eligibleMonths: base.signals.eligibleMonths,
+    forecastsCount: base.forecasts.length
+  });
+  if (skipReason) {
     const report = emptySaveReport(modelVersion);
     report.skippedRowDetails.push({
       company: base.signals.companyName,
@@ -1454,7 +1473,7 @@ async function runNonDryRunSave(input: {
       year: input.year,
       month: null,
       modelVersion,
-      reason: "no_eligible_future_months"
+      reason: skipReason
     });
     report.skippedRows = report.skippedRowDetails.length;
 
@@ -1481,7 +1500,7 @@ async function runNonDryRunSave(input: {
         selectedModel: modelVersion,
         asOfDate: base.signals.asOfDate,
         eligibleMonths: base.signals.eligibleMonths,
-        notCalledReason: "no_eligible_future_months"
+        notCalledReason: skipReason
       }),
       report,
       diagnostics
@@ -1624,24 +1643,27 @@ export async function savePetyrDeterministicAiForecastForCompany(input: {
     modelVersion
   });
   const diagnostics = uniqueDiagnostics(base.diagnostics);
-  const report =
-    base.signals.eligibleMonths.length === 0
-      ? emptySaveReport(modelVersion)
-      : await saveDeterministicPreviewRowsToCache({
-          companyName: base.signals.companyName,
-          forecasts: base.forecasts,
-          modelVersion,
-          generatedAt: base.generatedAt
-        });
+  const skipReason = noRowsSkipReason({
+    eligibleMonths: base.signals.eligibleMonths,
+    forecastsCount: base.forecasts.length
+  });
+  const report = skipReason
+    ? emptySaveReport(modelVersion)
+    : await saveDeterministicPreviewRowsToCache({
+        companyName: base.signals.companyName,
+        forecasts: base.forecasts,
+        modelVersion,
+        generatedAt: base.generatedAt
+      });
 
-  if (base.signals.eligibleMonths.length === 0) {
+  if (skipReason) {
     report.skippedRowDetails.push({
       company: base.signals.companyName,
       businessUnit: null,
       year,
       month: null,
       modelVersion,
-      reason: "no_eligible_future_months"
+      reason: skipReason
     });
     report.skippedRows = report.skippedRowDetails.length;
   }

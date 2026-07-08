@@ -23,6 +23,14 @@ Project-specific backlog items should be placed in the most specific backlog ava
 
 ---
 
+## Clarify Business Unit eligibility for numeric AI Forecast rows
+
+- **Area:** Petyr / AI Forecasting / Business Unit attribution
+- **Problem/question:** Numeric deterministic AI Forecast previously built candidate rows for every official Business Unit when a company had at least one future-expiring residual agreement. This could surface an `AI` Business Unit AI Forecast even when operators did not expect AI work for that company.
+- **Impact:** Resolved for new generations. Numeric AI Forecast now uses the shared Petyr Business Unit normalizer and generates rows only for Business Units where the selected company has positive historical closed revenue.
+- **Status:** Resolved on 2026-07-08.
+- **Proposal / next action:** Optionally run a one-off cache cleanup for pre-existing stale `AI` rows if production already contains rows generated before this rule was implemented.
+
 ## Implement Petyr Intelligence MVP phase 1: schema and isolated service skeleton
 
 - **Area:** Petyr / Intelligence

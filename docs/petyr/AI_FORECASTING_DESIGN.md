@@ -57,15 +57,18 @@ Accepted deterministic automation:
 - the worker cleans numeric `ai_forecast_cache` rows for companies explicitly
   marked inactive and does not calculate deterministic rows for them;
 - the worker saves local deterministic preview rows to `ai_forecast_cache`;
-- the worker uses daily append-only model versions such as
+- the worker uses daily model versions such as
   `petyr_deterministic_preview_v1@YYYY-MM-DD`;
+- repeated runs for the same company, Business Unit, year, month and model
+  version update the existing cache row instead of skipping it;
 - the worker does not call OpenRouter or Forecast Intelligence.
 
 Accepted manual recovery:
 
 - Petyr Admin can run the deterministic Daily AI Forecast immediately for all active companies;
 - the admin run uses the same service as the worker and requires `petyr:admin` plus `APP_INTERNAL_SECRET`;
-- duplicate rows for the same daily model version are skipped rather than overwritten;
+- duplicate rows for the same daily model version are overwritten with the
+  current deterministic result;
 - final deterministic AI Forecast values are rounded to the nearest 100 EUR.
 
 Accepted calibration control:
@@ -95,11 +98,21 @@ The AI Forecast must:
   and links from the LLM payload;
 - reconcile LLM output through server-side pseudonym mappings;
 - write only validated future-month AI suggestions to `ai_forecast_cache`;
+- calculate numeric AI Forecast rows only when the selected company has at least
+  one agreement with expiry date after the current date and residual value
+  greater than 0;
+- use the shared Petyr Business Unit normalizer, including `UX` as official
+  `Experience`;
+- generate numeric AI Forecast rows only for Business Units where the selected
+  company has positive historical closed revenue. Planned future value or
+  generic agreement residual alone must not open a Business Unit AI Forecast row
+  with no company revenue history;
 - never write CSM-owned `forecast_monthly` or `forecast_annual` rows;
 - never write closed revenue, management objectives or annual forecast snapshots;
 - never modify past-month AI Forecast values;
 - never modify the current month;
-- avoid overwriting historical AI Forecast generations.
+- never delete or clear an already saved current-month row merely because the
+  current month is not eligible for a new AI Forecast write.
 
 ## Non-goals
 
@@ -191,6 +204,11 @@ Use historical closed revenue for the same company and Business Unit, weighted
 toward more recent months and comparable months from prior years. Sparse or
 missing history must lower confidence and must be surfaced as a data quality
 driver rather than hidden.
+
+If the company has no positive historical closed revenue for a Business Unit,
+that Business Unit is not eligible for numeric AI Forecast generation for the
+company. Planned campaigns and residual agreement allocation may influence only
+Business Units that already have company-specific revenue history.
 
 ### Monthly seasonality
 
@@ -570,11 +588,12 @@ Rules:
 - The LLM response must be filtered again against the eligible month set before
   persistence.
 
-Historical AI Forecast generations must not be overwritten. Future
-implementation should treat regeneration as append-only through a distinct
-versioning policy. Until that policy is defined, existing cache rows for the
-same real company, Business Unit, year, month and model version should be
-skipped rather than overwritten.
+Past-month AI Forecast generations must not be overwritten. Future and
+current-year eligible rows are keyed by company, Business Unit, year, month and
+model version. When a run produces the same key again, Petyr updates that cache
+row with the current deterministic result. The current month remains ineligible
+for new writes, but this exclusion does not delete or clear a previously saved
+current-month row.
 
 ## Saving to `ai_forecast_cache`
 
@@ -621,10 +640,9 @@ Persistence rules:
 - Use a transaction boundary that prevents partially saved output for one
   company when that company's response fails validation.
 
-If the current unique key prevents append-only regeneration for the same model
-version, the manual run should skip the existing row and log a
-`skipped_existing_cache` event until a versioning/history decision is
-implemented.
+For a repeated eligible company, Business Unit, year, month and model version,
+the manual run updates the existing `ai_forecast_cache` row instead of creating
+a duplicate or skipping it.
 
 The MVP output contract includes `baselineForecast`, `plannedCampaignsValue`,
 `agreementResidualSignal`, `advice` and `drivers`. The current
@@ -654,7 +672,8 @@ Rules:
 Nightly deterministic automation is accepted separately from OpenRouter
 automation. It runs in `petyr-ai-forecast-worker`, excludes explicitly inactive
 companies, cleans their numeric AI Forecast cache rows, computes local
-deterministic preview values only for active companies and saves those rows to
+deterministic preview values only for active companies with at least one
+future-expiring residual agreement and saves or updates those rows in
 `ai_forecast_cache`. Future automated/progressive LLM/OpenRouter batch
 behavior is still deferred and tracked separately in `BACKLOG.md`.
 
@@ -673,8 +692,8 @@ Recommended behavior:
   the affected company response.
 - If one company fails, do not write partial invalid output for that company.
 - If a database write fails, do not mark the company as completed.
-- If `ai_forecast_cache` already has an eligible row and append-only versioning
-  is unavailable, skip the row and record the skip reason.
+- If `ai_forecast_cache` already has an eligible row for the same model version,
+  update that row with the current validated result.
 - If confidence is below the future accepted threshold, either skip or save with
   a low-confidence status only after that policy is defined.
 
@@ -727,10 +746,16 @@ For the first manual MVP:
 - [ ] Planned future includes only valid future planned campaigns and excludes
       `Running`.
 - [ ] Agreement residual allocation considers only active agreements with `residual > 0` and future expiry, distributes residual over remaining months and uses sanitized BU attribution signals.
+- [ ] Numeric AI Forecast rows are not calculated when no agreement expires
+      after the current date with residual value greater than 0.
+- [ ] Numeric AI Forecast rows are generated only for Business Units where the
+      selected company has positive historical closed revenue.
 - [ ] The payload omits links and free-text notes where practical.
 - [ ] Complete anonymization is explicitly not implemented yet and remains a
       blocking hardening TODO before broader rollout.
 - [ ] Past months and the current month are excluded server-side.
+- [ ] Excluding the current month from new writes does not delete or clear any
+      already saved current-month AI Forecast cache row.
 - [ ] Output writes only to `ai_forecast_cache`.
 - [ ] No CSM forecast, closed revenue, management objective or annual forecast
       table is written.
@@ -751,7 +776,9 @@ Before any broader production LLM rollout is enabled:
 - [ ] Eligible months are computed server-side.
 - [ ] Past months are excluded server-side.
 - [ ] The current month is excluded server-side.
-- [ ] Existing AI forecast history is not overwritten.
+- [ ] Past-month AI forecast history is not overwritten.
+- [ ] Existing eligible rows for the same company, Business Unit, year, month
+      and model version are updated rather than skipped.
 - [ ] `ai_forecast_cache` is the only AI output persistence target.
 - [ ] CSM-owned forecast tables are never written by AI generation.
 - [ ] Dry-run mode can prove the sanitized payload shape without external calls.
@@ -768,7 +795,8 @@ Open decisions before production AI Forecasting:
   automated LLM/OpenRouter batch is considered. The deterministic nightly worker
   already uses local-only generation with a default 3000ms inter-company delay.
 - Define the final AI output validator, including exact JSON schema, numeric bounds and explanation sanitizer.
-- Define append-only AI cache versioning/history so future regenerations do not overwrite historical AI forecasts.
+- Define any future AI cache history model if same-version upserts are no
+  longer sufficient for audit or comparison needs.
 - Define persistence for `baselineForecast`, `plannedCampaignsValue`,
   `agreementResidualSignal`, `advice` and `drivers` if these fields need to be
   queryable after the manual run response.

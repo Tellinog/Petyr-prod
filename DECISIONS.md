@@ -13,6 +13,27 @@ Each decision should include:
 
 ---
 
+## 2026-07-08 - Restrict numeric AI Forecast Business Units to historical revenue evidence
+
+- **Status:** Accepted.
+- **Context:** Operators found AI Forecast rows under the `AI` Business Unit for companies that had never done AI work. The deterministic generator previously built candidate rows for every official Business Unit whenever the company had a future-expiring residual agreement, and the AI Forecast strategy used stricter local Business Unit normalization than the shared Petyr normalizer.
+- **Decision:** Numeric deterministic AI Forecast generation now uses the shared Petyr Business Unit normalizer, including `UX` as an alias of official `Experience`. For a selected company, AI Forecast candidate/cache rows are generated only for official Business Units that have positive historical closed revenue for that company. Future planned value or generic agreement residual alone is not enough to create a Business Unit AI Forecast row if that company has never had closed revenue in that Business Unit.
+- **Alternatives discarded:** Continuing to generate all official Business Units for every residual-backed company; allowing planned future alone to open a new Business Unit forecast; keeping AI Forecast's local strict normalizer separate from the shared Petyr normalizer.
+- **Reason:** AI Forecast should not suggest a Business Unit where the company has no historical activity, and Redash `UX` values must be treated as `Experience` rather than `Other`.
+- **Consequences:** Daily/manual numeric AI Forecast rows can decrease, especially for sparse companies and Business Units with no company-specific history. Existing stale cache rows remain until the same company is regenerated or explicitly cleared by inactive-company cleanup; no CSM forecast, annual forecast, closed revenue, Redash data, management objectives or schema are changed.
+- **Related docs:** `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/AI_FORECASTING_DESIGN.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+
+## 2026-07-08 - Gate numeric AI Forecast by active residual agreement and upsert daily cache rows
+
+- **Status:** Accepted.
+- **Context:** Product clarified that numeric AI Forecast should not be generated when a company has no agreement expiring after the current date with residual value greater than 0, because without agreement residual there is no basis for entering a forecast. Product also clarified that repeated runs for the same company, Business Unit, year, month and model version may overwrite the existing AI Forecast cache row, while excluding the current month from new writes must not delete an already saved current-month row.
+- **Decision:** Deterministic numeric AI Forecast calculation now requires at least one agreement with expiry date after today and residual value greater than 0. Manual and scheduled numeric AI Forecast persistence uses an upsert on company, Business Unit, year, month and model version, updating the existing row when the same key is generated again. Current-month ineligibility remains a write-scope rule only; it does not clear existing current-month AI Forecast cache rows. Explicit inactive-company cleanup remains the path that clears numeric AI Forecast cache rows.
+- **Alternatives discarded:** Continuing to forecast from historical/planned signals without any future residual agreement; continuing to skip duplicate same-version rows; deleting current-month rows simply because the current month is not eligible for new writes.
+- **Reason:** The AI Forecast is intended to support forecast entry only when there is active future residual agreement value to forecast against. Updating same-key cache rows keeps repeated manual/scheduled runs simple and deterministic without changing CSM-owned forecast data.
+- **Consequences:** Daily AI Forecast run saved-row counts can include updated rows, not only newly created rows. Companies without qualifying future residual agreements return no numeric AI Forecast candidate rows and write no cache rows. Past/current month write protections remain, and CSM forecast, annual forecast, Initial Forecast, closed revenue, management objectives and Redash data remain untouched.
+- **Supersedes:** The duplicate-row skip / write-only-missing portions of `2026-06-24 - Move Petyr Daily AI Forecast to 02:00 and expose protected manual run`, and the daily append-only wording in `2026-06-20 - Add deterministic nightly AI Forecast worker`.
+- **Related docs:** `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/AI_FORECASTING_DESIGN.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+
 ## 2026-07-07 - Expand Petyr planned campaign status rules and flag stale non-completed campaigns
 
 - **Status:** Accepted.
