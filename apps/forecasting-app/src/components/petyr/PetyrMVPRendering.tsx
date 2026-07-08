@@ -18,6 +18,11 @@ import {
   type PetyrNumericValue,
 } from '@/lib/petyr/formatters';
 import {
+  companyRevenueLifecycleLabel,
+  PETYR_COMPANY_REVENUE_LIFECYCLE_STATUSES,
+  type PetyrCompanyRevenueLifecycleStatus,
+} from '@/lib/petyr/companyRevenueLifecycle';
+import {
   ResponsiveContainer,
   LineChart,
   Line,
@@ -46,6 +51,7 @@ import type {
 
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const AFFECTED_COMPANIES_PREVIEW_LIMIT = 4;
+type RevenueLifecycleFilterValue = 'all' | PetyrCompanyRevenueLifecycleStatus;
 
 const chartColors = {
   forecastMese: '#2563eb',
@@ -145,6 +151,61 @@ function buildProgressMetrics(monthly: MonthlyMetric[], yearlyObjective?: number
     forecastMeseYtd,
     forecastYear,
   };
+}
+
+function emptyMonthlyMetrics() {
+  return months.map((month) => ({
+    month,
+    forecastMese: 0,
+    forecastOngoing: 0,
+    forecastAI: 0,
+    real: 0,
+  }));
+}
+
+function selectRevenueLifecycleAggregate<T extends {
+  monthly: MonthlyMetric[];
+  metrics?: ProgressMetrics;
+  yearlyObjective?: number | null;
+  revenueLifecycleBreakdowns?: Partial<Record<PetyrCompanyRevenueLifecycleStatus, {
+    monthly: MonthlyMetric[];
+    metrics?: ProgressMetrics;
+  }>>;
+}>(row: T, filter: RevenueLifecycleFilterValue) {
+  if (filter === 'all') {
+    return {
+      monthly: row.monthly,
+      metrics: row.metrics ?? buildProgressMetrics(row.monthly, row.yearlyObjective),
+    };
+  }
+
+  const breakdown = row.revenueLifecycleBreakdowns?.[filter];
+  const monthly = breakdown?.monthly ?? emptyMonthlyMetrics();
+
+  return {
+    monthly,
+    metrics: breakdown?.metrics ?? buildProgressMetrics(monthly, row.yearlyObjective),
+  };
+}
+
+function RevenueLifecycleFilterControl({
+  value,
+  onChange,
+}: {
+  value: RevenueLifecycleFilterValue;
+  onChange: (value: RevenueLifecycleFilterValue) => void;
+}) {
+  return (
+    <div className="w-full sm:w-[220px]">
+      <div className="mb-2 text-xs font-medium text-slate-500">Company type</div>
+      <NativeSelect value={value} onChange={(nextValue) => onChange(nextValue as RevenueLifecycleFilterValue)} label="Company type filter">
+        <option value="all">All company types</option>
+        {PETYR_COMPANY_REVENUE_LIFECYCLE_STATUSES.map((status) => (
+          <option key={status} value={status}>{companyRevenueLifecycleLabel(status)}</option>
+        ))}
+      </NativeSelect>
+    </div>
+  );
 }
 
 function varianceClass(value: number, baseline: number) {
@@ -253,17 +314,20 @@ function MonthCard({ month }: { month: MonthlyMetric }) {
 function BranchView() {
   const { branchRows } = useRenderingData();
   const [expandedBranch, setExpandedBranch] = useState<string | null>(null);
+  const [revenueLifecycleFilter, setRevenueLifecycleFilter] = useState<RevenueLifecycleFilterValue>('all');
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="text-sm font-medium text-slate-600">Branch View</div>
         <InfoPill label="Legend" text="Closed revenue is compared with the previous-month forecast alongside ongoing forecast. Green = above forecast, neutral = aligned, yellow = below forecast, red = severe gap." />
+        <RevenueLifecycleFilterControl value={revenueLifecycleFilter} onChange={setRevenueLifecycleFilter} />
       </div>
 
       {branchRows.map((branch) => {
         const isExpanded = expandedBranch === branch.code;
-        const metrics = branch.metrics ?? buildProgressMetrics(branch.monthly, branch.yearlyObjective);
+        const selectedAggregate = selectRevenueLifecycleAggregate(branch, revenueLifecycleFilter);
+        const metrics = selectedAggregate.metrics;
 
         return (
           <Card key={branch.code} className="rounded-2xl border-slate-200 shadow-sm">
@@ -289,7 +353,7 @@ function BranchView() {
                     <div className="text-xs text-slate-500">Closed revenue + planned: {euroOrUnavailable(metrics.workedAndPlanned)}</div>
                   </div>
                   <div className="grid grid-cols-1 gap-2 xl:grid-cols-2 2xl:grid-cols-3">
-                    {branch.monthly.map((month) => (
+                    {selectedAggregate.monthly.map((month) => (
                       <MonthCard key={`${branch.code}-${month.month}`} month={month} />
                     ))}
                   </div>
@@ -306,12 +370,17 @@ function BranchView() {
 function BusinessUnitView() {
   const { businessUnitRows } = useRenderingData();
   const [expandedBusinessUnit, setExpandedBusinessUnit] = useState<string | null>(null);
+  const [revenueLifecycleFilter, setRevenueLifecycleFilter] = useState<RevenueLifecycleFilterValue>('all');
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <RevenueLifecycleFilterControl value={revenueLifecycleFilter} onChange={setRevenueLifecycleFilter} />
+      </div>
       {businessUnitRows.map((unit) => {
         const isExpanded = expandedBusinessUnit === unit.code;
-        const metrics = unit.metrics ?? buildProgressMetrics(unit.monthly, unit.yearlyObjective);
+        const selectedAggregate = selectRevenueLifecycleAggregate(unit, revenueLifecycleFilter);
+        const metrics = selectedAggregate.metrics;
 
         return (
           <Card key={unit.code} className="rounded-2xl border-slate-200 shadow-sm">
@@ -337,7 +406,7 @@ function BusinessUnitView() {
                     <div className="text-xs text-slate-500">Closed revenue + planned: {euroOrUnavailable(metrics.workedAndPlanned)}</div>
                   </div>
                   <div className="grid grid-cols-1 gap-2 xl:grid-cols-2 2xl:grid-cols-3">
-                    {unit.monthly.map((month) => (
+                    {selectedAggregate.monthly.map((month) => (
                       <MonthCard key={`${unit.code}-${month.month}`} month={month} />
                     ))}
                   </div>
@@ -354,12 +423,17 @@ function BusinessUnitView() {
 function SingleCSMView() {
   const { managementRows } = useRenderingData();
   const [expandedCSM, setExpandedCSM] = useState<string | null>(null);
+  const [revenueLifecycleFilter, setRevenueLifecycleFilter] = useState<RevenueLifecycleFilterValue>('all');
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <RevenueLifecycleFilterControl value={revenueLifecycleFilter} onChange={setRevenueLifecycleFilter} />
+      </div>
       {managementRows.map((row) => {
         const isExpanded = expandedCSM === row.csm;
-        const metrics = row.metrics ?? buildProgressMetrics(row.monthly);
+        const selectedAggregate = selectRevenueLifecycleAggregate(row, revenueLifecycleFilter);
+        const metrics = selectedAggregate.metrics;
 
         return (
           <Card key={row.csm} className="rounded-2xl border-slate-200 shadow-sm">
@@ -384,7 +458,7 @@ function SingleCSMView() {
                     <Badge variant="secondary">CSM KPI placeholder</Badge>
                   </div>
                   <div className="grid grid-cols-1 gap-2 xl:grid-cols-2 2xl:grid-cols-3">
-                    {row.monthly.map((month) => (
+                    {selectedAggregate.monthly.map((month) => (
                       <MonthCard key={`${row.csm}-${month.month}`} month={month} />
                     ))}
                   </div>
@@ -400,11 +474,13 @@ function SingleCSMView() {
 
 function YearlyBranchView() {
   const { branchRows } = useRenderingData();
+  const [revenueLifecycleFilter, setRevenueLifecycleFilter] = useState<RevenueLifecycleFilterValue>('all');
 
   return (
     <Card className="rounded-2xl border-slate-200 shadow-sm">
       <CardHeader>
         <CardTitle>Yearly View · Branch</CardTitle>
+        <RevenueLifecycleFilterControl value={revenueLifecycleFilter} onChange={setRevenueLifecycleFilter} />
       </CardHeader>
       <CardContent>
         <div className="overflow-auto rounded-2xl border border-slate-200 bg-white">
@@ -421,7 +497,7 @@ function YearlyBranchView() {
             </TableHeader>
             <TableBody>
               {branchRows.map((branch) => {
-                const metrics = branch.metrics ?? buildProgressMetrics(branch.monthly, branch.yearlyObjective);
+                const metrics = selectRevenueLifecycleAggregate(branch, revenueLifecycleFilter).metrics;
                 return (
                   <TableRow key={branch.code}>
                     <TableCell className="font-medium">{branch.code}</TableCell>

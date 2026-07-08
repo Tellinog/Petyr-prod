@@ -108,6 +108,7 @@ forecast_annual_snapshot_change_log (deprecated legacy)
 forecast_save_session
 forecast_change_log
 company_forecast_status
+company_revenue_lifecycle
 app_setting
 petyr_performance_measurement
 ai_forecast_cache
@@ -345,6 +346,33 @@ Unique key:
 ```txt
 company_name
 ```
+
+### company_revenue_lifecycle
+
+Purpose:
+- store the derived company/year revenue lifecycle used by Management filters;
+- keep the status auditable at company level after Petyr computes it from PostgreSQL-backed Redash campaign closed revenue.
+
+Unique key:
+
+```txt
+company_name + year
+```
+
+Statuses:
+
+```txt
+existing
+new_business
+reactivated
+```
+
+Rules:
+- `existing`: the company has closed revenue in the selected year and in the immediately previous year;
+- `reactivated`: the company has closed revenue in the selected year, no closed revenue in the immediately previous year and closed revenue two years before the selected year;
+- `new_business`: the company has closed revenue in the selected year and no closed revenue in the two immediately previous years;
+- when a company has no selected-year closed revenue, `status` remains null rather than inventing a fourth lifecycle state;
+- the table stores selected-year, previous-year and two-years-ago revenue totals and boolean evidence flags.
 
 ### app_setting
 

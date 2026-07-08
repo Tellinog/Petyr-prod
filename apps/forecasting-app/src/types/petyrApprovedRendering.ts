@@ -1,3 +1,5 @@
+import type { PetyrCompanyRevenueLifecycleStatus } from "@/lib/petyr/companyRevenueLifecycle";
+
 export type MonthlyMetric = {
   month: string;
   forecastMese: number;
@@ -18,12 +20,18 @@ export type ProgressMetrics = {
   forecastYear: number;
 };
 
+export type RevenueLifecycleAggregateBreakdown = Partial<Record<PetyrCompanyRevenueLifecycleStatus, {
+  monthly: MonthlyMetric[];
+  metrics?: ProgressMetrics;
+}>>;
+
 export type BranchRow = {
   code: string;
   label: string;
   yearlyObjective: number | null;
   monthly: MonthlyMetric[];
   metrics?: ProgressMetrics;
+  revenueLifecycleBreakdowns?: RevenueLifecycleAggregateBreakdown;
 };
 
 export type BusinessUnitRow = {
@@ -32,6 +40,7 @@ export type BusinessUnitRow = {
   yearlyObjective: number | null;
   monthly: MonthlyMetric[];
   metrics?: ProgressMetrics;
+  revenueLifecycleBreakdowns?: RevenueLifecycleAggregateBreakdown;
 };
 
 export type CustomerBusinessUnitMonth = {
@@ -61,6 +70,7 @@ export type CustomerRow = {
   forecastAccuracy: string;
   aiAccuracy: string;
   risk: string;
+  revenueLifecycleStatus: PetyrCompanyRevenueLifecycleStatus | null;
   months?: CustomerMonth[];
 };
 
@@ -106,6 +116,7 @@ export type ManagementRow = {
   csm: string;
   monthly: MonthlyMetric[];
   metrics?: ProgressMetrics;
+  revenueLifecycleBreakdowns?: RevenueLifecycleAggregateBreakdown;
 };
 
 export type ForecastChangeLogEntry = {

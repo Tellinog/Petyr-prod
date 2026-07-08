@@ -166,6 +166,21 @@ Petyr Admin records each manual or scheduled Daily AI Forecast run in
 `petyr_performance_measurement` under operation `Daily AI Forecast run`, showing
 duration, run source, selected/processed/failed company counts, saved/skipped
 rows and the daily model version.
+The Petyr Admin manual run reuses the deterministic Daily AI Forecast service
+but runs without the inter-company delay so the browser request does not wait on
+the scheduled worker pacing and hit an upstream proxy timeout.
+
+Management View company revenue lifecycle:
+
+Petyr stores company/year lifecycle rows in `company_revenue_lifecycle`, derived
+from PostgreSQL-backed Redash closed campaign revenue for the selected year and
+the two immediately previous years. `existing` means selected-year revenue plus
+previous-year revenue, `reactivated` means selected-year revenue plus revenue two
+years ago but no previous-year revenue, and `new_business` means selected-year
+revenue with no revenue in either of the two previous years. Companies without
+selected-year closed revenue keep a null lifecycle status. Management aggregate
+cards expose filters for All company types, Existing, New business and
+Reactivated.
 
 Petyr Intelligence scheduled worker:
 
@@ -205,7 +220,10 @@ The read endpoint requires `petyr:read`; the save endpoint and normal
 `/forecasting/entry` page require `petyr:forecast:write`. The normal page defaults
 to the current server month/year, exposes a CSM filter plus Month and Year controls with a same-row `Load` button, official Petyr
 Business Units, active forecast cells for the loaded month, read-only Closed Revenue
-YTD and one note per company. It includes an Active column immediately after
+YTD and one note per company. A company note can be saved without changing any
+Business Unit forecast value or Active status; Petyr stores a normal save
+session with the note and no Business Unit change-log rows, matching Company
+Detail note-only logging. It includes an Active column immediately after
 Company, with the same all/active/inactive visibility filter and row checkbox
 interaction used by Annual Forecast Entry; Active changes persist to
 `company_forecast_status` with save-session/change-log audit and clear numeric
@@ -216,7 +234,11 @@ selected-month read-only `Closed Revenue` value instead of a forecast input.
 For editable current and future selected months, Monthly uses Ongoing Forecast
 as the active compact/editable field from the 15th of the month before the
 selected month onward; future selected months before that cutoff use Previous
-Month Forecast.
+Month Forecast. When Ongoing Forecast is active and a company/Business Unit has
+no saved Ongoing value yet, Monthly shows the saved Previous Month Forecast for
+that same selected month as the Ongoing placeholder. Clicking or focusing the
+cell accepts the placeholder through the same interaction used by AI Forecast
+placeholders, and the user can still edit the value manually before saving.
 When a Business Unit is expanded, Previous Month Forecast appears to the
 left of Ongoing Forecast and the read-only closed revenue column remains to the
 right of Ongoing Forecast, labelled `Closed Revenue` for past selected months
@@ -266,7 +288,7 @@ GET /api/petyr/forecast-entry/annual-batch?csmName=...&csmName=...&year=YYYY
 POST /api/petyr/forecast-entry/annual-batch/save
 ```
 
-The annual section is a separate tab inside `/forecasting/entry`. It exposes a CSM multi-select and Year filter, and users can select one or more CSMs to view the combined company portfolio for all selected CSMs. It stays synchronized with Monthly Forecast Entry only when Annual has exactly one selected CSM; Monthly remains single-CSM when Annual has multiple selected CSMs. The Annual table shows the selected CSM filter year total as a highlighted portfolio-total row directly under the table headers and above the first company row, aligned to Forecast Initial, Forecast Ongoing, visible Business Unit, Closed Revenue YTD, Planned This Year and ratio columns; Active, Confidence and Logs stay empty on that total row. If the Active visibility filter is changed, the highlighted total row follows the visible rows. The Annual portfolio-total row stays visible below the sticky table headers while users scroll down the portfolio. The Annual table uses its own vertical scroll area so only the full-width legend row and table header stay visible while users scroll down the portfolio; the section title, filters and Forecast Initial window notice scroll away above it. It keeps Company and Confidence visible during horizontal scroll, marks editable/manual-entry columns with a subtle background, displays the official `Experience` Business Unit as `UX` in Forecast Entry headers, sizes numeric cells for values up to eight digits plus separators, renders those numeric monetary values as integers without decimal cents, mutes zero/empty cells in a softer grey, uses compact vertical padding and top-aligns table body cell content. Saved/AI-confirmed labels and related AI Forecast references render on separate lines, with the AI Forecast reference using the AI legend color. Each Annual company row shows the company-level total of saved or locally edited Business Unit Forecast Ongoing values directly under the company name and above the CSM label. The annual table includes a legend-row button to collapse or show all Business Unit columns. Collapsed mode keeps only Active through Confidence plus Closed Revenue YTD through Logs visible. Annual headers can sort the visible rows by Company, Forecast Initial, Forecast Ongoing, Confidence and each visible Business Unit. Business Unit sorting orders rows from highest to lowest value for that Business Unit, using saved or locally edited Forecast Ongoing values when present and AI placeholder values when no CSM value is saved. The Active column can filter the table to all, active only or inactive only without changing persisted status. It stores company + year Forecast Initial and Forecast Ongoing Confidence in
+The annual section is a separate tab inside `/forecasting/entry`. It exposes a CSM multi-select and Year filter, and users can select one or more CSMs to view the combined company portfolio for all selected CSMs. It stays synchronized with Monthly Forecast Entry only when Annual has exactly one selected CSM; Monthly remains single-CSM when Annual has multiple selected CSMs. The Annual table shows the selected CSM filter year total as a highlighted portfolio-total row directly under the table headers and above the first company row, aligned to Forecast Initial, Forecast Ongoing, visible Business Unit, Closed Revenue YTD, Planned This Year and ratio columns; Active, Confidence and Logs stay empty on that total row. If the Active visibility filter is changed, the highlighted total row follows the visible rows. The Annual portfolio-total row stays visible below the sticky table headers while users scroll down the portfolio. The Annual table uses its own vertical scroll area so only the full-width legend row and table header stay visible while users scroll down the portfolio; the section title, filters and Forecast Initial window notice scroll away above it. It keeps Company and Confidence visible during horizontal scroll, marks editable/manual-entry columns with a subtle background, displays the official `Experience` Business Unit as `UX` in Forecast Entry headers, sizes numeric cells for values up to eight digits plus separators, renders those numeric monetary values as integers without decimal cents, mutes zero/empty cells in a softer grey, uses compact vertical padding and top-aligns table body cell content. Saved/AI-confirmed labels and related AI Forecast references render on separate lines, with the AI Forecast reference using the AI legend color. Annual company rows show only the linked company name in the first column, without a company-level Forecast Ongoing total label or CSM label beneath it. The annual table includes a legend-row button to collapse or show all Business Unit columns. Collapsed mode keeps only Active through Confidence plus Closed Revenue YTD through Logs visible. Annual headers can sort the visible rows by Company, Forecast Initial, Forecast Ongoing, Confidence and each visible Business Unit. Business Unit sorting orders rows from highest to lowest value for that Business Unit, using saved or locally edited Forecast Ongoing values when present and AI placeholder values when no CSM value is saved. The Active column can filter the table to all, active only or inactive only without changing persisted status. It stores company + year Forecast Initial and Forecast Ongoing Confidence in
 `forecast_annual_entry`, stores annual BU Forecast Ongoing values in `forecast_annual`, requires Confidence only when Forecast Ongoing BU values change without an existing confidence value, and
 audits effective changes through `forecast_save_session` /
 `forecast_change_log` with source `Annual Forecast Entry`. Annual saves use the same floating bottom-right `Save` button pattern and do not show separate top or bottom inline save buttons. Pressing Enter inside an editable Annual Forecast Initial, Forecast Ongoing Business Unit or Confidence field triggers the same save flow and floating confirmation as the Save button. Its read endpoint uses a portfolio-scoped PostgreSQL read model for the selected CSM/year instead of loading full Company Detail for each customer. After schema changes,

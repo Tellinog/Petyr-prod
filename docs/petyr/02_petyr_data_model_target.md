@@ -188,6 +188,27 @@ Every effective snapshot creation or overwrite writes one audit row.
 - updated_by
 - updated_at
 
+## company_revenue_lifecycle
+
+- id
+- company_name
+- year
+- status: existing | new_business | reactivated | null
+- current_year_revenue
+- previous_year_revenue
+- two_years_ago_revenue
+- has_current_year_revenue
+- has_previous_year_revenue
+- has_two_years_ago_revenue
+- calculated_at
+- updated_at
+
+`company_revenue_lifecycle` stores the company-level lifecycle classification
+derived from PostgreSQL-backed Redash closed revenue for the selected year and
+the two immediately previous years. `status` is nullable when the company has no
+closed revenue in the selected year, because product currently defines only the
+three current-revenue states and no fourth no-current-revenue state.
+
 ## app_setting
 
 - setting_key

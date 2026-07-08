@@ -8,6 +8,7 @@ import {
 import { getForecastEntryMode, type ForecastEntryMode } from "@/lib/forecastEntryMode";
 import {
   PETYR_BUSINESS_UNITS,
+  PETYR_FORECAST_ENTRY_BUSINESS_UNITS,
   PETYR_FORECAST_INTELLIGENCE_CACHE_BUSINESS_UNIT,
   normalizePetyrBusinessUnit
 } from "@/lib/petyr/constants";
@@ -21,6 +22,11 @@ import { logPetyrPerformance, startPetyrPerformanceTimer } from "@/lib/petyr/per
 import { resolvePreferredCsmName } from "@/lib/petyr/csmIdentity";
 import { getPetyrCachedRead } from "@/services/forecastEntryReadCache";
 import type { PetyrNumericAiForecastCacheReadModelRow } from "@/lib/petyr/numericAiForecastCacheReadModel";
+import {
+  classifyCompanyRevenueLifecycle,
+  PETYR_COMPANY_REVENUE_LIFECYCLE_STATUSES,
+  type PetyrCompanyRevenueLifecycleStatus
+} from "@/lib/petyr/companyRevenueLifecycle";
 
 const SAFE_IDENTIFIER_PATTERN = /^[a-z_][a-z0-9_]*$/;
 const SYSTEM_COLUMNS = new Set(["snapshot_id", "row_index", "synced_at"]);
@@ -232,6 +238,18 @@ type CompanyAccumulator = {
   forecastStatus: CompanyForecastStatus | null;
 };
 
+type CompanyRevenueLifecycleSnapshot = {
+  companyName: string;
+  year: number;
+  status: PetyrCompanyRevenueLifecycleStatus | null;
+  currentYearRevenue: number;
+  previousYearRevenue: number;
+  twoYearsAgoRevenue: number;
+  hasCurrentYearRevenue: boolean;
+  hasPreviousYearRevenue: boolean;
+  hasTwoYearsAgoRevenue: boolean;
+};
+
 type PlannedFutureStatusClassification = "planned" | "excluded" | "missing" | "unrecognized";
 
 type PlannedFutureCampaignDiagnostics = {
@@ -271,6 +289,7 @@ export type PetyrCompanyOverview = {
   forecastAccuracyLabel: string;
   aiAccuracyLabel: string;
   isForecastActive: boolean | null;
+  revenueLifecycleStatus: PetyrCompanyRevenueLifecycleStatus | null;
 };
 
 export type PetyrCampaignDetail = {
@@ -445,6 +464,14 @@ export type PetyrManagementAggregateRow = {
   monthly: PetyrManagementMonthlyMetric[];
 };
 
+export type PetyrManagementRevenueLifecycleBreakdown = {
+  status: PetyrCompanyRevenueLifecycleStatus;
+  monthlyTotals: PetyrManagementMonthlyMetric[];
+  branchAggregates: PetyrManagementAggregateRow[];
+  businessUnitAggregates: PetyrManagementAggregateRow[];
+  csmAggregates: PetyrManagementAggregateRow[];
+};
+
 export type PetyrManagementTotals = {
   companiesCount: number;
   activeCompaniesCount: number;
@@ -470,6 +497,7 @@ export type PetyrManagementView = {
   branchAggregates: PetyrManagementAggregateRow[];
   businessUnitAggregates: PetyrManagementAggregateRow[];
   csmAggregates: PetyrManagementAggregateRow[];
+  revenueLifecycleBreakdowns: PetyrManagementRevenueLifecycleBreakdown[];
   csmDenominatorNote: string;
   plannedSourceNote: string;
   monthlyTrend: PetyrMonthlyRevenueTrend[];
@@ -1411,6 +1439,168 @@ function buildDataQualityStatus(accumulator: CompanyAccumulator, csmName: string
   return gaps.length > 0 ? `Data gaps: ${gaps.join(", ")}` : "Ready";
 }
 
+function emptyCompanyRevenueLifecycleSnapshot(companyName: string, year: number): CompanyRevenueLifecycleSnapshot {
+  return {
+    companyName,
+    year,
+    status: null,
+    currentYearRevenue: 0,
+    previousYearRevenue: 0,
+    twoYearsAgoRevenue: 0,
+    hasCurrentYearRevenue: false,
+    hasPreviousYearRevenue: false,
+    hasTwoYearsAgoRevenue: false
+  };
+}
+
+function buildCompanyRevenueLifecycleSnapshots(input: {
+  year: number;
+  today: Date;
+  campaignDateColumnExists: boolean;
+  campaignRows: MaterializedCampaignRow[];
+  ownershipMaps?: CompanyOwnershipMaps;
+  diagnostics: string[];
+}) {
+  const byCompany = new Map<string, CompanyRevenueLifecycleSnapshot>();
+  const targetYears = new Set([input.year, input.year - 1, input.year - 2]);
+
+  function ensure(companyName: string) {
+    const normalizedCompany = normalizeCellValue(companyName);
+    const companyKey = normalizeKey(normalizedCompany);
+    if (!companyKey) return null;
+
+    const existing = byCompany.get(companyKey);
+    if (existing) return existing;
+
+    const created = emptyCompanyRevenueLifecycleSnapshot(normalizedCompany, input.year);
+    byCompany.set(companyKey, created);
+    return created;
+  }
+
+  if (input.ownershipMaps?.hasRows) {
+    for (const ownership of input.ownershipMaps.byCompany.values()) {
+      ensure(ownership.companyName);
+    }
+  }
+
+  if (!input.campaignDateColumnExists && input.campaignRows.length > 0) {
+    input.diagnostics.push(
+      "Company revenue lifecycle is unavailable because Master Campaigns has no mapped campaign end date. Petyr stores unclassified company lifecycle rows until campaign dates are available."
+    );
+  }
+
+  for (const row of input.campaignRows) {
+    const companyName = normalizeCellValue(row.company_name);
+    const snapshot = ensure(companyName);
+    if (!snapshot || !input.campaignDateColumnExists) continue;
+
+    const campaignDate = parseDate(row.end_date);
+    const campaignYear = campaignDate?.getFullYear();
+    if (!campaignDate || !campaignYear || !targetYears.has(campaignYear)) continue;
+
+    if (!isWorkedCampaign({
+      row,
+      campaignDate,
+      year: campaignYear,
+      today: input.today,
+      campaignDateColumnExists: input.campaignDateColumnExists
+    })) {
+      continue;
+    }
+
+    const value = parseNumber(row.revenue_value);
+    if (campaignYear === input.year) snapshot.currentYearRevenue += value;
+    if (campaignYear === input.year - 1) snapshot.previousYearRevenue += value;
+    if (campaignYear === input.year - 2) snapshot.twoYearsAgoRevenue += value;
+  }
+
+  return [...byCompany.values()].map((snapshot) => {
+    const currentYearRevenue = roundMoney(snapshot.currentYearRevenue);
+    const previousYearRevenue = roundMoney(snapshot.previousYearRevenue);
+    const twoYearsAgoRevenue = roundMoney(snapshot.twoYearsAgoRevenue);
+
+    return {
+      ...snapshot,
+      status: classifyCompanyRevenueLifecycle({
+        currentYearRevenue,
+        previousYearRevenue,
+        twoYearsAgoRevenue
+      }),
+      currentYearRevenue,
+      previousYearRevenue,
+      twoYearsAgoRevenue,
+      hasCurrentYearRevenue: currentYearRevenue > 0,
+      hasPreviousYearRevenue: previousYearRevenue > 0,
+      hasTwoYearsAgoRevenue: twoYearsAgoRevenue > 0
+    };
+  });
+}
+
+async function persistCompanyRevenueLifecycleSnapshots(
+  diagnostics: string[],
+  snapshots: CompanyRevenueLifecycleSnapshot[]
+) {
+  if (snapshots.length === 0) return;
+
+  if (!(await relationExists("company_revenue_lifecycle"))) {
+    diagnostics.push("company_revenue_lifecycle is missing. Apply the forecasting app Prisma schema before Petyr can persist company revenue lifecycle rows.");
+    return;
+  }
+
+  const now = new Date();
+  const chunkSize = 100;
+
+  try {
+    for (let index = 0; index < snapshots.length; index += chunkSize) {
+      const chunk = snapshots.slice(index, index + chunkSize);
+      await prisma.$transaction(
+        chunk.map((snapshot) => prisma.companyRevenueLifecycle.upsert({
+          where: {
+            companyName_year: {
+              companyName: snapshot.companyName,
+              year: snapshot.year
+            }
+          },
+          create: {
+            companyName: snapshot.companyName,
+            year: snapshot.year,
+            status: snapshot.status,
+            currentYearRevenue: snapshot.currentYearRevenue,
+            previousYearRevenue: snapshot.previousYearRevenue,
+            twoYearsAgoRevenue: snapshot.twoYearsAgoRevenue,
+            hasCurrentYearRevenue: snapshot.hasCurrentYearRevenue,
+            hasPreviousYearRevenue: snapshot.hasPreviousYearRevenue,
+            hasTwoYearsAgoRevenue: snapshot.hasTwoYearsAgoRevenue,
+            calculatedAt: now
+          },
+          update: {
+            status: snapshot.status,
+            currentYearRevenue: snapshot.currentYearRevenue,
+            previousYearRevenue: snapshot.previousYearRevenue,
+            twoYearsAgoRevenue: snapshot.twoYearsAgoRevenue,
+            hasCurrentYearRevenue: snapshot.hasCurrentYearRevenue,
+            hasPreviousYearRevenue: snapshot.hasPreviousYearRevenue,
+            hasTwoYearsAgoRevenue: snapshot.hasTwoYearsAgoRevenue,
+            calculatedAt: now
+          }
+        }))
+      );
+    }
+
+    logPetyrPerformance("persistCompanyRevenueLifecycleSnapshots", {
+      tableName: "company_revenue_lifecycle",
+      rowCount: snapshots.length
+    });
+  } catch (error) {
+    diagnostics.push(`Unable to persist company revenue lifecycle rows: ${errorMessage(error)}`);
+    logPetyrPerformance("persistCompanyRevenueLifecycleSnapshots", {
+      tableName: "company_revenue_lifecycle",
+      rowCount: snapshots.length,
+      status: "error"
+    });
+  }
+}
+
 async function readForecastMonthlyRows(diagnostics: string[], where?: Prisma.ForecastMonthlyWhereInput) {
   if (!(await relationExists("forecast_monthly"))) {
     diagnostics.push("forecast_monthly is missing. Apply the forecasting app Prisma schema before Petyr can read CSM monthly forecasts.");
@@ -1560,6 +1750,15 @@ async function loadOverviewInputsUncached(year: number, month: number, diagnosti
   ]);
   const ownershipMaps = buildCompanyOwnershipMaps(ownershipRows);
   const latestAiRows = latestAiForecasts(aiRows);
+  const companyRevenueLifecycles = buildCompanyRevenueLifecycleSnapshots({
+    year,
+    today: new Date(),
+    campaignDateColumnExists: Boolean(campaignContext.columns.endDate),
+    campaignRows,
+    ownershipMaps,
+    diagnostics
+  });
+  await persistCompanyRevenueLifecycleSnapshots(diagnostics, companyRevenueLifecycles);
 
   logPetyrPerformance("loadOverviewInputs rows loaded", {
     year,
@@ -1570,7 +1769,8 @@ async function loadOverviewInputsUncached(year: number, month: number, diagnosti
     forecastMonthlyRows: monthlyRows.length,
     forecastAnnualRows: annualRows.length,
     aiForecastCacheRows: aiRows.length,
-    latestAiForecastCacheRows: latestAiRows.length
+    latestAiForecastCacheRows: latestAiRows.length,
+    companyRevenueLifecycleRows: companyRevenueLifecycles.length
   });
 
   if (ownershipContext.exists && ownershipContext.columns.company && ownershipRows.length === 0) {
@@ -1619,7 +1819,8 @@ async function loadOverviewInputsUncached(year: number, month: number, diagnosti
     monthlyRows,
     annualRows,
     companyStatuses,
-    aiRows: latestAiRows
+    aiRows: latestAiRows,
+    companyRevenueLifecycles
   };
 }
 
@@ -1635,8 +1836,10 @@ function buildOverviewRows(input: {
   annualRows: ForecastAnnual[];
   companyStatuses: CompanyForecastStatus[];
   aiRows: PetyrNumericAiForecastCacheRow[];
+  companyRevenueLifecycles: CompanyRevenueLifecycleSnapshot[];
 }) {
   const companies = new Map<string, CompanyAccumulator>();
+  const lifecycleByCompany = new Map(input.companyRevenueLifecycles.map((row) => [normalizeKey(row.companyName), row]));
   const aiCacheKeys = new Set(
     input.aiRows
       .filter((row) => row.month === input.month)
@@ -1781,7 +1984,8 @@ function buildOverviewRows(input: {
         aiForecast: Math.round(accumulator.aiForecast * 100) / 100,
         forecastAccuracyLabel: buildAccuracyLabel(accumulator.previousMonthForecast, accumulator.currentYearRevenue),
         aiAccuracyLabel: buildAccuracyLabel(accumulator.aiForecast, accumulator.currentYearRevenue),
-        isForecastActive: accumulator.forecastStatus?.isActive ?? null
+        isForecastActive: accumulator.forecastStatus?.isActive ?? null,
+        revenueLifecycleStatus: lifecycleByCompany.get(normalizeKey(accumulator.companyName))?.status ?? null
       };
     })
     .sort((left, right) => {
@@ -2667,7 +2871,7 @@ function buildBusinessUnitSummaryRows(input: {
         normalizedToOtherCount: row.normalizedToOtherCount
       };
     })
-    .sort((left, right) => PETYR_BUSINESS_UNITS.indexOf(left.businessUnit as (typeof PETYR_BUSINESS_UNITS)[number]) - PETYR_BUSINESS_UNITS.indexOf(right.businessUnit as (typeof PETYR_BUSINESS_UNITS)[number]));
+    .sort((left, right) => PETYR_FORECAST_ENTRY_BUSINESS_UNITS.indexOf(left.businessUnit as (typeof PETYR_FORECAST_ENTRY_BUSINESS_UNITS)[number]) - PETYR_FORECAST_ENTRY_BUSINESS_UNITS.indexOf(right.businessUnit as (typeof PETYR_FORECAST_ENTRY_BUSINESS_UNITS)[number]));
 }
 
 type ManagementAggregateBucket = {
@@ -3032,6 +3236,8 @@ function buildManagementAggregateRows(input: {
   monthlyRows: ForecastMonthly[];
   annualRows: ForecastAnnual[];
   objectiveMaps?: ManagementObjectiveMaps;
+  companyRevenueLifecycles?: CompanyRevenueLifecycleSnapshot[];
+  revenueLifecycleStatus?: PetyrCompanyRevenueLifecycleStatus;
 }) {
   const branchBuckets = new Map<string, ManagementAggregateBucket>();
   const businessUnitBuckets = new Map<string, ManagementAggregateBucket>();
@@ -3039,6 +3245,12 @@ function buildManagementAggregateRows(input: {
   const totalBucket = createManagementAggregateBucket("branch", "Total");
   const companyBranchMap = buildCompanyBranchMap(input.ownershipMaps);
   const plannedFutureDiagnostics = createPlannedFutureCampaignDiagnostics();
+  const lifecycleByCompany = new Map((input.companyRevenueLifecycles ?? []).map((row) => [normalizeKey(row.companyName), row]));
+
+  function companyMatchesLifecycle(companyName: string) {
+    if (!input.revenueLifecycleStatus) return true;
+    return lifecycleByCompany.get(normalizeKey(companyName))?.status === input.revenueLifecycleStatus;
+  }
 
   if (input.ownershipMaps?.hasRows) {
     const ownershipBranches = new Set<string>();
@@ -3052,7 +3264,7 @@ function buildManagementAggregateRows(input: {
     }
   }
 
-  for (const businessUnit of PETYR_BUSINESS_UNITS) {
+  for (const businessUnit of PETYR_FORECAST_ENTRY_BUSINESS_UNITS) {
     ensureManagementBucket(businessUnitBuckets, "business_unit", businessUnit);
   }
 
@@ -3068,6 +3280,7 @@ function buildManagementAggregateRows(input: {
   for (const row of input.campaignRows) {
     const companyName = normalizeCellValue(row.company_name);
     if (!companyName) continue;
+    if (!companyMatchesLifecycle(companyName)) continue;
 
     const campaignDate = parseDate(row.end_date);
     const worked = isWorkedCampaign({
@@ -3107,6 +3320,7 @@ function buildManagementAggregateRows(input: {
 
   for (const row of input.monthlyRows) {
     if (row.year !== input.year || row.month < 1 || row.month > 12) continue;
+    if (!companyMatchesLifecycle(row.companyName)) continue;
 
     const businessUnit = normalizeBusinessUnit(row.businessUnit);
     const csmName = normalizeCsm(companyOwnership(input.ownershipMaps, row.companyName)?.csmName ?? row.csmName);
@@ -3118,6 +3332,7 @@ function buildManagementAggregateRows(input: {
 
   for (const row of input.annualRows) {
     if (row.year !== input.year || !row.initialForecast) continue;
+    if (!companyMatchesLifecycle(row.companyName)) continue;
 
     const businessUnit = normalizeBusinessUnit(row.businessUnit);
     const csmName = normalizeCsm(companyOwnership(input.ownershipMaps, row.companyName)?.csmName ?? row.csmName);
@@ -3129,6 +3344,7 @@ function buildManagementAggregateRows(input: {
 
   for (const row of input.annualRows) {
     if (row.year !== input.year) continue;
+    if (!companyMatchesLifecycle(row.companyName)) continue;
 
     const businessUnit = normalizeBusinessUnit(row.businessUnit);
     const csmName = normalizeCsm(companyOwnership(input.ownershipMaps, row.companyName)?.csmName ?? row.csmName);
@@ -3147,7 +3363,7 @@ function buildManagementAggregateRows(input: {
     });
   const businessUnitAggregates = [...businessUnitBuckets.values()]
     .map((bucket) => finalizeManagementBucket(bucket, input.reportingMonth, input.year, input.objectiveMaps))
-    .sort((left, right) => PETYR_BUSINESS_UNITS.indexOf(left.label as (typeof PETYR_BUSINESS_UNITS)[number]) - PETYR_BUSINESS_UNITS.indexOf(right.label as (typeof PETYR_BUSINESS_UNITS)[number]));
+    .sort((left, right) => PETYR_FORECAST_ENTRY_BUSINESS_UNITS.indexOf(left.label as (typeof PETYR_FORECAST_ENTRY_BUSINESS_UNITS)[number]) - PETYR_FORECAST_ENTRY_BUSINESS_UNITS.indexOf(right.label as (typeof PETYR_FORECAST_ENTRY_BUSINESS_UNITS)[number]));
   const csmAggregates = [...csmBuckets.values()]
     .map((bucket) => finalizeManagementBucket(bucket, input.reportingMonth, input.year, input.objectiveMaps))
     .sort((left, right) => {
@@ -3523,7 +3739,8 @@ export async function getCompaniesOverview(year?: number, month?: number) {
         monthlyRows: inputs.monthlyRows,
         annualRows: inputs.annualRows,
         companyStatuses: inputs.companyStatuses,
-        aiRows: inputs.aiRows
+        aiRows: inputs.aiRows,
+        companyRevenueLifecycles: inputs.companyRevenueLifecycles
       }),
       diagnostics
     );
@@ -3572,7 +3789,8 @@ export async function getManagementView(year: number) {
       monthlyRows: inputs.monthlyRows,
       annualRows: inputs.annualRows,
       companyStatuses: inputs.companyStatuses,
-      aiRows: inputs.aiRows
+      aiRows: inputs.aiRows,
+      companyRevenueLifecycles: inputs.companyRevenueLifecycles
     });
     const monthlyTrend = buildMonthlyTrend({
       year: resolvedYear,
@@ -3601,7 +3819,32 @@ export async function getManagementView(year: number) {
       ownershipMaps: inputs.ownershipMaps,
       monthlyRows: inputs.monthlyRows,
       annualRows: inputs.annualRows,
-      objectiveMaps
+      objectiveMaps,
+      companyRevenueLifecycles: inputs.companyRevenueLifecycles
+    });
+    const revenueLifecycleBreakdowns = PETYR_COMPANY_REVENUE_LIFECYCLE_STATUSES.map((status) => {
+      const breakdown = buildManagementAggregateRows({
+        year: resolvedYear,
+        reportingMonth,
+        today,
+        diagnostics: [],
+        campaignDateColumnExists: Boolean(inputs.campaignContext.columns.endDate),
+        campaignRows: inputs.campaignRows,
+        ownershipMaps: inputs.ownershipMaps,
+        monthlyRows: inputs.monthlyRows,
+        annualRows: inputs.annualRows,
+        objectiveMaps,
+        companyRevenueLifecycles: inputs.companyRevenueLifecycles,
+        revenueLifecycleStatus: status
+      });
+
+      return {
+        status,
+        monthlyTotals: breakdown.monthlyTotals,
+        branchAggregates: breakdown.branchAggregates,
+        businessUnitAggregates: breakdown.businessUnitAggregates,
+        csmAggregates: breakdown.csmAggregates
+      };
     });
     addMissingManagementObjectiveDiagnostics({
       diagnostics,
@@ -3619,6 +3862,7 @@ export async function getManagementView(year: number) {
         branchAggregates: managementAggregates.branchAggregates,
         businessUnitAggregates: managementAggregates.businessUnitAggregates,
         csmAggregates: managementAggregates.csmAggregates,
+        revenueLifecycleBreakdowns,
         csmDenominatorNote: "CSM percentages require a dedicated CSM yearly objective. No CSM target is configured by default, so Petyr shows n/a and does not create a fallback target.",
         plannedSourceNote: "Closed revenue + planned uses Redash closed campaign revenue through today plus future Redash campaign revenue through year end for planning-like statuses, Setup, Recruiting and future Running. Ongoing Forecast shows current latest annual forecast rows when available, but forecast values are not used in planned-through-year-end.",
         monthlyTrend,
@@ -3660,6 +3904,13 @@ export async function getManagementView(year: number) {
         branchAggregates: managementAggregates.branchAggregates,
         businessUnitAggregates: managementAggregates.businessUnitAggregates,
         csmAggregates: managementAggregates.csmAggregates,
+        revenueLifecycleBreakdowns: PETYR_COMPANY_REVENUE_LIFECYCLE_STATUSES.map((status) => ({
+          status,
+          monthlyTotals: managementAggregates.monthlyTotals,
+          branchAggregates: [],
+          businessUnitAggregates: [],
+          csmAggregates: []
+        })),
         csmDenominatorNote: "CSM percentages require a dedicated CSM yearly objective. No CSM target is configured by default, so Petyr shows n/a and does not create a fallback target.",
         plannedSourceNote: "Closed revenue + planned uses Redash closed campaign revenue through today plus future Redash campaign revenue through year end for planning-like statuses, Setup, Recruiting and future Running. Ongoing Forecast shows current latest annual forecast rows when available, but forecast values are not used in planned-through-year-end.",
         monthlyTrend,
@@ -3715,7 +3966,8 @@ export async function getCsmOverviewWorkspace(year?: number) {
       monthlyRows: inputs.monthlyRows,
       annualRows: inputs.annualRows,
       companyStatuses: inputs.companyStatuses,
-      aiRows: inputs.aiRows
+      aiRows: inputs.aiRows,
+      companyRevenueLifecycles: inputs.companyRevenueLifecycles
     });
     const csmOverviewRows = expandCompanyOverviewsForRecentOwnership(overviewRows, inputs.ownershipMaps);
     const companies = buildCsmOverviewCompanies({
@@ -3805,7 +4057,8 @@ export async function getCsmOverview(csmName: string, year: number) {
       monthlyRows: inputs.monthlyRows,
       annualRows: inputs.annualRows,
       companyStatuses: inputs.companyStatuses,
-      aiRows: inputs.aiRows
+      aiRows: inputs.aiRows,
+      companyRevenueLifecycles: inputs.companyRevenueLifecycles
     });
     const companies = expandCompanyOverviewsForRecentOwnership(overviewRows, inputs.ownershipMaps).filter(
       (company) => normalizeKey(company.csmName) === normalizedCsm
@@ -3909,6 +4162,15 @@ export async function getCompanyDetail(companyName: string, year?: number) {
       readAiForecastCacheRows(diagnostics, { companyNames: requestedCompanyNames, year: resolvedYear })
     ]);
     const latestAiRows = latestAiForecasts(aiRows);
+    const companyRevenueLifecycles = buildCompanyRevenueLifecycleSnapshots({
+      year: resolvedYear,
+      today,
+      campaignDateColumnExists: Boolean(campaignContext.columns.endDate),
+      campaignRows,
+      ownershipMaps,
+      diagnostics
+    });
+    await persistCompanyRevenueLifecycleSnapshots(diagnostics, companyRevenueLifecycles);
 
     if (ownershipContext.exists && ownershipContext.columns.company && ownershipRows.length === 0) {
       diagnostics.push(`company_ownership is materialized but has no usable company owner rows. Petyr falls back to campaign/agreement CSM where available and groups Branch as "${UNASSIGNED_BRANCH}".`);
@@ -3929,7 +4191,8 @@ export async function getCompanyDetail(companyName: string, year?: number) {
       monthlyRows,
       annualRows,
       companyStatuses,
-      aiRows: latestAiRows
+      aiRows: latestAiRows,
+      companyRevenueLifecycles
     });
     const overview = overviewRows.find((row) => normalizeKey(row.companyName) === normalizedCompany) ?? null;
     const companyKey = normalizeKey(overview?.companyName ?? companyName);
@@ -4327,6 +4590,15 @@ export async function getForecastEntryScopedBatch(input: {
       })
     ]);
     const latestAiRows = latestAiForecasts(aiRows);
+    const companyRevenueLifecycles = buildCompanyRevenueLifecycleSnapshots({
+      year: resolvedYear,
+      today,
+      campaignDateColumnExists: Boolean(campaignContext.columns.endDate),
+      campaignRows,
+      ownershipMaps: ownershipSelection.ownershipMaps,
+      diagnostics
+    });
+    await persistCompanyRevenueLifecycleSnapshots(diagnostics, companyRevenueLifecycles);
     const overviewRows = buildOverviewRows({
       year: resolvedYear,
       month: resolvedMonth,
@@ -4338,7 +4610,8 @@ export async function getForecastEntryScopedBatch(input: {
       monthlyRows,
       annualRows: [],
       companyStatuses,
-      aiRows: latestAiRows
+      aiRows: latestAiRows,
+      companyRevenueLifecycles
     });
     const overviewByKey = new Map(overviewRows.map((row) => [normalizeKey(row.companyName), row]));
     const statusByKey = new Map(companyStatuses.map((row) => [normalizeKey(row.companyName), row]));
@@ -4673,7 +4946,8 @@ export async function getForecastEntryContextsBatch(input: {
       monthlyRows: inputs.monthlyRows,
       annualRows: inputs.annualRows,
       companyStatuses: inputs.companyStatuses,
-      aiRows: inputs.aiRows
+      aiRows: inputs.aiRows,
+      companyRevenueLifecycles: inputs.companyRevenueLifecycles
     });
     const requestedKeys = new Set(input.companies.map((company) => normalizeKey(company.companyName)));
     const overviewByKey = new Map(overviewRows.map((row) => [normalizeKey(row.companyName), row]));
@@ -4834,7 +5108,8 @@ export async function getAnnualForecastEntryPortfolioCompanies(input: {
       monthlyRows: inputs.monthlyRows,
       annualRows: inputs.annualRows,
       companyStatuses: inputs.companyStatuses,
-      aiRows: inputs.aiRows
+      aiRows: inputs.aiRows,
+      companyRevenueLifecycles: inputs.companyRevenueLifecycles
     });
     const requestedKeys = new Set(input.companies.map((company) => normalizeKey(company.companyName)));
     const overviewByKey = new Map(overviewRows.map((row) => [normalizeKey(row.companyName), row]));
@@ -4950,7 +5225,8 @@ export async function getForecastEntryContext(csmName: string, companyName: stri
       monthlyRows: inputs.monthlyRows,
       annualRows: inputs.annualRows,
       companyStatuses: inputs.companyStatuses,
-      aiRows: inputs.aiRows
+      aiRows: inputs.aiRows,
+      companyRevenueLifecycles: inputs.companyRevenueLifecycles
     });
     const company = overviewRows.find((row) => normalizeKey(row.companyName) === normalizedCompany) ?? null;
     const companyKey = normalizeKey(company?.companyName ?? companyName);

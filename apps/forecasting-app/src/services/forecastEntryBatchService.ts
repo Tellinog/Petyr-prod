@@ -18,7 +18,6 @@ import { clearNumericAiForecastCacheForCompany } from "@/services/petyrAiForecas
 
 const SAVE_SOURCE = "Forecast Entry Batch";
 const SAVE_USER_FALLBACK = "petyr-forecast-entry-batch";
-const NOTE_ONLY_MESSAGE = "Company note requires at least one active forecast value entered, accepted from AI or modified.";
 const NO_CHANGES_DETECTED_MESSAGE = "No changes detected";
 const BUSINESS_UNITS = new Set<string>(PETYR_BUSINESS_UNITS);
 const SOURCE_STATES = new Set(["accepted_ai", "manual_edit"]);
@@ -513,12 +512,6 @@ export async function saveForecastEntryBatch(input: ForecastEntryBatchSaveInput)
   const forecastType = resolveSaveForecastType(input, year, month, updates.some((update) => update.values.length > 0));
   const createdBy = asString(input.createdBy) || csmName || SAVE_USER_FALLBACK;
 
-  for (const update of updates) {
-    if (update.note && update.values.length === 0 && update.activeStatus === null) {
-      throw new ForecastEntryBatchError(`${update.companyName}: ${NOTE_ONLY_MESSAGE}`, 400);
-    }
-  }
-
   const contexts = new Map<string, PetyrForecastEntryContext>();
   for (const update of updates) {
     const context = await getForecastEntryContext(csmName, update.companyName, year, month);
@@ -577,11 +570,9 @@ export async function saveForecastEntryBatch(input: ForecastEntryBatchSaveInput)
       }
 
       const changedValues = prepared.filter((row) => row.changed);
-      if (update.note && changedValues.length === 0 && !activeChanged) {
-        throw new ForecastEntryBatchError(`${resolvedCompanyName}: ${NOTE_ONLY_MESSAGE}`, 400);
-      }
+      const noteChanged = Boolean(update.note);
 
-      if (changedValues.length === 0 && !activeChanged) continue;
+      if (changedValues.length === 0 && !activeChanged && !noteChanged) continue;
 
       const saveSession = await tx.forecastSaveSession.create({
         data: {

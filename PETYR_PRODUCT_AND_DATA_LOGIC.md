@@ -132,6 +132,7 @@ Petyr owns:
 - annual Business Unit objectives entered by management;
 - objective change audit trail;
 - company active/inactive status;
+- company revenue lifecycle status for Management filtering;
 - CSM notes;
 - save sessions;
 - change history;
@@ -247,6 +248,35 @@ Objective rules:
 - Business Unit yearly objectives are annual management-entered values;
 - do not derive Business Unit objectives from Redash;
 - do not invent Business Unit objectives.
+
+---
+
+## 7.1 Company revenue lifecycle
+
+Petyr classifies companies by selected-year closed revenue history and stores the
+result in `company_revenue_lifecycle`.
+
+Allowed statuses:
+
+- `existing`: the company has closed revenue in the selected year and at least
+  in the immediately previous year.
+- `new_business`: the company has closed revenue in the selected year and no
+  closed revenue in either of the two immediately previous years.
+- `reactivated`: the company has closed revenue in the selected year, no closed
+  revenue in the immediately previous year and closed revenue two years before
+  the selected year.
+
+For selected year 2026, revenue in 2026 and 2024 but not 2025 is
+`reactivated`; revenue in 2026 and 2023 only, with no 2025 or 2024 revenue, is
+`new_business`.
+
+When a company has no selected-year closed revenue, Petyr stores a null lifecycle
+status rather than inventing an extra category.
+
+Management View must expose filters for All company types, Existing, New
+business and Reactivated in Branch/monthly aggregate, Business Unit View, Single
+CSM View and Yearly View. Specific lifecycle filters must recalculate the
+aggregate values for the selected company lifecycle status.
 
 ---
 
@@ -370,6 +400,13 @@ Monthly Forecast Entry table rules:
 - when the selected month is before the current month, collapsed Business Unit
   groups show the selected-month `Closed Revenue` value instead of a forecast
   input, because past monthly forecast values are read-only;
+- when Ongoing Forecast is the active editable field and a company/Business Unit
+  has no saved Ongoing value yet, but it has a saved Previous Month Forecast for
+  the same selected month, Monthly Forecast Entry shows that Previous Month
+  value as the Ongoing placeholder. Clicking or focusing the cell accepts the
+  placeholder into the editable field, using the same save/approval interaction
+  as AI Forecast placeholders, and the user can still edit the value manually
+  before saving;
 - Expand/Collapse must look like an actionable button and sit at the far right
   of the Business Unit group header;
 - the Monthly table uses its own vertical scroll area; the CSM, Month, Year and
@@ -393,6 +430,10 @@ Monthly Forecast Entry table rules:
 - Monthly Forecast Entry displays Business Unit columns in this CSM check order:
   QA, UX/Experience, Accessibility, Security, FTE, TA, AI, OTHER/Other, Express,
   Community;
+- Monthly Forecast Entry allows a company-level note to be saved even when no
+  Business Unit forecast value or Active status changed. This creates a normal
+  save session with the note and no Business Unit change-log rows, matching the
+  Company Detail note-only behavior;
 - editable monthly forecast columns should be wide enough for their header
   labels;
 - numeric Monthly Forecast Entry cells display integer values without decimal
@@ -519,11 +560,10 @@ Table rules:
   companies only or inactive companies only; this is a client-side table view
   filter and does not modify `company_forecast_status`;
 - company names link to Company Detail;
-- each Annual company row shows the company-level total of saved or locally
-  edited Business Unit Forecast Ongoing values directly under the company name
-  and above the CSM label;
+- Annual company rows show only the linked company name in the first column,
+  without a company-level Forecast Ongoing total label or CSM label beneath it;
 - Logs opens Company Detail at the company logs anchor in a new tab and each
-  row action is labelled `See latest logs of <company>`;
+  row action is labelled `See latest logs`;
 - the Company and Confidence columns remain visible during horizontal scroll,
   the legend row spans the full horizontal table width, and table headers stay
   fixed during vertical scroll;
@@ -540,6 +580,9 @@ Table rules:
 - Annual Forecast Entry displays Business Unit columns in the same CSM check
   order as Monthly: QA, UX/Experience, Accessibility, Security, FTE, TA, AI,
   OTHER/Other, Express, Community;
+- Management View Business Unit rows and Business Unit revenue charts display
+  Business Units in that same order and with the same visible labels, while
+  preserving official stored values (`Experience`, `Other`) internally;
 - a button to the right of the legend collapses or shows all Business Unit
   columns, leaving only Active through Confidence and Closed Revenue YTD through
   Logs visible when collapsed;
@@ -1307,7 +1350,7 @@ is deliberately controlled:
 - AI forecasting is manually triggered;
 - the trigger is company by company;
 - do not run a global automatic LLM/OpenRouter batch in this phase;
-- manual endpoints must not process all companies together;
+- OpenRouter-backed manual endpoints must not process all companies together;
 - the goal is to control OpenRouter cost/credits and test result quality before
   expanding automation.
 
@@ -1326,6 +1369,10 @@ Accepted deterministic automation:
   version overwrite the existing AI Forecast cache row instead of skipping it;
 - no OpenRouter call, Forecast Intelligence call, CSM forecast write, annual forecast write,
   management objective write, Initial Forecast write, closed revenue write or Redash write.
+
+Petyr Admin may trigger the deterministic Daily AI Forecast for all active
+companies as an operational recovery run. That route is not an OpenRouter/LLM
+batch and uses no inter-company delay in the browser request.
 
 Granularity:
 
@@ -1600,11 +1647,15 @@ OpenRouter-backed AI forecast generation for the first MVP remains manual and co
 Rules for this cycle:
 
 - no automatic LLM/OpenRouter global batch after Redash sync;
-- no manual request that processes all companies together;
+- no OpenRouter-backed manual request that processes all companies together;
 - the user/operator selects one company and target year;
 - Petyr generates or updates only eligible future months for that company and
   Business Unit scope;
 - nightly deterministic-only automation is allowed through `petyr-ai-forecast-worker`;
+- Petyr Admin may run the deterministic Daily AI Forecast for all active
+  companies as an operational recovery action; that manual browser-triggered
+  run uses the same deterministic service and advisory lock as the scheduled
+  worker but without the inter-company delay;
 - future automated or progressive LLM/OpenRouter batch processing requires a
   separate product and cost-control decision.
 

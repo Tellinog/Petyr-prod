@@ -41,7 +41,7 @@ The first MVP started as manual and company-by-company:
 
 - an operator/user triggers AI forecasting for one selected company at a time;
 - the trigger target is one company and one selected forecast year;
-- the manual endpoint must not process all companies together;
+- the OpenRouter/LLM manual endpoint must not process all companies together;
 - Petyr must not run a global automatic LLM/OpenRouter batch in this phase;
 - Redash sync completion must not automatically trigger AI Forecasting in this
   phase;
@@ -120,7 +120,7 @@ This design does not implement:
 
 - a production OpenRouter/LLM call;
 - an automatic global LLM/OpenRouter AI batch;
-- processing every company in one request;
+- processing every company in one OpenRouter/LLM request;
 - Prisma schema changes;
 - a new AI cache history table;
 - changes to existing forecast AI rows;
@@ -658,7 +658,7 @@ LLM/OpenRouter AI Forecast execution remains manual for the first MVP.
 Rules:
 
 - Trigger one selected company at a time.
-- Do not process all companies in one request.
+- Do not process all companies in one OpenRouter/LLM request.
 - Select companies from PostgreSQL-backed Petyr data only.
 - Do not start a global automatic post-sync LLM/OpenRouter AI batch in this phase.
 - Keep the operator-visible trigger explicit so OpenRouter cost/credit usage is
@@ -676,6 +676,10 @@ deterministic preview values only for active companies with at least one
 future-expiring residual agreement and saves or updates those rows in
 `ai_forecast_cache`. Future automated/progressive LLM/OpenRouter batch
 behavior is still deferred and tracked separately in `BACKLOG.md`.
+The Petyr Admin manual Daily AI Forecast trigger is an operational recovery path:
+it reuses the same deterministic service and advisory lock, but disables the
+inter-company delay so the browser/proxy request can return JSON instead of an
+upstream timeout HTML page.
 
 ## Failure handling
 

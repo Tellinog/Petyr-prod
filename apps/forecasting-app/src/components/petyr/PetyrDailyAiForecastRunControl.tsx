@@ -62,6 +62,17 @@ type DailyRunError = {
 
 const endpoint = "/api/petyr/admin/daily-ai-forecast/run";
 
+function summarizeNonJsonResponse(response: Response, text: string) {
+  const contentType = response.headers.get("content-type") ?? "unknown content type";
+  const trimmedText = text.trim();
+
+  if (trimmedText.toLowerCase().startsWith("<!doctype html") || trimmedText.toLowerCase().startsWith("<html")) {
+    return `HTTP ${response.status} ${response.statusText || ""} from ${contentType}. The request returned an HTML error page before Petyr could return JSON; retry after checking the app/proxy logs.`;
+  }
+
+  return trimmedText.slice(0, 240) || `HTTP ${response.status} ${response.statusText || ""} from ${contentType}`;
+}
+
 async function parseDailyRunResponse(response: Response): Promise<DailyRunResult | DailyRunError> {
   const contentType = response.headers.get("content-type") ?? "";
   const text = await response.text();
@@ -79,7 +90,7 @@ async function parseDailyRunResponse(response: Response): Promise<DailyRunResult
 
   return {
     error: "Daily AI Forecast endpoint returned a non-JSON response.",
-    detail: text.trim().slice(0, 240) || `HTTP ${response.status}`
+    detail: summarizeNonJsonResponse(response, text)
   };
 }
 

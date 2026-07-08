@@ -207,9 +207,10 @@ const UNCOVERED_RATIO_COLUMN_WIDTH = 180;
 const LOGS_COLUMN_WIDTH = 220;
 const COMPANY_STICKY_CLASS = "sticky left-0 min-w-[220px]";
 const CONFIDENCE_STICKY_CLASS = "sticky left-[220px] min-w-[150px] shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]";
-const PINNED_BODY_STICKY_CLASS = "z-30";
+const PINNED_BODY_STICKY_CLASS = "z-20";
 const PINNED_HEADER_STICKY_CLASS = "z-[60]";
 const HEADER_STICKY_CLASS = "sticky top-16 z-40 shadow-[0_1px_0_0_rgba(226,232,240,1)]";
+const TOTAL_ROW_STICKY_CLASS = "sticky top-[112px] z-40";
 const MANUAL_HEADER_CLASS = "bg-amber-50 text-amber-950";
 const MANUAL_CELL_CLASS = "bg-amber-50/70 align-top";
 const SORT_BUTTON_BASE_CLASS =
@@ -867,8 +868,8 @@ export default function AnnualForecastEntryBatchWorkspace({
             </TableHeader>
             <TableBody>
               {displayedAnnualCompanies.length > 0 ? (
-                <TableRow className="sticky top-32 z-30 border-b-2 border-cyan-200 bg-cyan-50 shadow-[0_1px_0_0_rgba(165,243,252,1)] hover:bg-cyan-50">
-                  <TableCell className={`${COMPANY_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} z-40 border-r border-cyan-200 bg-cyan-50`}>
+                <TableRow className={`${TOTAL_ROW_STICKY_CLASS} border-b-2 border-cyan-200 bg-cyan-50 shadow-[0_1px_0_0_rgba(165,243,252,1)] hover:bg-cyan-50`}>
+                  <TableCell className={`${COMPANY_STICKY_CLASS} z-50 border-r border-cyan-200 bg-cyan-50`}>
                     <div className="text-[11px] font-semibold uppercase tracking-wide text-cyan-800">
                       {batch.data.selectedYear} CSM Forecast
                     </div>
@@ -882,7 +883,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                     {formatPetyrIntegerCurrencyValue(annualSummary.total)}
                   </TableCell>
                   <TableCell
-                    className={`${CONFIDENCE_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} z-40 bg-cyan-50`}
+                    className={`${CONFIDENCE_STICKY_CLASS} z-50 bg-cyan-50`}
                     aria-label="No confidence value for total row"
                   />
                   {showBusinessUnits
@@ -932,10 +933,6 @@ export default function AnnualForecastEntryBatchWorkspace({
                         >
                           {company.companyName}
                         </Link>
-                        <div className={`mt-1 text-xs font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(fcOngoing))}`}>
-                          Totale forecast BU: {formatPetyrIntegerCurrencyValue(fcOngoing)}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500">{company.csmName}</div>
                       </TableCell>
                       <TableCell className={MANUAL_CELL_CLASS}>
                         <label className="inline-flex items-center gap-2 text-sm">
@@ -1049,7 +1046,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                           rel="noreferrer"
                           className="inline-flex min-h-8 w-[190px] items-start rounded-xl border border-slate-200 bg-white px-3 py-1 text-sm font-medium leading-snug text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
                         >
-                          See latest logs of {company.companyName}
+                          See latest logs
                         </a>
                       </TableCell>
                     </TableRow>

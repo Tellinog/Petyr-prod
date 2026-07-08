@@ -1,5 +1,6 @@
 import { getPetyrDefaultYear } from "@/lib/petyr/config";
-import { PETYR_BUSINESS_UNITS } from "@/lib/petyr/constants";
+import { PETYR_FORECAST_ENTRY_BUSINESS_UNITS } from "@/lib/petyr/constants";
+import { formatBusinessUnitDisplayName } from "@/lib/petyr/businessUnitDisplay";
 import { formatPetyrCurrency } from "@/lib/petyr/formatters";
 import { startPetyrPerformanceTimer } from "@/lib/petyr/performance";
 import {
@@ -11,6 +12,7 @@ import {
   type PetyrCsmOverviewCompany,
   type PetyrCsmOverviewWorkspace,
   type PetyrManagementAggregateRow,
+  type PetyrManagementRevenueLifecycleBreakdown,
   type PetyrManagementMonthlyMetric,
   type PetyrManagementView,
   type PetyrMonthlyRevenueTrend
@@ -31,6 +33,7 @@ import type {
   ProgressMetrics,
   RevenueSeriesRow
 } from "@/types/petyrApprovedRendering";
+import type { PetyrCompanyRevenueLifecycleStatus } from "@/lib/petyr/companyRevenueLifecycle";
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const APPROVED_URGENT_ACTION_GROUPS: Array<Pick<ApprovedUrgentAction, "id" | "title" | "description">> = [
@@ -149,7 +152,7 @@ function branchRow(row: PetyrManagementAggregateRow): BranchRow {
 function businessUnitRow(row: PetyrManagementAggregateRow): BusinessUnitRow {
   return {
     code: row.label,
-    label: row.label,
+    label: formatBusinessUnitDisplayName(row.label),
     yearlyObjective: row.yearlyObjective,
     monthly: row.monthly.map(aggregateMonthToMetric),
     metrics: aggregateMetrics(row)
@@ -162,6 +165,46 @@ function managementRow(row: PetyrManagementAggregateRow): ManagementRow {
     monthly: row.monthly.map(aggregateMonthToMetric),
     metrics: aggregateMetrics(row)
   };
+}
+
+function aggregateBreakdownState(row: PetyrManagementAggregateRow) {
+  return {
+    monthly: row.monthly.map(aggregateMonthToMetric),
+    metrics: aggregateMetrics(row)
+  };
+}
+
+function revenueLifecycleBreakdownsForRow(
+  row: PetyrManagementAggregateRow,
+  breakdowns: PetyrManagementRevenueLifecycleBreakdown[],
+  aggregateKey: "branchAggregates" | "businessUnitAggregates" | "csmAggregates"
+) {
+  return breakdowns.reduce<Partial<Record<PetyrCompanyRevenueLifecycleStatus, ReturnType<typeof aggregateBreakdownState>>>>((result, breakdown) => {
+    const matchingRow = breakdown[aggregateKey].find((item) => item.key === row.key);
+    if (matchingRow) result[breakdown.status] = aggregateBreakdownState(matchingRow);
+    return result;
+  }, {});
+}
+
+function branchRowsWithBreakdowns(view: PetyrManagementView): BranchRow[] {
+  return view.branchAggregates.map((row) => ({
+    ...branchRow(row),
+    revenueLifecycleBreakdowns: revenueLifecycleBreakdownsForRow(row, view.revenueLifecycleBreakdowns, "branchAggregates")
+  }));
+}
+
+function businessUnitRowsWithBreakdowns(view: PetyrManagementView): BusinessUnitRow[] {
+  return view.businessUnitAggregates.map((row) => ({
+    ...businessUnitRow(row),
+    revenueLifecycleBreakdowns: revenueLifecycleBreakdownsForRow(row, view.revenueLifecycleBreakdowns, "businessUnitAggregates")
+  }));
+}
+
+function managementRowsWithBreakdowns(view: PetyrManagementView): ManagementRow[] {
+  return view.csmAggregates.map((row) => ({
+    ...managementRow(row),
+    revenueLifecycleBreakdowns: revenueLifecycleBreakdownsForRow(row, view.revenueLifecycleBreakdowns, "csmAggregates")
+  }));
 }
 
 function customerMonths(company: PetyrCsmOverviewCompany): CustomerMonth[] {
@@ -186,6 +229,7 @@ function customerRow(company: PetyrCsmOverviewCompany): CustomerRow {
     forecastAccuracy: company.forecastAccuracyLabel,
     aiAccuracy: company.aiAccuracyLabel,
     risk: company.dataQualityStatus,
+    revenueLifecycleStatus: company.revenueLifecycleStatus,
     months: customerMonths(company)
   };
 }
@@ -228,6 +272,7 @@ function customerRowFromCompanyOverview(company: PetyrCompanyOverview): Customer
     forecastAccuracy: company.forecastAccuracyLabel,
     aiAccuracy: company.aiAccuracyLabel,
     risk: company.dataQualityStatus,
+    revenueLifecycleStatus: company.revenueLifecycleStatus,
     months: []
   };
 }
@@ -266,13 +311,13 @@ function businessUnitSeries(
     [currentYear - 2, new Map(twoYearsAgoRows.map((row) => [row.businessUnit, row]))]
   ]);
 
-  return PETYR_BUSINESS_UNITS.map((businessUnit) => {
+  return PETYR_FORECAST_ENTRY_BUSINESS_UNITS.map((businessUnit) => {
     const y2024 = byYear.get(currentYear - 2)?.get(businessUnit);
     const y2025 = byYear.get(currentYear - 1)?.get(businessUnit);
     const y2026 = byYear.get(currentYear)?.get(businessUnit);
 
     return {
-      group: businessUnit,
+      group: formatBusinessUnitDisplayName(businessUnit),
       y2024: y2024?.actualRevenue ?? 0,
       y2025: y2025?.actualRevenue ?? 0,
       y2026: y2026?.actualRevenue ?? 0,
@@ -515,9 +560,9 @@ export async function getPetyrApprovedRenderingManagementData(year = getPetyrDef
       ...twoYearsAgoBusinessUnits.diagnostics.map((message) => toDiagnostic(message))
     ]);
     const monthlyManagement = managementResult.data.monthlyTrend.map(monthlyTrendToMetric);
-    const branchRows = managementResult.data.branchAggregates.map(branchRow);
-    const businessUnitRows = managementResult.data.businessUnitAggregates.map(businessUnitRow);
-    const managementRows = managementResult.data.csmAggregates.map(managementRow);
+    const branchRows = branchRowsWithBreakdowns(managementResult.data);
+    const businessUnitRows = businessUnitRowsWithBreakdowns(managementResult.data);
+    const managementRows = managementRowsWithBreakdowns(managementResult.data);
     const csmCustomersBase = managementResult.data.companies.map(customerRowFromCompanyOverview);
     const hasRealPostgresData = (
       csmCustomersBase.some(hasCustomerRealData) ||
@@ -642,9 +687,9 @@ export async function getPetyrApprovedRenderingData(year = getPetyrDefaultYear()
       ...twoYearsAgoBusinessUnits.diagnostics.map((message) => toDiagnostic(message))
     ]);
     const monthlyManagement = managementResult.data.monthlyTrend.map(monthlyTrendToMetric);
-    const branchRows = managementResult.data.branchAggregates.map(branchRow);
-    const businessUnitRows = managementResult.data.businessUnitAggregates.map(businessUnitRow);
-    const managementRows = managementResult.data.csmAggregates.map(managementRow);
+    const branchRows = branchRowsWithBreakdowns(managementResult.data);
+    const businessUnitRows = businessUnitRowsWithBreakdowns(managementResult.data);
+    const managementRows = managementRowsWithBreakdowns(managementResult.data);
     const csmCustomersFromWorkspace = csmWorkspaceResult.data.companies.map(customerRow);
     const csmCustomersBase = csmCustomersFromWorkspace.length > 0
       ? csmCustomersFromWorkspace

@@ -13,6 +13,26 @@ Each decision should include:
 
 ---
 
+## 2026-07-08 - Add nullable company revenue lifecycle for Management filters
+
+- **Status:** Accepted.
+- **Context:** Management needs to filter company-level aggregates by whether a company is Existing, New business or Reactivated. Product defined those statuses only for companies with revenue in the selected/current year.
+- **Decision:** Add Petyr-owned `company_revenue_lifecycle` rows keyed by company and year. Petyr derives status from PostgreSQL-backed Redash closed campaign revenue for the selected year and the two immediately previous years: current+previous = `existing`; current+no previous+two-years-ago = `reactivated`; current+no previous/no two-years-ago = `new_business`. If selected-year revenue is zero, store `status=null` rather than inventing a fourth category. Management lifecycle filters expose only All company types, Existing, New business and Reactivated.
+- **Alternatives discarded:** Deriving the filter only in React; inventing a `no_current_revenue` status; using older years beyond the two-year lookback to classify reactivation.
+- **Reason:** The status must be company-level and auditable in PostgreSQL, while the product request explicitly named only three current-revenue categories. The example with 2026+2023 but no 2025/2024 confirms that older revenue must not make a company Reactivated.
+- **Consequences:** Management View Branch, Business Unit, Single CSM and Yearly aggregate filters can recalculate values by lifecycle status. Companies without selected-year closed revenue remain included when no lifecycle filter is applied but do not appear in any specific lifecycle filter until product defines that case.
+- **Related docs:** `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/04_data_model.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/02_petyr_data_model_target.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `BACKLOG.md`, `DEVLOG.md`.
+
+## 2026-07-08 - Disable Daily AI Forecast inter-company delay for Petyr Admin manual run
+
+- **Status:** Accepted.
+- **Context:** Running Daily AI Forecast from Petyr Admin could fail in the browser with `Daily AI Forecast endpoint returned a non-JSON response` followed by an upstream HTML page. The manual endpoint was reusing the scheduled worker pacing, including the configured inter-company delay, which can keep the HTTP request open long enough for an upstream proxy/CDN timeout.
+- **Decision:** The Petyr Admin manual Daily AI Forecast endpoint still uses the deterministic Daily AI Forecast service and PostgreSQL advisory lock, but passes `delayMs=0` for that browser-triggered run. The scheduled `petyr-ai-forecast-worker` keeps using `PETYR_AI_FORECAST_DELAY_MS`.
+- **Alternatives discarded:** Keeping the manual endpoint paced like the scheduled worker; adding a job queue or polling API in this bug fix; changing the scheduled worker delay.
+- **Reason:** The delay is useful for the long-running worker loop, but it is harmful for a synchronous admin HTTP request and can produce HTML proxy timeout pages instead of Petyr JSON.
+- **Consequences:** Manual admin recovery runs complete faster and should return JSON through the browser/proxy path. Scheduled runs and Daily AI Forecast data eligibility rules are unchanged. The frontend now summarizes any remaining non-JSON response instead of showing raw HTML.
+- **Related docs:** `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/AI_FORECASTING_DESIGN.md`, `docs/08_operational_commands.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+
 ## 2026-07-08 - Restrict numeric AI Forecast Business Units to historical revenue evidence
 
 - **Status:** Accepted.

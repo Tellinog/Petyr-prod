@@ -134,6 +134,10 @@ Rome year and saves local deterministic preview rows to `ai_forecast_cache` with
 daily append-only model versions. It does not call OpenRouter or Forecast
 Intelligence.
 
+The Petyr Admin Daily AI Forecast manual run uses the same deterministic service
+and advisory lock but disables the inter-company delay for that browser request
+to avoid upstream proxy timeout pages being returned instead of JSON.
+
 Run the deterministic worker once for controlled validation:
 
 ```bash

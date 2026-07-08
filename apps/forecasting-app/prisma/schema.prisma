@@ -46,6 +46,12 @@ enum ManagementObjectiveScopeType {
   business_unit
 }
 
+enum CompanyRevenueLifecycleStatus {
+  existing
+  new_business
+  reactivated
+}
+
 enum IntelligenceRunStatus {
   pending
   running
@@ -331,6 +337,26 @@ model CompanyForecastStatus {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("company_forecast_status")
+}
+
+model CompanyRevenueLifecycle {
+  id                     String                         @id @default(cuid())
+  companyName            String                         @map("company_name")
+  year                   Int
+  status                 CompanyRevenueLifecycleStatus?
+  currentYearRevenue     Decimal                        @default(0) @map("current_year_revenue") @db.Decimal(14, 2)
+  previousYearRevenue    Decimal                        @default(0) @map("previous_year_revenue") @db.Decimal(14, 2)
+  twoYearsAgoRevenue     Decimal                        @default(0) @map("two_years_ago_revenue") @db.Decimal(14, 2)
+  hasCurrentYearRevenue  Boolean                        @default(false) @map("has_current_year_revenue")
+  hasPreviousYearRevenue Boolean                        @default(false) @map("has_previous_year_revenue")
+  hasTwoYearsAgoRevenue  Boolean                        @default(false) @map("has_two_years_ago_revenue")
+  calculatedAt           DateTime                       @default(now()) @map("calculated_at")
+  updatedAt              DateTime                       @updatedAt @map("updated_at")
+
+  @@unique([companyName, year], map: "company_revenue_lifecycle_company_year_key")
+  @@index([status, year], map: "company_revenue_lifecycle_status_year_idx")
+  @@index([year], map: "company_revenue_lifecycle_year_idx")
+  @@map("company_revenue_lifecycle")
 }
 
 model AppSetting {

@@ -302,6 +302,12 @@ Normal batch table rules:
   15th of the month before the selected month;
 - active field is Previous Month Forecast for future selected months before
   that 15th-of-previous-month cutoff;
+- when the active field is Ongoing Forecast and no Ongoing value is saved for a
+  company/Business Unit yet, the saved Previous Month Forecast for the same
+  selected month is shown as the Ongoing placeholder. Clicking or focusing that
+  cell accepts the placeholder through the same interaction used by AI Forecast
+  placeholders, after which the value is considered user-approved and can still
+  be edited manually before save;
 - for past selected months, collapsed Business Unit groups show the
   selected-month read-only `Closed Revenue` value instead of a forecast input;
 - the inactive monthly forecast field and read-only closed revenue column are
@@ -320,6 +326,10 @@ Normal batch table rules:
   portfolio-total row stays visible below the sticky headers while users scroll
   down the Monthly portfolio;
 - editable monthly forecast columns should be wide enough for their header labels;
+- Monthly Forecast Entry allows a company-level note to be saved even when no
+  Business Unit forecast value or Active status changed. The save creates a
+  normal save session with the note and no Business Unit change-log rows,
+  matching the Company Detail note-only behavior;
 - numeric Monthly Forecast Entry cells display integer monetary values without
   decimal cents, keep Italian thousands separators and stay wide enough for
   values up to eight digits plus separators;
@@ -377,10 +387,10 @@ Annual Forecast Entry rules:
 - the Active column can filter visible Annual rows to all companies, active
   companies only or inactive companies only. This is a client-side table view
   filter and does not modify `company_forecast_status`;
-- company names link to Company Detail; each Annual company row shows the
-  company-level total of saved or locally edited Business Unit Forecast Ongoing
-  values directly under the company name and above the CSM label; the Logs action opens Company Detail
-  at the company logs anchor in a new tab and is labelled `See latest logs of <company>`;
+- company names link to Company Detail; Annual company rows show only the linked
+  company name in the first column, without a company-level Forecast Ongoing
+  total label or CSM label beneath it; the Logs action opens Company Detail
+  at the company logs anchor in a new tab and is labelled `See latest logs`;
 - the Annual table uses its own vertical scroll area so only the legend row and
   table headers stay visible while users scroll down the portfolio; the section
   title, filters and Forecast Initial window notice scroll away above the table,
@@ -399,6 +409,9 @@ Annual Forecast Entry rules:
 - Business Unit columns use the same CSM check order as Monthly Forecast Entry:
   QA, UX/Experience, Accessibility, Security, FTE, TA, AI, OTHER/Other, Express,
   Community;
+- Management View Business Unit rows and Business Unit revenue charts use the
+  same order and visible labels as Forecast Entry, while keeping official
+  stored values (`Experience`, `Other`) internally;
 - numeric Annual Forecast Entry cells display integer monetary values without
   decimal cents, keep Italian thousands separators and stay wide enough for
   values up to eight digits plus separators;
@@ -454,7 +467,8 @@ Batch save rules:
 - official Petyr Business Units are required;
 - Closed Revenue, inactive forecast fields and AI suggestions are read-only unless the CSM explicitly validates or edits the active value;
 - each company update may include one company note and active Business Unit values with source metadata such as `accepted_ai` or `manual_edit`;
-- note-only company updates are rejected with a clear error;
+- note-only company updates are accepted and create a normal save session with
+  no Business Unit change-log rows;
 - one effective company update creates one `forecast_save_session`;
 - one modified Business Unit creates one `forecast_change_log` row;
 - no synthetic/no-op change logs are created;
@@ -661,7 +675,10 @@ Management metrics:
   `Canceled`, `Deleted`, `Rejected`, `Lost`, `Archived` and unknown/missing
   statuses are excluded from planned future; unknown/missing statuses are diagnosed
   and require a later business decision before inclusion;
-- forecast values are not used for planned-through-year-end and must not be confused with Yearly Objective.
+- forecast values are not used for planned-through-year-end and must not be confused with Yearly Objective;
+- company revenue lifecycle is stored by company/year in `company_revenue_lifecycle` and is derived from selected-year closed revenue plus the two immediately previous years: `existing`, `new_business` or `reactivated`;
+- companies without selected-year closed revenue do not receive an invented fourth lifecycle status;
+- Branch/monthly aggregate, Business Unit View, Single CSM View and Yearly View expose lifecycle filters for All company types, Existing, New business and Reactivated, and specific filters recalculate the visible aggregate values for the selected lifecycle status.
 
 Objective rules:
 - Petyr must not invent Branch or Business Unit objectives;
@@ -793,6 +810,9 @@ Daily deterministic AI Forecast runs are measured as operation
 selected/processed/failed company counts, saved/skipped AI cache rows, model
 version, run date and advisory-lock skip state. Petyr Admin may show these as a
 dedicated run history without exposing secrets or raw customer payloads.
+The Petyr Admin manual Daily AI Forecast trigger uses the same deterministic
+service and advisory lock as the scheduled worker, but it disables the
+inter-company delay for the browser request to avoid upstream proxy timeouts.
 
 The recommended monthly forecast Excel export endpoint is:
 

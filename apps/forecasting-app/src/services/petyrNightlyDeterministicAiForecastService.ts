@@ -57,6 +57,7 @@ export type PetyrNightlyDeterministicAiForecastDependencies = {
   listCompanies?: typeof getForecastEntryCompanies;
   saveCompany?: typeof savePetyrDeterministicAiForecastForCompany;
   cleanupInactiveCompanies?: typeof clearNumericAiForecastCacheForCompanies;
+  delayMs?: number;
   sleep?: (ms: number) => Promise<void>;
   runWithLock?: <T>(operation: () => Promise<T>) => Promise<T | "lock_busy">;
   now?: () => Date;
@@ -183,7 +184,7 @@ export async function runPetyrNightlyDeterministicAiForecast(
   const year = getPetyrCurrentYearInTimezone(now, timezone);
   const runDate = getPetyrDateKeyInTimezone(now, timezone);
   const modelVersion = getPetyrDeterministicPreviewDailyModelVersion(now, timezone);
-  const delayMs = parsePetyrAiForecastDelayMs();
+  const delayMs = dependencies.delayMs ?? parsePetyrAiForecastDelayMs();
   const listCompanies = dependencies.listCompanies ?? getForecastEntryCompanies;
   const saveCompany = dependencies.saveCompany ?? savePetyrDeterministicAiForecastForCompany;
   const cleanupInactiveCompanies = dependencies.cleanupInactiveCompanies ?? clearNumericAiForecastCacheForCompanies;

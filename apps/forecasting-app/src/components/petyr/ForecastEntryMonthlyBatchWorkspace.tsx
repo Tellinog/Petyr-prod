@@ -41,7 +41,6 @@ type MonthlySortState =
 type ActiveVisibilityFilter = "all" | "active" | "inactive";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const NOTE_ONLY_MESSAGE = "Company note requires at least one active forecast value entered, accepted from AI or modified.";
 const EXPANDED_FORECAST_COLUMNS: MonthlyForecastType[] = ["previous_month", "ongoing"];
 
 function monthLabel(month: number) {
@@ -229,6 +228,27 @@ function SavedForecastStatus({ aiForecastValue }: { aiForecastValue: number | nu
   );
 }
 
+function monthlyPlaceholderFor(cell: ForecastEntryBatchCell, editableForecastType: string | null) {
+  const current = activeForecast(cell, editableForecastType);
+  if (current.hasSavedCsmValue) return { value: null, label: "" };
+
+  if (editableForecastType === "ongoing" && cell.previousMonthForecast.hasSavedCsmValue && cell.previousMonthForecast.value !== null) {
+    return {
+      value: cell.previousMonthForecast.value,
+      label: "Previous Month Forecast placeholder"
+    };
+  }
+
+  if (cell.aiForecast.value !== null) {
+    return {
+      value: cell.aiForecast.value,
+      label: "AI suggestion"
+    };
+  }
+
+  return { value: null, label: "" };
+}
+
 export default function ForecastEntryMonthlyBatchWorkspace({
   initialBatch,
   initialAnnualYear,
@@ -402,15 +422,15 @@ export default function ForecastEntryMonthlyBatchWorkspace({
   }
 
 
-  function acceptAiPlaceholder(company: ForecastEntryBatchCompany, cell: ForecastEntryBatchCell) {
+  function acceptMonthlyPlaceholder(company: ForecastEntryBatchCompany, cell: ForecastEntryBatchCell) {
     if (isLocked || !editableForecastType) return;
 
     const key = cellKey(company.companyName, cell.businessUnit);
-    const current = activeForecast(cell, editableForecastType);
     const currentValue = values[key] ?? "";
+    const placeholder = monthlyPlaceholderFor(cell, editableForecastType);
 
-    if (!current.hasSavedCsmValue && !currentValue.trim() && cell.aiForecast.value !== null) {
-      setValues((existing) => ({ ...existing, [key]: formatInputValue(cell.aiForecast.value) }));
+    if (!currentValue.trim() && placeholder.value !== null) {
+      setValues((existing) => ({ ...existing, [key]: formatInputValue(placeholder.value) }));
       setSourceStates((existing) => ({ ...existing, [key]: "accepted_ai" }));
     }
   }
@@ -444,7 +464,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     const forecast = forecastForType(cell, forecastType);
     if (forecast?.hasSavedCsmValue) return forecast.value ?? 0;
 
-    return cell.aiForecast.value ?? 0;
+    return monthlyPlaceholderFor(cell, editableForecastType).value ?? 0;
   }
 
   function currentCompanyForecastTotal(company: ForecastEntryBatchCompany) {
@@ -471,11 +491,6 @@ export default function ForecastEntryMonthlyBatchWorkspace({
       const note = notes[company.companyName]?.trim() ?? "";
       const saveValues = getCompanySaveValues(company, editableForecastType, values, sourceStates);
       const hasActive = touchedActive.has(company.companyName);
-
-      if (note && saveValues.length === 0 && !hasActive) {
-        setNotice({ type: "error", text: `${company.companyName}: ${NOTE_ONLY_MESSAGE}` });
-        return;
-      }
 
       if (note || companyHasTouchedValue(company, sourceStates) || hasActive) {
         updates.push({
@@ -732,7 +747,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead
-                    className="sticky left-0 top-0 z-40 min-w-[240px] bg-white shadow-[0_1px_0_0_rgba(226,232,240,1)]"
+                    className="sticky left-0 top-0 z-40 min-w-[240px] bg-white align-top shadow-[0_1px_0_0_rgba(226,232,240,1)]"
                     rowSpan={2}
                     aria-sort={monthlySort.key === "company" ? (monthlySort.direction === "asc" ? "ascending" : "descending") : "none"}
                   >
@@ -752,20 +767,25 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                       </span>
                     </button>
                   </TableHead>
-                  <TableHead className="sticky top-0 z-30 min-w-[150px] bg-amber-50 shadow-[0_1px_0_0_rgba(226,232,240,1)]" rowSpan={2}>
-                    <div className="flex min-h-8 items-center gap-2 rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-semibold text-slate-800 shadow-sm">
-                      <span className="shrink-0">Active</span>
-                      <select
-                        value={activeVisibilityFilter}
-                        disabled={isLoading || isSaving}
-                        onChange={(event) => setActiveVisibilityFilter(event.target.value as ActiveVisibilityFilter)}
-                        className="h-7 min-w-0 flex-1 rounded-lg border border-amber-200 bg-white px-2 text-xs font-medium text-slate-700"
-                        aria-label="Filter companies by active status"
-                      >
-                        <option value="all">All</option>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                      </select>
+                  <TableHead className="sticky top-0 z-30 min-w-[180px] bg-amber-50 align-top shadow-[0_1px_0_0_rgba(226,232,240,1)]" rowSpan={2}>
+                    <div className="space-y-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-semibold text-slate-800 shadow-sm">
+                      <div className="flex min-h-8 items-center gap-2">
+                        <span className="shrink-0">Active</span>
+                        <select
+                          value={activeVisibilityFilter}
+                          disabled={isLoading || isSaving}
+                          onChange={(event) => setActiveVisibilityFilter(event.target.value as ActiveVisibilityFilter)}
+                          className="h-7 min-w-0 flex-1 rounded-lg border border-amber-200 bg-white px-2 text-xs font-medium text-slate-700"
+                          aria-label="Filter companies by active status"
+                        >
+                          <option value="all">All</option>
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                        </select>
+                      </div>
+                      <p className="max-w-[150px] text-[11px] font-medium leading-snug text-amber-800">
+                        Stato company globale, non legato al mese.
+                      </p>
                     </div>
                   </TableHead>
                   {batch.data.businessUnits.map((businessUnit) => {
@@ -905,9 +925,10 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                         const key = cellKey(company.companyName, cell.businessUnit);
                         const current = activeForecast(cell, editableForecastType);
                         const sourceState = sourceStates[key];
-                        const aiPlaceholder = !current.hasSavedCsmValue && cell.aiForecast.value !== null ? formatInputValue(cell.aiForecast.value) : "";
+                        const monthlyPlaceholder = monthlyPlaceholderFor(cell, editableForecastType);
+                        const placeholderValue = monthlyPlaceholder.value !== null ? formatInputValue(monthlyPlaceholder.value) : "";
                         const currentInputValue = values[key] ?? "";
-                        const mutedInput = isEmptyOrZeroDisplay(currentInputValue || aiPlaceholder);
+                        const mutedInput = isEmptyOrZeroDisplay(currentInputValue || placeholderValue);
                         const activeInputClass =
                           sourceState === "accepted_ai"
                             ? "border-violet-300 bg-violet-50"
@@ -915,7 +936,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                               ? "border-emerald-300 bg-emerald-50"
                               : current.hasSavedCsmValue
                                 ? "border-slate-300 bg-white"
-                                : aiPlaceholder
+                                : placeholderValue
                                   ? "border-blue-300 bg-blue-50"
                                   : "border-slate-200 bg-white";
                         const renderEditableCell = (cellKeySuffix: string) => (
@@ -924,22 +945,22 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                                 inputMode="numeric"
                                 disabled={isLocked || isSaving}
                                 readOnly={isLocked}
-                                placeholder={aiPlaceholder || "n/a"}
+                                placeholder={placeholderValue || "n/a"}
                                 value={currentInputValue}
-                                onFocus={() => acceptAiPlaceholder(company, cell)}
-                                onClick={() => acceptAiPlaceholder(company, cell)}
+                                onFocus={() => acceptMonthlyPlaceholder(company, cell)}
+                                onClick={() => acceptMonthlyPlaceholder(company, cell)}
                                 onChange={(event) => updateValue(company, cell, event.target.value)}
                                 onKeyDown={handleSaveKeyDown}
                                 className={`h-8 w-full min-w-[158px] rounded-xl text-right font-semibold ${mutedNumericClass(mutedInput)} ${isLocked ? "bg-slate-100" : activeInputClass}`}
                               />
                               {sourceState ? (
                                 <div className="mt-1 text-[11px] font-medium text-slate-500">
-                                  {sourceState === "accepted_ai" ? "Validated from AI" : "Manual edit"}
+                                  {sourceState === "accepted_ai" ? "Validated from placeholder" : "Manual edit"}
                                 </div>
                               ) : current.hasSavedCsmValue ? (
                                 <SavedForecastStatus aiForecastValue={cell.aiForecast.value} />
-                              ) : aiPlaceholder ? (
-                                <div className="mt-1 text-[11px] text-blue-700">AI suggestion</div>
+                              ) : placeholderValue ? (
+                                <div className="mt-1 text-[11px] text-blue-700">{monthlyPlaceholder.label}</div>
                               ) : null}
                             </TableCell>
                         );

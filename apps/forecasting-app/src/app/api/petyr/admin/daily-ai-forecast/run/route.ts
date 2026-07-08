@@ -37,6 +37,7 @@ const REDASH_RELATIONS: Array<{ name: string; severity: "required" | "warning"; 
   { name: "redash_raw_company_ownership_latest", severity: "required", checkEmpty: true },
   { name: "redash_column_mapping", severity: "warning", checkEmpty: false }
 ];
+const MANUAL_RUN_DELAY_MS = 0;
 
 function getConfiguredSecret() {
   const secret = process.env.APP_INTERNAL_SECRET?.trim() ?? "";
@@ -177,7 +178,10 @@ export async function POST(request: Request) {
     }
 
     const preflightDiagnostics = await getDailyAiForecastPreflightDiagnostics();
-    const result = await runPetyrNightlyDeterministicAiForecast({ runSource: "manual" });
+    const result = await runPetyrNightlyDeterministicAiForecast({
+      delayMs: MANUAL_RUN_DELAY_MS,
+      runSource: "manual"
+    });
 
     return NextResponse.json(
       {

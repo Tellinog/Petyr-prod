@@ -6,6 +6,7 @@ import {
   PETYR_NUMERIC_AI_FORECAST_CACHE_SELECTED_COLUMNS,
   selectLatestNumericAiForecastCacheRows
 } from "../src/lib/petyr/numericAiForecastCacheReadModel";
+import { classifyCompanyRevenueLifecycle } from "../src/lib/petyr/companyRevenueLifecycle";
 
 test("numeric AI cache read model ignores large JSON and text payload fields", () => {
   const largeText = "x".repeat(250_000);
@@ -91,4 +92,42 @@ test("numeric AI cache read model caps latest rows", () => {
   );
 
   assert.deepEqual(rows.map((row) => row.id), ["row-2", "row-1"]);
+});
+
+test("company revenue lifecycle uses only the selected year and the two previous years", () => {
+  assert.equal(
+    classifyCompanyRevenueLifecycle({
+      currentYearRevenue: 100,
+      previousYearRevenue: 50,
+      twoYearsAgoRevenue: 0
+    }),
+    "existing"
+  );
+
+  assert.equal(
+    classifyCompanyRevenueLifecycle({
+      currentYearRevenue: 100,
+      previousYearRevenue: 0,
+      twoYearsAgoRevenue: 50
+    }),
+    "reactivated"
+  );
+
+  assert.equal(
+    classifyCompanyRevenueLifecycle({
+      currentYearRevenue: 100,
+      previousYearRevenue: 0,
+      twoYearsAgoRevenue: 0
+    }),
+    "new_business"
+  );
+
+  assert.equal(
+    classifyCompanyRevenueLifecycle({
+      currentYearRevenue: 0,
+      previousYearRevenue: 50,
+      twoYearsAgoRevenue: 50
+    }),
+    null
+  );
 });

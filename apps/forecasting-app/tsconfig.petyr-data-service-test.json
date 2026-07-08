@@ -12,6 +12,7 @@
     "tsBuildInfoFile": ".tmp/petyr-data-service-test/tsconfig.tsbuildinfo"
   },
   "include": [
+    "src/lib/petyr/companyRevenueLifecycle.ts",
     "src/lib/petyr/numericAiForecastCacheReadModel.ts",
     "tests/petyrDataServiceNumericAiCache.test.ts"
   ]

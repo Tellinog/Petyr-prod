@@ -97,6 +97,11 @@ Rules:
   field from the 15th of the month before the selected month onward. Future
   selected months before that cutoff use Previous Month Forecast. Past months
   remain read-only.
+- When Ongoing Forecast is active and no Ongoing value is saved yet, the saved
+  Previous Month Forecast for the same selected month is shown as the Ongoing
+  placeholder. Clicking or focusing the cell accepts that placeholder using the
+  same interaction as AI Forecast placeholders, then the user can still manually
+  change the value before saving.
 - Monthly Forecast Entry includes an `Active` column immediately after Company,
   before the Business Unit groups. Its header uses the same all/active/inactive
   visibility filter as Annual Forecast Entry, and its row checkbox persists the
@@ -126,15 +131,21 @@ Rules:
   Active column can filter the visible table to all, active only or inactive
   only without changing persisted company status. The Annual portfolio total row
   reflects the visible rows when this filter is applied.
-- Each Annual company row shows the company-level total of saved or locally
-  edited Business Unit Forecast Ongoing values directly under the company name
-  and above the CSM label.
+- Annual company rows show only the linked company name in the first column,
+  without a company-level Forecast Ongoing total label or CSM label beneath it.
 - Annual Entry table headers stay fixed during vertical scroll, the legend row spans the full horizontal table width, and Company plus Confidence stay visible during horizontal scroll.
 - Annual Entry shows the selected CSM filter annual summary as a highlighted total row directly under the table headers and above the first company row. The total row is not a company row: Active, Confidence and Logs remain empty, while Forecast Initial, Forecast Ongoing, visible Business Unit totals, Closed Revenue YTD, Planned This Year and ratio values align under their respective columns. The row stays visible below the sticky headers while users scroll down the Annual portfolio.
 - Forecast Entry headers may display the official `Experience` Business Unit as `UX` while preserving `Experience` as the stored Business Unit value.
 - Monthly and Annual Forecast Entry display Business Unit columns in this CSM
   check order: QA, UX/Experience, Accessibility, Security, FTE, TA, AI, OTHER/Other,
   Express, Community.
+- Management View Business Unit rows and Business Unit revenue charts display
+  Business Units in the same order and with the same visible labels as Forecast
+  Entry, while preserving official stored values internally.
+- Monthly Forecast Entry company-level notes can be saved without any Business
+  Unit value or Active status change. This creates a save session carrying the
+  note and no Business Unit change-log rows, consistent with Company Detail
+  note-only logging.
 - Monthly and Annual Forecast Entry numeric cells display integer monetary
   values without decimal cents, keep Italian thousands separators and are wide
   enough for values up to eight digits plus separators.
@@ -146,7 +157,7 @@ Rules:
   reference using the AI legend color.
 - The legend row includes a Business Unit collapse/show button immediately after the legend chips; collapsed mode hides all BU input columns and keeps Active through Confidence plus Closed Revenue YTD through Logs visible.
 - Editable Annual Entry columns use a subtle manual-entry background, while consolidated/read-only columns remain visually quieter.
-- Annual Entry revenue/planned columns are labelled Closed Revenue YTD and Planned This Year; ratio columns explicitly use Forecast Ongoing; the history action is labelled Logs and each row link says `See latest logs of <company>`.
+- Annual Entry revenue/planned columns are labelled Closed Revenue YTD and Planned This Year; ratio columns explicitly use Forecast Ongoing; the history action is labelled Logs and each row link says `See latest logs`.
 - Annual Entry Planned includes future planning-like statuses (`Draft`, `Plan`,
   `Planned`, `Planning`, `Pipeline`, `Tentative`, `Proposal`, `Proposed`),
   `Setup`, `Recruiting` and `Running` campaigns for the selected year.
@@ -205,6 +216,34 @@ Scopes:
 Initial Forecast comes from Annual Forecast Entry. If the frozen Initial values
 are missing, show `n/a` for Initial Forecast and keep a non-invasive
 diagnostic/admin warning.
+
+## Company revenue lifecycle
+
+Petyr stores a company/year revenue lifecycle in `company_revenue_lifecycle`,
+derived from PostgreSQL-backed Redash closed campaign revenue.
+
+Allowed lifecycle statuses:
+
+- `existing`: selected-year closed revenue is greater than zero and the company
+  also has closed revenue in the immediately previous year.
+- `new_business`: selected-year closed revenue is greater than zero and the
+  company has no closed revenue in either of the two immediately previous years.
+- `reactivated`: selected-year closed revenue is greater than zero, the company
+  has no closed revenue in the immediately previous year, and the company has
+  closed revenue two years before the selected year.
+
+For example, for selected year 2026:
+
+- revenue in 2026 and 2025 means `existing`;
+- revenue in 2026, no revenue in 2025 and revenue in 2024 means `reactivated`;
+- revenue in 2026 and 2023 only, with no 2025 or 2024 revenue, means
+  `new_business`.
+
+If a company has no selected-year closed revenue, Petyr does not invent a fourth
+state; the stored lifecycle status remains null until product defines that case.
+Management View filters expose All company types, Existing, New business and
+Reactivated. The specific filters recalculate Branch, Business Unit, Single CSM
+and Yearly View aggregates for companies in the selected lifecycle status.
 
 ## Planned future campaign status
 

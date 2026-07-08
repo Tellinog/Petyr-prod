@@ -23,6 +23,14 @@ Project-specific backlog items should be placed in the most specific backlog ava
 
 ---
 
+## Define lifecycle handling for companies without selected-year revenue
+
+- **Area:** Petyr / Management View / Company revenue lifecycle
+- **Problem/question:** Product defined only `existing`, `new_business` and `reactivated`, and all three require selected-year revenue. Companies with no selected-year closed revenue currently persist `company_revenue_lifecycle.status=null` and remain visible only when no lifecycle-specific filter is applied.
+- **Impact:** Management can filter the requested three statuses, but there is no named filter/status for companies with no current selected-year revenue.
+- **Status:** Open.
+- **Proposal / next action:** Confirm whether to keep null/unclassified as an internal state only, hide such companies from lifecycle-scoped analysis, or add a product-approved fourth visible category in a future task.
+
 ## Clarify Business Unit eligibility for numeric AI Forecast rows
 
 - **Area:** Petyr / AI Forecasting / Business Unit attribution
