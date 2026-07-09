@@ -594,10 +594,12 @@ Table rules:
 - during the automatic December 10-31 preparation window, or during any manual
   Petyr Admin unlock outside the January entry window, each Business Unit starts
   with its Initial Forecast column collapsed behind that Business Unit's
-  Forecast Ongoing column. The Business Unit header shows the Forecast Ongoing
-  or Initial Forecast label on the left, the Business Unit name and sorting
-  control on the right, and exposes a per-Business Unit button to show or hide
-  Initial Forecast only while Initial Forecast is editable;
+  Forecast Ongoing column. The Forecast Ongoing header keeps the Business Unit
+  name, Forecast Ongoing label and sort state together in the sortable control,
+  and exposes a separate per-Business Unit button immediately to the right to
+  show or hide Initial Forecast only while Initial Forecast is editable. The
+  Forecast Ongoing column may widen slightly while that separate button is
+  visible;
 - when the Forecast Initial window is locked and no admin unlock is active,
   Annual Forecast Entry hides the per-Business Unit Initial Forecast columns and
   does not show the per-Business Unit Initial Forecast expansion buttons;

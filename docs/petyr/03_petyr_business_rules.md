@@ -192,7 +192,10 @@ Rules:
   December 10-31 automatic preparation window or any Petyr Admin manual unlock
   outside January, those per-Business Unit Initial Forecast columns start
   collapsed behind the matching Forecast Ongoing Business Unit column and can be
-  expanded one Business Unit at a time.
+  expanded one Business Unit at a time. In that collapsed state, the Forecast
+  Ongoing header keeps the Business Unit name, Forecast Ongoing label and sort
+  state together, with the Initial Forecast show/hide button separated
+  immediately to the right.
 - Saving Forecast Ongoing Business Unit values does not populate or change
   `forecast_annual.initial_forecast`; only explicit Business Unit Initial
   Forecast fields write that value.

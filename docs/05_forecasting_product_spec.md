@@ -423,13 +423,13 @@ Annual Forecast Entry rules:
   Business Unit shows adjacent Forecast Ongoing and Initial Forecast columns.
   During the automatic December 10-31 preparation window, or during any manual
   Petyr Admin unlock outside January, each Business Unit starts with Initial
-  Forecast collapsed behind that Business Unit's Forecast Ongoing column and
-  exposes a per-Business Unit show/hide button. When Initial Forecast is locked
-  and no admin unlock is active, the per-Business Unit Initial Forecast columns
-  and their show/hide buttons are hidden.
-- Annual Business Unit headers place the active field label, such as Forecast
-  Ongoing or Initial Forecast, on the left and the Business Unit name plus
-  sorting control on the right to keep the header compact.
+  Forecast collapsed behind that Business Unit's Forecast Ongoing column. The
+  Forecast Ongoing header keeps the Business Unit name, Forecast Ongoing label
+  and sort state together in the sortable control, with a separate
+  per-Business Unit show/hide button immediately to its right. The Forecast
+  Ongoing column may widen slightly while that button is visible. When Initial
+  Forecast is locked and no admin unlock is active, the per-Business Unit
+  Initial Forecast columns and their show/hide buttons are hidden.
 - Management View Business Unit rows and Business Unit revenue charts use the
   same order and visible labels as Forecast Entry, while keeping official
   stored values (`Experience`, `Other`) internally;
@@ -456,10 +456,12 @@ Annual Forecast Entry rules:
 - Business Unit values use all official Petyr Business Units and are stored in
   `forecast_annual` with `value_source=manual` or `value_source=ai_confirmed`;
 - while the Forecast Initial window is open or admin-unlocked, Annual Forecast
-  Entry shows each Business Unit as separate adjacent Forecast Ongoing and
-  Initial Forecast columns. The Business Unit Initial Forecast column writes
-  `forecast_annual.initial_forecast` explicitly and is not derived from the
-  Forecast Ongoing column;
+  Entry can show each Business Unit as separate Forecast Ongoing and Initial
+  Forecast columns. Outside the January automatic entry window, the Business
+  Unit Initial Forecast column starts collapsed behind its matching Forecast
+  Ongoing column and can be expanded per Business Unit. The Business Unit
+  Initial Forecast column writes `forecast_annual.initial_forecast` explicitly
+  and is not derived from the Forecast Ongoing column;
 - when the Forecast Initial window is locked, Annual Forecast Entry hides the
   per-Business Unit Initial Forecast columns. The saved per-Business Unit
   Initial Forecast values remain persisted for Management View;
