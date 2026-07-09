@@ -70,6 +70,13 @@ function buildAnnualBatchUrl(csmName: string, year?: string) {
   return query ? `/api/petyr/forecast-entry/annual-batch?${query}` : "/api/petyr/forecast-entry/annual-batch";
 }
 
+function buildMonthlyExportUrl(csmName: string, year: number) {
+  const params = new URLSearchParams();
+  if (csmName) params.set("csmName", csmName);
+  params.set("year", String(year));
+  return `/api/petyr/forecast-entry/monthly-export-xlsx?${params.toString()}`;
+}
+
 
 function buildEntryPageUrl(csmName: string, year?: number, month?: number) {
   const params = new URLSearchParams();
@@ -784,7 +791,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                         </select>
                       </div>
                       <p className="max-w-[150px] text-[11px] font-medium leading-snug text-amber-800">
-                        Stato company globale, non legato al mese.
+                        Company status is global, not monthly.
                       </p>
                     </div>
                   </TableHead>
@@ -1024,6 +1031,20 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isLoading || isSaving}
+              onClick={() => {
+                window.location.href = buildMonthlyExportUrl(batch.data.selectedCsm, batch.data.year);
+              }}
+              className="rounded-xl"
+            >
+              Export Excel
+            </Button>
           </div>
 
         </CardContent>

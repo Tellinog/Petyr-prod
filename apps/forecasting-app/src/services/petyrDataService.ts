@@ -13,6 +13,7 @@ import {
   normalizePetyrBusinessUnit
 } from "@/lib/petyr/constants";
 import { formatPetyrCurrency, formatPetyrPercent } from "@/lib/petyr/formatters";
+import { isAnnualForecastOngoingRow } from "@/lib/petyr/annualForecastEntryRules";
 import {
   getManagementObjectiveMapValue,
   getManagementObjectiveMaps,
@@ -1942,6 +1943,7 @@ function buildOverviewRows(input: {
   }
 
   for (const row of input.annualRows) {
+    if (!isAnnualForecastOngoingRow(row)) continue;
     const accumulator = ensureCompany(companies, row.companyName);
     accumulator.annualForecast += decimalToNumber(row.value) ?? 0;
     addCsm(accumulator, row.csmName);
@@ -2813,7 +2815,7 @@ function buildBusinessUnitSummaryRows(input: {
   }
 
   for (const row of input.annualRows) {
-    if (row.year === input.year) {
+    if (row.year === input.year && isAnnualForecastOngoingRow(row)) {
       const summary = ensureBusinessUnit(row.businessUnit);
       summary.annualForecast += decimalToNumber(row.value) ?? 0;
       summary.annualForecastRowsCount += 1;
@@ -3115,6 +3117,7 @@ function addManagementForecastValue(bucket: ManagementAggregateBucket, row: Fore
 }
 
 function addManagementAnnualForecastValue(bucket: ManagementAggregateBucket, row: ForecastAnnual) {
+  if (!isAnnualForecastOngoingRow(row)) return;
   bucket.annualForecast += decimalToNumber(row.value) ?? 0;
   bucket.annualForecastRows += 1;
 }
@@ -3343,7 +3346,7 @@ function buildManagementAggregateRows(input: {
   }
 
   for (const row of input.annualRows) {
-    if (row.year !== input.year) continue;
+    if (row.year !== input.year || !isAnnualForecastOngoingRow(row)) continue;
     if (!companyMatchesLifecycle(row.companyName)) continue;
 
     const businessUnit = normalizeBusinessUnit(row.businessUnit);
@@ -4274,7 +4277,7 @@ export async function getCompanyDetail(companyName: string, year?: number) {
           aiForecastValue: decimalToNumber(row.aiForecastValue),
           status: row.status
         })),
-        annualForecasts: annualForecasts.map((row) => ({
+        annualForecasts: annualForecasts.filter(isAnnualForecastOngoingRow).map((row) => ({
           businessUnit: row.businessUnit,
           year: row.year,
           value: decimalToNumber(row.value) ?? 0,
@@ -4965,7 +4968,7 @@ export async function getForecastEntryContextsBatch(input: {
 
     for (const row of inputs.annualRows) {
       const companyKey = normalizeKey(row.companyName);
-      if (!requestedKeys.has(companyKey) || row.year !== resolvedYear) continue;
+      if (!requestedKeys.has(companyKey) || row.year !== resolvedYear || !isAnnualForecastOngoingRow(row)) continue;
       annualByKey.set(forecastEntryCellKey(row.companyName, row.businessUnit, "annual"), row);
     }
 

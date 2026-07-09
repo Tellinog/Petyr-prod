@@ -6,6 +6,7 @@ import {
   type AnnualForecastMode
 } from "@/lib/forecasting/calendarRules";
 import { PETYR_BUSINESS_UNITS, type PetyrBusinessUnit } from "@/lib/petyr/constants";
+import { isAnnualForecastOngoingRow } from "@/lib/petyr/annualForecastEntryRules";
 import {
   getCompanyDetail,
   getForecastEntryCompanies,
@@ -288,6 +289,7 @@ function annualRowsByBusinessUnit(rows: ForecastAnnual[]) {
   const byBusinessUnit = new Map<PetyrBusinessUnit, ForecastAnnual>();
 
   for (const row of rows) {
+    if (!isAnnualForecastOngoingRow(row)) continue;
     const businessUnit = normalizeBusinessUnit(row.businessUnit);
     if (!businessUnit) continue;
     byBusinessUnit.set(businessUnit, row);

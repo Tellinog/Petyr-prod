@@ -1,5 +1,6 @@
 export const PETYR_ANNUAL_FORECAST_START_YEAR = 2026;
 export const PETYR_ANNUAL_CONFIDENCE_VALUES = ["01 High", "02 Mid", "03 Low"] as const;
+export const PETYR_ANNUAL_VALUE_SOURCE_INITIAL_ONLY = "initial_only";
 
 export type PetyrAnnualConfidence = (typeof PETYR_ANNUAL_CONFIDENCE_VALUES)[number];
 
@@ -91,6 +92,10 @@ export function resolveAnnualEntryInitialForecast<T>(input: {
 }) {
   if (!input.initialModeEditable) return input.submittedInitialForecast;
   return input.submittedInitialForecast ?? input.derivedInitialForecast;
+}
+
+export function isAnnualForecastOngoingRow(row: { valueSource?: string | null }) {
+  return row.valueSource !== PETYR_ANNUAL_VALUE_SOURCE_INITIAL_ONLY;
 }
 
 export function calculateAnnualForecastOngoing(values: Array<number | null | undefined>) {

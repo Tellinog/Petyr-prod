@@ -13,6 +13,16 @@ Each decision should include:
 
 ---
 
+## 2026-07-09 - Separate Annual Business Unit Initial Forecast from Forecast Ongoing
+
+- **Status:** Accepted.
+- **Context:** During the December 10-January 10 Forecast Initial window, CSMs may still need to maintain Forecast Ongoing values, and using the same Business Unit annual cells as the implicit source for Initial Forecast can accidentally freeze Ongoing edits as the initial baseline.
+- **Decision:** Annual Forecast Entry keeps the existing company/year Forecast Initial column, but when the Forecast Initial window is open or admin-unlocked it also shows explicit per-Business Unit Initial Forecast columns adjacent to each Business Unit Forecast Ongoing column. Saving Forecast Ongoing no longer populates or changes `forecast_annual.initial_forecast`; only the explicit BU Initial Forecast fields write that value. When the window is locked, Annual Forecast Entry hides the per-Business Unit Initial Forecast columns, while saved values remain available to Management. Initial-only annual rows are excluded from Ongoing Forecast totals and Ongoing exports.
+- **Alternatives discarded:** Continuing to copy Forecast Ongoing BU saves into Initial Forecast while the window is open; accepting only January 1-January 10 BU entries; automatically redistributing company-level Initial Forecast across Business Units.
+- **Reason:** Explicit separate inputs avoid accidental baseline pollution, keep December preparation possible and preserve the no-auto-split rule for Business Units.
+- **Consequences:** CSMs must intentionally enter BU Initial Forecast values during the window or admin unlock. Management can still read the saved BU Initial Forecast after the window closes. Forecast Ongoing calculations ignore internal initial-only rows.
+- **Related docs:** `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+
 ## 2026-07-08 - Add nullable company revenue lifecycle for Management filters
 
 - **Status:** Accepted.

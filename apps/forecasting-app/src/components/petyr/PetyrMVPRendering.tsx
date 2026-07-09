@@ -197,7 +197,7 @@ function RevenueLifecycleFilterControl({
 }) {
   return (
     <div className="w-full sm:w-[220px]">
-      <div className="mb-2 text-xs font-medium text-slate-500">Company type</div>
+      <div className="mb-2 text-xs font-medium text-slate-500">Company Type Filter</div>
       <NativeSelect value={value} onChange={(nextValue) => onChange(nextValue as RevenueLifecycleFilterValue)} label="Company type filter">
         <option value="all">All company types</option>
         {PETYR_COMPANY_REVENUE_LIFECYCLE_STATUSES.map((status) => (
@@ -238,6 +238,15 @@ function NativeSelect({
       {children}
     </select>
   );
+}
+
+function buildManagementExportUrl(scope: 'monthly-aggregate' | 'business-unit' | 'single-csm', year: number, lifecycleFilter: RevenueLifecycleFilterValue) {
+  const params = new URLSearchParams({
+    scope,
+    year: String(year),
+    lifecycle: lifecycleFilter,
+  });
+  return `/api/petyr/forecasting/management-export-xlsx?${params.toString()}`;
 }
 
 function SectionTitle({ title, description }: { title: string; description: string }) {
@@ -311,17 +320,19 @@ function MonthCard({ month }: { month: MonthlyMetric }) {
   );
 }
 
-function BranchView() {
+function BranchView({
+  revenueLifecycleFilter,
+}: {
+  revenueLifecycleFilter: RevenueLifecycleFilterValue;
+}) {
   const { branchRows } = useRenderingData();
   const [expandedBranch, setExpandedBranch] = useState<string | null>(null);
-  const [revenueLifecycleFilter, setRevenueLifecycleFilter] = useState<RevenueLifecycleFilterValue>('all');
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="text-sm font-medium text-slate-600">Branch View</div>
         <InfoPill label="Legend" text="Closed revenue is compared with the previous-month forecast alongside ongoing forecast. Green = above forecast, neutral = aligned, yellow = below forecast, red = severe gap." />
-        <RevenueLifecycleFilterControl value={revenueLifecycleFilter} onChange={setRevenueLifecycleFilter} />
       </div>
 
       {branchRows.map((branch) => {
@@ -367,16 +378,16 @@ function BranchView() {
   );
 }
 
-function BusinessUnitView() {
+function BusinessUnitView({
+  revenueLifecycleFilter,
+}: {
+  revenueLifecycleFilter: RevenueLifecycleFilterValue;
+}) {
   const { businessUnitRows } = useRenderingData();
   const [expandedBusinessUnit, setExpandedBusinessUnit] = useState<string | null>(null);
-  const [revenueLifecycleFilter, setRevenueLifecycleFilter] = useState<RevenueLifecycleFilterValue>('all');
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        <RevenueLifecycleFilterControl value={revenueLifecycleFilter} onChange={setRevenueLifecycleFilter} />
-      </div>
       {businessUnitRows.map((unit) => {
         const isExpanded = expandedBusinessUnit === unit.code;
         const selectedAggregate = selectRevenueLifecycleAggregate(unit, revenueLifecycleFilter);
@@ -420,16 +431,16 @@ function BusinessUnitView() {
   );
 }
 
-function SingleCSMView() {
+function SingleCSMView({
+  revenueLifecycleFilter,
+}: {
+  revenueLifecycleFilter: RevenueLifecycleFilterValue;
+}) {
   const { managementRows } = useRenderingData();
   const [expandedCSM, setExpandedCSM] = useState<string | null>(null);
-  const [revenueLifecycleFilter, setRevenueLifecycleFilter] = useState<RevenueLifecycleFilterValue>('all');
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        <RevenueLifecycleFilterControl value={revenueLifecycleFilter} onChange={setRevenueLifecycleFilter} />
-      </div>
       {managementRows.map((row) => {
         const isExpanded = expandedCSM === row.csm;
         const selectedAggregate = selectRevenueLifecycleAggregate(row, revenueLifecycleFilter);
@@ -472,15 +483,22 @@ function SingleCSMView() {
   );
 }
 
-function YearlyBranchView() {
+function YearlyBranchView({
+  revenueLifecycleFilter,
+  setRevenueLifecycleFilter,
+}: {
+  revenueLifecycleFilter: RevenueLifecycleFilterValue;
+  setRevenueLifecycleFilter: (value: RevenueLifecycleFilterValue) => void;
+}) {
   const { branchRows } = useRenderingData();
-  const [revenueLifecycleFilter, setRevenueLifecycleFilter] = useState<RevenueLifecycleFilterValue>('all');
 
   return (
     <Card className="rounded-2xl border-slate-200 shadow-sm">
-      <CardHeader>
+      <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <CardTitle>Yearly View · Branch</CardTitle>
-        <RevenueLifecycleFilterControl value={revenueLifecycleFilter} onChange={setRevenueLifecycleFilter} />
+        <div className="flex justify-end">
+          <RevenueLifecycleFilterControl value={revenueLifecycleFilter} onChange={setRevenueLifecycleFilter} />
+        </div>
       </CardHeader>
       <CardContent>
         <div className="overflow-auto rounded-2xl border border-slate-200 bg-white">
@@ -681,6 +699,7 @@ function ManagementView({
   const data = useRenderingData();
   const { monthlyManagement, positiveTrends, negativeTrends } = data;
   const [managementMode, setManagementMode] = useState<'monthly' | 'yearly'>('yearly');
+  const [revenueLifecycleFilter, setRevenueLifecycleFilter] = useState<RevenueLifecycleFilterValue>('all');
 
   return (
     <div className="space-y-6">
@@ -708,31 +727,76 @@ function ManagementView({
       {managementMode === 'monthly' ? (
         <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader>
-          <CardTitle>Monthly Aggregate</CardTitle>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <CardTitle>Monthly Aggregate</CardTitle>
+            <RevenueLifecycleFilterControl value={revenueLifecycleFilter} onChange={setRevenueLifecycleFilter} />
+          </div>
         </CardHeader>
         <CardContent className="space-y-8">
-            <BranchView />
+            <BranchView revenueLifecycleFilter={revenueLifecycleFilter} />
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => {
+                  window.location.href = buildManagementExportUrl('monthly-aggregate', data.year, revenueLifecycleFilter);
+                }}
+              >
+                Export Excel
+              </Button>
+            </div>
         </CardContent>
       </Card>
       ) : (
-        <YearlyBranchView />
+        <YearlyBranchView revenueLifecycleFilter={revenueLifecycleFilter} setRevenueLifecycleFilter={setRevenueLifecycleFilter} />
       )}
 
       <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader>
-          <CardTitle>Business Unit View</CardTitle>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <CardTitle>Business Unit View</CardTitle>
+            <RevenueLifecycleFilterControl value={revenueLifecycleFilter} onChange={setRevenueLifecycleFilter} />
+          </div>
         </CardHeader>
-        <CardContent>
-          <BusinessUnitView />
+        <CardContent className="space-y-4">
+          <BusinessUnitView revenueLifecycleFilter={revenueLifecycleFilter} />
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => {
+                window.location.href = buildManagementExportUrl('business-unit', data.year, revenueLifecycleFilter);
+              }}
+            >
+              Export Excel
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
       <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader>
-          <CardTitle>Single CSM View</CardTitle>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <CardTitle>Single CSM View</CardTitle>
+            <RevenueLifecycleFilterControl value={revenueLifecycleFilter} onChange={setRevenueLifecycleFilter} />
+          </div>
         </CardHeader>
-        <CardContent>
-          <SingleCSMView />
+        <CardContent className="space-y-4">
+          <SingleCSMView revenueLifecycleFilter={revenueLifecycleFilter} />
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => {
+                window.location.href = buildManagementExportUrl('single-csm', data.year, revenueLifecycleFilter);
+              }}
+            >
+              Export Excel
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

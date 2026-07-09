@@ -434,6 +434,19 @@ Annual Forecast Entry rules:
   are modified without an existing confidence value;
 - Business Unit values use all official Petyr Business Units and are stored in
   `forecast_annual` with `value_source=manual` or `value_source=ai_confirmed`;
+- while the Forecast Initial window is open or admin-unlocked, Annual Forecast
+  Entry shows each Business Unit as separate adjacent Forecast Ongoing and
+  Initial Forecast columns. The Business Unit Initial Forecast column writes
+  `forecast_annual.initial_forecast` explicitly and is not derived from the
+  Forecast Ongoing column;
+- when the Forecast Initial window is locked, Annual Forecast Entry hides the
+  per-Business Unit Initial Forecast columns. The saved per-Business Unit
+  Initial Forecast values remain persisted for Management View;
+- if a Business Unit Initial Forecast is saved before an Ongoing value exists
+  for that same company/Business Unit/year, Petyr may store an internal
+  initial-only annual row; initial-only rows are excluded from Forecast Ongoing
+  totals, inactive-company Forecast Ongoing exports and Management Ongoing
+  Forecast calculations;
 - AI placeholders are displayed from cached AI forecast values but are not saved
   and do not contribute to Forecast Ongoing until the CSM clicks/focuses or edits the
   value;
@@ -544,10 +557,12 @@ Initial Forecast rules:
 - `forecast_annual.initial_forecast` stores the company + Business Unit + year
   Initial Forecast values used by Business Unit, Management and Company Detail
   views.
-- During the Forecast Initial window, saved Annual Entry Business Unit values
-  also populate the matching per-Business Unit Initial Forecast values. When a
-  user submits a company/year Forecast Initial total, that submitted total is
-  preserved independently from Forecast Ongoing.
+- During the Forecast Initial window, users enter per-Business Unit Initial
+  Forecast values in explicit Business Unit Initial Forecast columns. Saving or
+  editing a Forecast Ongoing Business Unit value must not populate or change the
+  matching per-Business Unit Initial Forecast value. When a user submits a
+  company/year Forecast Initial total, that submitted total is preserved
+  independently from Forecast Ongoing.
 - From January 11 onward, Forecast Initial is read-only unless the selected
   target year is admin-unlocked; later Annual Entry changes update Ongoing
   Forecast in `forecast_annual.value` without changing the Initial Forecast
@@ -679,6 +694,7 @@ Management metrics:
 - company revenue lifecycle is stored by company/year in `company_revenue_lifecycle` and is derived from selected-year closed revenue plus the two immediately previous years: `existing`, `new_business` or `reactivated`;
 - companies without selected-year closed revenue do not receive an invented fourth lifecycle status;
 - Branch/monthly aggregate, Business Unit View, Single CSM View and Yearly View expose lifecycle filters for All company types, Existing, New business and Reactivated, and specific filters recalculate the visible aggregate values for the selected lifecycle status.
+- The visible Management lifecycle control is labelled `Company Type Filter`, sits at the top-right of the relevant aggregate card and uses one shared selected value across Monthly Aggregate, Yearly View, Business Unit View and Single CSM View.
 
 Objective rules:
 - Petyr must not invent Branch or Business Unit objectives;
@@ -813,6 +829,41 @@ dedicated run history without exposing secrets or raw customer payloads.
 The Petyr Admin manual Daily AI Forecast trigger uses the same deterministic
 service and advisory lock as the scheduled worker, but it disables the
 inter-company delay for the browser request to avoid upstream proxy timeouts.
+
+Forecast Entry product-view Excel exports are:
+
+```txt
+GET /api/petyr/forecast-entry/monthly-export-xlsx?year=YYYY&csmName=...
+GET /api/petyr/forecast-entry/annual-export-xlsx?csmName=...&csmName=...&year=YYYY
+```
+
+They require `petyr:read`, are read-only and use the same PostgreSQL-backed
+Forecast Entry read models as the UI. Monthly export creates one worksheet per
+month from January through the current month for the current year, or all 12
+months for other selected years. Each monthly worksheet exports all companies
+and Business Units for the selected CSM, including previous-month forecast,
+ongoing forecast, Closed revenue and AI Forecast reference values. Annual export
+exports the selected Annual Entry CSM portfolio and includes company-level
+Forecast Initial, Forecast Ongoing, confidence, Closed revenue YTD, planned and
+ratio values plus Business Unit Ongoing Forecast, Business Unit Initial Forecast
+and AI Forecast columns. The Business Unit Initial Forecast columns must be
+included even when they are hidden in the current Annual Entry UI.
+
+Management product-view Excel export is:
+
+```txt
+GET /api/petyr/forecasting/management-export-xlsx?scope=monthly-aggregate&year=YYYY&lifecycle=all
+GET /api/petyr/forecasting/management-export-xlsx?scope=business-unit&year=YYYY&lifecycle=all
+GET /api/petyr/forecasting/management-export-xlsx?scope=single-csm&year=YYYY&lifecycle=all
+```
+
+It requires `petyr:read`, is read-only and uses the same PostgreSQL-backed
+Management read model as the UI. The three supported scopes export monthly rows
+for Branch Monthly Aggregate, Business Unit View and Single CSM View. The
+`lifecycle` query value follows the visible Company Type Filter; `all` exports
+all company types, while lifecycle-specific values export the corresponding
+aggregate breakdown. These exports must not write forecast, objective, Closed
+revenue, AI Forecast, Redash materialized or audit data.
 
 The recommended monthly forecast Excel export endpoint is:
 

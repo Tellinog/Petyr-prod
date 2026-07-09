@@ -14,7 +14,9 @@ import {
   getAnnualForecastEntryDefaultYear,
   getAnnualForecastEntryInitialMode,
   getAnnualForecastEntryYearOptions,
+  isAnnualForecastOngoingRow,
   isPetyrAnnualConfidence,
+  PETYR_ANNUAL_VALUE_SOURCE_INITIAL_ONLY,
   isValidAnnualForecastEntryYear,
   resolveAnnualEntryInitialForecast,
   shouldRequireAnnualOngoingConfidence,
@@ -62,6 +64,11 @@ type ValidatedAnnualBuValue = {
   submittedSourceState: "accepted_ai" | "manual_edit";
 };
 
+type ValidatedAnnualBuInitialValue = {
+  businessUnit: PetyrBusinessUnit;
+  value: Prisma.Decimal;
+};
+
 type ValidatedAnnualUpdate = {
   companyName: string;
   activeStatus: boolean | null;
@@ -69,6 +76,7 @@ type ValidatedAnnualUpdate = {
   initialForecast: Prisma.Decimal | null;
   confidence: PetyrAnnualConfidence | null;
   values: ValidatedAnnualBuValue[];
+  initialBusinessUnitValues: ValidatedAnnualBuInitialValue[];
 };
 
 export class AnnualForecastEntryBatchError extends Error {
@@ -94,6 +102,11 @@ export type AnnualForecastEntryBatchCell = {
   savedForecast: {
     value: number | null;
     valueSource: PetyrAnnualForecastValueSource | null;
+    hasSavedValue: boolean;
+    updatedAt: string | null;
+  };
+  initialForecast: {
+    value: number | null;
     hasSavedValue: boolean;
     updatedAt: string | null;
   };
@@ -147,6 +160,7 @@ export type AnnualForecastEntryBatchSaveInput = {
 export type AnnualForecastEntryBatchSaveResult = {
   ok: true;
   forecastUpserts: number;
+  initialForecastUpserts: number;
   metadataUpserts: number;
   activeStatusUpdates: number;
   changeLogRows: number;
@@ -423,14 +437,20 @@ function buildAnnualCompany(input: {
 }): AnnualForecastEntryBatchCompany {
   const businessUnits = PETYR_FORECAST_ENTRY_BUSINESS_UNITS.map<AnnualForecastEntryBatchCell>((businessUnit) => {
     const saved = input.annualRows.get(businessUnit);
+    const savedOngoing = saved && isAnnualForecastOngoingRow(saved);
     const ai = input.portfolio.annualAiForecastsByBusinessUnit.get(businessUnit);
 
     return {
       businessUnit,
       savedForecast: {
-        value: decimalToNumber(saved?.value),
-        valueSource: saved?.valueSource === "ai_confirmed" ? "ai_confirmed" : saved ? "manual" : null,
-        hasSavedValue: Boolean(saved),
+        value: savedOngoing ? decimalToNumber(saved?.value) : null,
+        valueSource: savedOngoing ? (saved?.valueSource === "ai_confirmed" ? "ai_confirmed" : "manual") : null,
+        hasSavedValue: Boolean(savedOngoing),
+        updatedAt: savedOngoing ? saved?.updatedAt.toISOString() ?? null : null
+      },
+      initialForecast: {
+        value: decimalToNumber(saved?.initialForecast),
+        hasSavedValue: saved?.initialForecast !== null && saved?.initialForecast !== undefined,
         updatedAt: saved?.updatedAt.toISOString() ?? null
       },
       aiForecast: {
@@ -685,6 +705,42 @@ function validateAnnualValues(values: unknown) {
   return [...byBusinessUnit.values()];
 }
 
+function validateAnnualInitialBusinessUnitValues(values: unknown) {
+  if (!Array.isArray(values)) return [];
+
+  const byBusinessUnit = new Map<PetyrBusinessUnit, ValidatedAnnualBuInitialValue>();
+
+  for (const rawValue of values) {
+    const row = rawValue as { businessUnit?: unknown; value?: unknown };
+    const businessUnit = normalizeBusinessUnit(row.businessUnit);
+    if (!businessUnit || !BUSINESS_UNITS.has(businessUnit)) {
+      throw new AnnualForecastEntryBatchError("Annual Forecast Entry BU Initial save contains an unknown Business Unit.", 400);
+    }
+    if (byBusinessUnit.has(businessUnit)) {
+      throw new AnnualForecastEntryBatchError(`Annual Forecast Entry BU Initial save contains duplicate values for ${businessUnit}.`, 400);
+    }
+
+    if (typeof row.value === "string" && !row.value.trim()) {
+      throw new AnnualForecastEntryBatchError(
+        `Business Unit Initial Forecast for ${businessUnit} is empty. Enter a non-negative number, or enter 0 to save zero.`,
+        400
+      );
+    }
+
+    const value = parseMoney(row.value);
+    if (!value) {
+      throw new AnnualForecastEntryBatchError(
+        `Business Unit Initial Forecast for ${businessUnit} must be numeric and greater than or equal to 0. Use digits only, or enter 0 to save zero.`,
+        400
+      );
+    }
+
+    byBusinessUnit.set(businessUnit, { businessUnit, value });
+  }
+
+  return [...byBusinessUnit.values()];
+}
+
 function validateUpdates(updates: unknown): ValidatedAnnualUpdate[] {
   if (!Array.isArray(updates)) {
     throw new AnnualForecastEntryBatchError("Annual Forecast Entry save requires an updates array.", 400);
@@ -697,6 +753,7 @@ function validateUpdates(updates: unknown): ValidatedAnnualUpdate[] {
       initialForecast?: unknown;
       confidence?: unknown;
       values?: unknown;
+      initialBusinessUnitValues?: unknown;
     };
     const companyName = asString(update.companyName);
     if (!companyName) {
@@ -732,7 +789,8 @@ function validateUpdates(updates: unknown): ValidatedAnnualUpdate[] {
       hasInitialForecast,
       initialForecast,
       confidence,
-      values: validateAnnualValues(update.values)
+      values: validateAnnualValues(update.values),
+      initialBusinessUnitValues: validateAnnualInitialBusinessUnitValues(update.initialBusinessUnitValues)
     };
   });
 }
@@ -835,6 +893,7 @@ export async function saveAnnualForecastEntryBatch(
 
   const written = await prisma.$transaction(async (tx) => {
     let forecastUpserts = 0;
+    let initialForecastUpserts = 0;
     let metadataUpserts = 0;
     let activeStatusUpdates = 0;
     let changeLogRows = 0;
@@ -880,29 +939,22 @@ export async function saveAnnualForecastEntryBatch(
         const existing = annualByBusinessUnit.get(row.businessUnit);
         return hasDecimalChanged(existing?.value, row.value) || existing?.source !== row.valueSource;
       });
-      const derivedInitialForecast = (() => {
-        if (!initialMode.editable || changedValues.length === 0) return null;
+      const changedInitialBusinessUnitValues = update.initialBusinessUnitValues.filter((row) => {
+        const existing = annualByBusinessUnit.get(row.businessUnit);
+        return hasDecimalChanged(existing?.initialForecast, row.value);
+      });
+      if (changedInitialBusinessUnitValues.length > 0 && !initialMode.editable) {
+        throw new AnnualForecastEntryBatchError(`${resolvedCompanyName}: ${initialMode.reason}`, 423);
+      }
 
-        const initialValuesByBusinessUnit = new Map<PetyrBusinessUnit, Prisma.Decimal>();
-        for (const [businessUnit, row] of annualByBusinessUnit.entries()) {
-          const initialValue = row.initialForecast;
-          if (initialValue) initialValuesByBusinessUnit.set(businessUnit, initialValue);
-        }
-        for (const row of changedValues) {
-          initialValuesByBusinessUnit.set(row.businessUnit, row.value);
-        }
-        if (initialValuesByBusinessUnit.size === 0) return update.initialForecast;
-
-        return [...initialValuesByBusinessUnit.values()].reduce((sum, value) => sum.plus(value), new Prisma.Decimal(0));
-      })();
       const effectiveInitialForecast = resolveAnnualEntryInitialForecast({
         initialModeEditable: initialMode.editable,
         submittedInitialForecast: update.hasInitialForecast ? update.initialForecast : null,
-        derivedInitialForecast
+        derivedInitialForecast: null
       });
       const initialChanged = hasDecimalChanged(existingEntry?.initialForecast, effectiveInitialForecast);
 
-      const rowModified = activeChanged || initialChanged || changedValues.length > 0;
+      const rowModified = activeChanged || initialChanged || changedValues.length > 0 || changedInitialBusinessUnitValues.length > 0;
       if (
         shouldRequireAnnualOngoingConfidence({
           ongoingForecastChanged: changedValues.length > 0,
@@ -1033,7 +1085,7 @@ export async function saveAnnualForecastEntryBatch(
             businessUnit: row.businessUnit,
             year,
             value: row.value,
-            initialForecast: initialMode.editable ? row.value : null,
+            initialForecast: null,
             aiForecastValue: aiForecasts.get(row.businessUnit) ?? null,
             valueSource: row.valueSource,
             status: "draft",
@@ -1044,7 +1096,6 @@ export async function saveAnnualForecastEntryBatch(
           update: {
             csmName: resolvedCsmName,
             value: row.value,
-            ...(initialMode.editable ? { initialForecast: row.value } : {}),
             aiForecastValue: aiForecasts.get(row.businessUnit) ?? null,
             valueSource: row.valueSource,
             status: "draft",
@@ -1067,10 +1118,63 @@ export async function saveAnnualForecastEntryBatch(
         });
         changeLogRows += 1;
       }
+
+      for (const row of changedInitialBusinessUnitValues) {
+        const where = {
+          companyName_businessUnit_year: {
+            companyName: resolvedCompanyName,
+            businessUnit: row.businessUnit,
+            year
+          }
+        };
+        const existing = annualByBusinessUnit.get(row.businessUnit);
+        const hasExistingOngoing = Boolean(existing && existing.source !== PETYR_ANNUAL_VALUE_SOURCE_INITIAL_ONLY && existing.value !== null);
+        const valueSource = hasExistingOngoing ? existing?.source || "manual" : PETYR_ANNUAL_VALUE_SOURCE_INITIAL_ONLY;
+
+        await tx.forecastAnnual.upsert({
+          where,
+          create: {
+            companyName: resolvedCompanyName,
+            csmName: resolvedCsmName,
+            businessUnit: row.businessUnit,
+            year,
+            value: hasExistingOngoing && existing?.value ? existing.value : new Prisma.Decimal(0),
+            initialForecast: row.value,
+            aiForecastValue: aiForecasts.get(row.businessUnit) ?? null,
+            valueSource,
+            status: "draft",
+            note: null,
+            createdBy,
+            updatedBy: createdBy
+          },
+          update: {
+            csmName: resolvedCsmName,
+            initialForecast: row.value,
+            aiForecastValue: aiForecasts.get(row.businessUnit) ?? null,
+            updatedBy: createdBy
+          }
+        });
+        initialForecastUpserts += 1;
+
+        await tx.forecastChangeLog.create({
+          data: {
+            saveSessionId: saveSession.id,
+            companyName: resolvedCompanyName,
+            businessUnit: row.businessUnit,
+            fieldName: "annual_business_unit_initial_forecast",
+            previousValue: decimalToLogValue(existing?.initialForecast),
+            newValue: decimalToLogValue(row.value),
+            aiForecastValueAtSave: aiForecasts.get(row.businessUnit) ?? null,
+            createdBy
+          }
+        });
+        changeLogRows += 1;
+      }
     }
 
     return {
       forecastUpserts,
+      initialForecastUpserts,
       metadataUpserts,
       activeStatusUpdates,
       changeLogRows,
@@ -1083,6 +1187,7 @@ export async function saveAnnualForecastEntryBatch(
   return {
     ok: true,
     forecastUpserts: written.forecastUpserts,
+    initialForecastUpserts: written.initialForecastUpserts,
     metadataUpserts: written.metadataUpserts,
     activeStatusUpdates: written.activeStatusUpdates,
     changeLogRows: written.changeLogRows,

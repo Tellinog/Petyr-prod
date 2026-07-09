@@ -508,14 +508,20 @@ Initial Forecast is now owned by the normal Annual Forecast Entry workflow:
   at any time; when a year is admin-unlocked, users with
   `petyr:forecast:write` may enter or edit Forecast Initial for that target year
   from normal Annual Forecast Entry until an admin locks the year again;
-- during that window, saved Business Unit annual values also populate
-  `forecast_annual.initial_forecast` for the same company, Business Unit and
-  year;
+- during that window, Annual Forecast Entry shows separate per-Business Unit
+  fields for Forecast Ongoing and Business Unit Initial Forecast. Saving a
+  Forecast Ongoing Business Unit value must not implicitly populate or change
+  `forecast_annual.initial_forecast`;
+- Business Unit Initial Forecast values entered in those explicit fields are
+  stored in `forecast_annual.initial_forecast` for the same company, Business
+  Unit and year;
 - the company/year total in `forecast_annual_entry.initial_forecast` preserves
   the value entered in the Annual Forecast Entry Forecast Initial column and
   must not be replaced by existing Forecast Ongoing values;
-- from January 11 onward, Forecast Initial is read-only and remains fixed unless
-  the selected target year is admin-unlocked;
+- from January 11 onward, company/year Forecast Initial is read-only and remains
+  fixed unless the selected target year is admin-unlocked; per-Business Unit
+  Initial Forecast columns are hidden in Annual Forecast Entry while the window
+  is locked, but the saved values remain available to Management View;
 - later Annual Entry changes update Ongoing Forecast in `forecast_annual.value`
   without changing `forecast_annual.initial_forecast`;
 - the old Initial Forecast Excel bootstrap, snapshot table read path and
@@ -552,9 +558,9 @@ Table rules:
   headers can sort the currently visible Annual rows without changing
   persistence or the selected CSM/year filters;
 - each visible Annual Business Unit header can sort the currently visible rows
-  from highest to lowest value for that Business Unit. Sorting uses saved or
-  locally edited Forecast Ongoing values when present, and the AI placeholder
-  value when no CSM value is saved;
+  from highest to lowest Forecast Ongoing value for that Business Unit. Sorting
+  uses saved or locally edited Forecast Ongoing values when present, and the AI
+  placeholder value when no CSM value is saved;
 - inactive companies remain visible with muted styling by default;
 - the Active column can filter the visible Annual rows to all companies, active
   companies only or inactive companies only; this is a client-side table view
@@ -580,6 +586,11 @@ Table rules:
 - Annual Forecast Entry displays Business Unit columns in the same CSM check
   order as Monthly: QA, UX/Experience, Accessibility, Security, FTE, TA, AI,
   OTHER/Other, Express, Community;
+- while the Forecast Initial window is editable, each visible Business Unit is
+  shown as two adjacent columns: `<Business Unit> Forecast Ongoing` and
+  `<Business Unit> Initial Forecast`. When the window is locked, Annual
+  Forecast Entry hides the per-Business Unit Initial Forecast columns and keeps
+  only the Forecast Ongoing Business Unit columns visible;
 - Management View Business Unit rows and Business Unit revenue charts display
   Business Units in that same order and with the same visible labels, while
   preserving official stored values (`Experience`, `Other`) internally;
@@ -611,6 +622,15 @@ Annual values:
   remain stored in `forecast_annual`;
 - each saved Business Unit value records `value_source=manual` or
   `value_source=ai_confirmed`;
+- Business Unit Initial Forecast values are entered separately while the
+  Forecast Initial window is open or admin-unlocked and are stored in
+  `forecast_annual.initial_forecast`; they are not derived from Forecast
+  Ongoing values;
+- if a Business Unit Initial Forecast is saved before any Forecast Ongoing value
+  exists for the same company/Business Unit/year, Petyr may create an internal
+  initial-only annual row. Initial-only rows must be excluded from Forecast
+  Ongoing totals, inactive-company Forecast Ongoing exports and Management
+  Ongoing Forecast calculations;
 - unclicked FC AI placeholders are not saved and do not contribute to FC Ongoing;
 - clicked FC AI placeholders are saved as AI-confirmed if the value is not
   changed, or manual if the CSM edits the value;
@@ -939,6 +959,11 @@ through the same Annual Forecast Entry workflow.
 If the frozen baseline is not available, show `n/a` for `Initial Forecast` and
 surface a non-invasive diagnostic instead of inventing a baseline.
 
+Management View Monthly Aggregate, Business Unit View and Single CSM View expose
+read-only `Export Excel` controls for monthly rows. Exports use the selected
+year and current Company Type Filter and must read from the same
+PostgreSQL-backed Management read model as the UI.
+
 ---
 
 ## 17. Yearly View · Branch
@@ -1177,6 +1202,13 @@ Agreement rows and agreement evidence should be ordered by operational expiry pr
 Forecast Entry is the only area where monthly forecasts can be edited.
 
 Forecast Entry uses the shared Petyr workspace shell with the same descriptive header card and section navigation as Management View, CSM Overview and Company Detail. It remains the only route that may expose the manual AI Forecast apply action, but the Support tools area and floating Data diagnostics menu are visible only to users with `petyr:admin`. The Monthly forecast tab may expose a CSM-facing Forecast Intelligence section for users with `petyr:forecast:write`; that section renders validated consultative JSON and has no apply controls or OpenRouter prompt/debug output. The normal Monthly and Annual Forecast Entry sections must use one floating bottom-right `Save` button that remains visible while scrolling, replaces inline top/bottom save buttons and turns green for five seconds after an effective save. The existing monthly and annual forecast logic must be preserved unless a later task explicitly selects a bug fix.
+
+Forecast Entry Monthly and Annual cards expose read-only `Export Excel`
+controls. Monthly export creates one worksheet per month from January through
+the current month for the current year, or all 12 months for other selected
+years. Annual export includes the selected Annual Entry portfolio and must
+include per-Business Unit Initial Forecast columns even when those columns are
+hidden in the current UI.
 
 Forecast Entry FAQ lives on a separate page:
 

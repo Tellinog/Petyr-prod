@@ -18,6 +18,36 @@ Each entry must include:
 
 ---
 
+## 2026-07-09
+
+- **Area:** Petyr / Forecast Entry and Management Excel exports
+- **Change:** Added read-only Excel export endpoints and UI buttons for Forecast Entry Monthly, Forecast Entry Annual, Management Monthly Aggregate, Management Business Unit View and Management Single CSM View. Monthly Forecast Entry export creates one worksheet per month from January through the current month for the current year, or all 12 months for other selected years. Annual Forecast Entry export includes company totals and per-Business Unit Ongoing, Initial and AI Forecast columns, including BU Initial Forecast columns even when hidden in the UI. Management exports download monthly rows for the selected year and current Company Type Filter.
+- **Reason:** Product requested first-pass Excel downloads from the product cards before refining each export's exact expected columns.
+- **Impact:** New read-only product export API routes and buttons were added. No database schema, imports, Redash calls, forecast saves, objectives, AI Forecast persistence or audit writes changed.
+- **Files/documents involved:** `apps/forecasting-app/src/services/petyrForecastingExportService.ts`, `apps/forecasting-app/src/app/api/petyr/forecast-entry/monthly-export-xlsx/route.ts`, `apps/forecasting-app/src/app/api/petyr/forecast-entry/annual-export-xlsx/route.ts`, `apps/forecasting-app/src/app/api/petyr/forecasting/management-export-xlsx/route.ts`, `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/PetyrMVPRendering.tsx`, `apps/forecasting-app/README.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** Refine each workbook's included/excluded columns with product review export by export.
+
+- **Area:** Petyr / Annual Forecast Entry / Initial Forecast
+- **Change:** Annual Forecast Entry now separates per-Business Unit Forecast Ongoing from per-Business Unit Initial Forecast while the Forecast Initial window is open or admin-unlocked. Each visible Business Unit shows adjacent Forecast Ongoing and Initial Forecast fields during that window; locked years hide the BU Initial Forecast fields in Annual Forecast Entry while preserving saved values for Management. Saving Forecast Ongoing no longer writes `forecast_annual.initial_forecast`; explicit BU Initial Forecast saves write that field and may create internal initial-only annual rows excluded from Ongoing totals and inactive-company Forecast Ongoing export.
+- **Reason:** Product identified that using the same BU annual cell as both Ongoing and Initial during the December 10-January 10 window could freeze ordinary Forecast Ongoing edits as the Initial baseline.
+- **Impact:** UI, annual batch API payload, annual save semantics and annual read aggregation changed. Database schema is unchanged. Existing company/year Forecast Initial remains in `forecast_annual_entry.initial_forecast`; BU Initial Forecast remains in `forecast_annual.initial_forecast`; Management continues to read saved Initial values.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/src/services/annualForecastEntryBatchService.ts`, `apps/forecasting-app/src/lib/petyr/annualForecastEntryRules.ts`, `apps/forecasting-app/src/services/petyrDataService.ts`, `apps/forecasting-app/src/services/annualForecastService.ts`, `apps/forecasting-app/src/services/petyrInactiveCompaniesAnnualExportService.ts`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `apps/forecasting-app/README.md`, `DECISIONS.md`, `DEVLOG.md`.
+- **Follow-up:** Review the Annual Forecast Entry table with CSM/Management users before the next Forecast Initial window to confirm the doubled BU columns are clear enough operationally.
+
+- **Area:** Petyr / Management View / Company Type Filter
+- **Change:** Management View now labels the lifecycle selector as `Company Type Filter`, places it in the top-right of Monthly Aggregate, Yearly View, Business Unit View and Single CSM View cards, and shares one selected filter value across those Management sections.
+- **Reason:** Product requested the Company Type filter to be explicit, consistently positioned and synchronized across Management aggregate views.
+- **Impact:** UI copy/layout and client-side filter state changed only. Existing lifecycle options, aggregate calculations, PostgreSQL/Redash data flow, APIs, permissions and database schema are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/PetyrMVPRendering.tsx`, `apps/forecasting-app/README.md`, `docs/05_forecasting_product_spec.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecast Entry Monthly UI copy
+- **Change:** Replaced the Italian Active-column helper text in Monthly Forecast Entry with English copy: `Company status is global, not monthly.`
+- **Reason:** Product reported that the Active status explanation was added in Italian by mistake.
+- **Impact:** UI copy only. Active/inactive status behavior, persistence, filters, save sessions, change logs and AI Forecast cache cleanup are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `DEVLOG.md`.
+- **Follow-up:** None.
+
 ## 2026-07-08
 
 - **Area:** Petyr / Management View / Company revenue lifecycle

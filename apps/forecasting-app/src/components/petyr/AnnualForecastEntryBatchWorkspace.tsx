@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +40,15 @@ function buildAnnualBatchUrl(csmNames: string[], year: number) {
   }
   params.set("year", String(year));
   return `/api/petyr/forecast-entry/annual-batch?${params.toString()}`;
+}
+
+function buildAnnualExportUrl(csmNames: string[], year: number) {
+  const params = new URLSearchParams();
+  for (const csmName of csmNames) {
+    if (csmName) params.append("csmName", csmName);
+  }
+  params.set("year", String(year));
+  return `/api/petyr/forecast-entry/annual-export-xlsx?${params.toString()}`;
 }
 
 function buildCompanyDetailPageUrl(companyName: string, year: number, csmName?: string | null) {
@@ -90,6 +99,18 @@ function valuesFromBatch(batch: AnnualForecastEntryBatchDataResult) {
       values[cellKey(company.companyName, cell.businessUnit)] = cell.savedForecast.hasSavedValue
         ? formatInputValue(cell.savedForecast.value)
         : "";
+    }
+  }
+
+  return values;
+}
+
+function businessUnitInitialValuesFromBatch(batch: AnnualForecastEntryBatchDataResult) {
+  const values: Record<string, string> = {};
+
+  for (const company of batch.data.companies) {
+    for (const cell of company.businessUnits) {
+      values[cellKey(company.companyName, cell.businessUnit)] = formatInputValue(cell.initialForecast.value);
     }
   }
 
@@ -227,10 +248,12 @@ export default function AnnualForecastEntryBatchWorkspace({
   const [selectedCsms, setSelectedCsms] = useState<string[]>(() => initialBatch.data.selectedCsms ?? [initialBatch.data.selectedCsm].filter(Boolean));
   const [selectedYear, setSelectedYear] = useState(initialBatch.data.selectedYear);
   const [values, setValues] = useState<Record<string, string>>(() => valuesFromBatch(initialBatch));
+  const [businessUnitInitialValues, setBusinessUnitInitialValues] = useState<Record<string, string>>(() => businessUnitInitialValuesFromBatch(initialBatch));
   const [initialValues, setInitialValues] = useState<Record<string, string>>(() => initialValuesFromBatch(initialBatch));
   const [activeValues, setActiveValues] = useState<Record<string, boolean>>(() => activeValuesFromBatch(initialBatch));
   const [confidenceValues, setConfidenceValues] = useState<Record<string, string>>(() => confidenceValuesFromBatch(initialBatch));
   const [sourceStates, setSourceStates] = useState<Record<string, SourceState | undefined>>({});
+  const [touchedBusinessUnitInitial, setTouchedBusinessUnitInitial] = useState<Set<string>>(() => new Set());
   const [touchedInitial, setTouchedInitial] = useState<Set<string>>(() => new Set());
   const [touchedActive, setTouchedActive] = useState<Set<string>>(() => new Set());
   const [touchedConfidence, setTouchedConfidence] = useState<Set<string>>(() => new Set());
@@ -251,10 +274,11 @@ export default function AnnualForecastEntryBatchWorkspace({
   const hasLocalChanges = useMemo(
     () =>
       Object.values(sourceStates).some(Boolean) ||
+      touchedBusinessUnitInitial.size > 0 ||
       touchedInitial.size > 0 ||
       touchedActive.size > 0 ||
       touchedConfidence.size > 0,
-    [sourceStates, touchedInitial, touchedActive, touchedConfidence]
+    [sourceStates, touchedBusinessUnitInitial, touchedInitial, touchedActive, touchedConfidence]
   );
 
   useEffect(() => {
@@ -307,10 +331,12 @@ export default function AnnualForecastEntryBatchWorkspace({
     setSelectedYear(nextBatch.data.selectedYear);
     setIsCsmDropdownOpen(false);
     setValues(valuesFromBatch(nextBatch));
+    setBusinessUnitInitialValues(businessUnitInitialValuesFromBatch(nextBatch));
     setInitialValues(initialValuesFromBatch(nextBatch));
     setActiveValues(activeValuesFromBatch(nextBatch));
     setConfidenceValues(confidenceValuesFromBatch(nextBatch));
     setSourceStates({});
+    setTouchedBusinessUnitInitial(new Set());
     setTouchedInitial(new Set());
     setTouchedActive(new Set());
     setTouchedConfidence(new Set());
@@ -363,6 +389,12 @@ export default function AnnualForecastEntryBatchWorkspace({
     setSourceStates((existing) => ({ ...existing, [key]: "manual_edit" }));
   }
 
+  function updateBusinessUnitInitial(company: AnnualForecastEntryBatchCompany, cell: AnnualForecastEntryBatchCell, value: string) {
+    const key = cellKey(company.companyName, cell.businessUnit);
+    setBusinessUnitInitialValues((existing) => ({ ...existing, [key]: formatPetyrIntegerInputDraft(value) }));
+    setTouchedBusinessUnitInitial((existing) => new Set(existing).add(key));
+  }
+
   function updateInitial(companyName: string, value: string) {
     setInitialValues((existing) => ({ ...existing, [companyName]: formatPetyrIntegerInputDraft(value) }));
     setTouchedInitial((existing) => new Set(existing).add(companyName));
@@ -386,6 +418,15 @@ export default function AnnualForecastEntryBatchWorkspace({
     if (cell.savedForecast.hasSavedValue) return cell.savedForecast.value ?? 0;
 
     return null;
+  }
+
+  function currentBusinessUnitInitialValue(company: AnnualForecastEntryBatchCompany, cell: AnnualForecastEntryBatchCell) {
+    const key = cellKey(company.companyName, cell.businessUnit);
+    const rawValue = businessUnitInitialValues[key] ?? "";
+    if (!rawValue.trim()) return 0;
+
+    const parsed = parseMoneyInput(rawValue);
+    return parsed ?? cell.initialForecast.value ?? 0;
   }
 
   function annualBusinessUnitSortValue(company: AnnualForecastEntryBatchCompany, businessUnit: string) {
@@ -458,6 +499,7 @@ export default function AnnualForecastEntryBatchWorkspace({
 
   const annualSummary = useMemo(() => {
     const byBusinessUnit = Object.fromEntries(batch.data.businessUnits.map((businessUnit) => [businessUnit, 0])) as Record<string, number>;
+    const initialByBusinessUnit = Object.fromEntries(batch.data.businessUnits.map((businessUnit) => [businessUnit, 0])) as Record<string, number>;
     let initialTotal = 0;
     let total = 0;
     let revenue = 0;
@@ -471,6 +513,7 @@ export default function AnnualForecastEntryBatchWorkspace({
       for (const cell of company.businessUnits) {
         const value = currentBuValue(company, cell) ?? 0;
         byBusinessUnit[cell.businessUnit] = (byBusinessUnit[cell.businessUnit] ?? 0) + value;
+        initialByBusinessUnit[cell.businessUnit] = (initialByBusinessUnit[cell.businessUnit] ?? 0) + currentBusinessUnitInitialValue(company, cell);
         total += value;
       }
     }
@@ -484,9 +527,13 @@ export default function AnnualForecastEntryBatchWorkspace({
         businessUnit,
         value: byBusinessUnit[businessUnit] ?? 0
       })),
+      initialByBusinessUnit: batch.data.businessUnits.map((businessUnit) => ({
+        businessUnit,
+        value: initialByBusinessUnit[businessUnit] ?? 0
+      })),
       percentages: calculateAnnualForecastPercentages({ revenue, planned, fcOngoing: total })
     };
-  }, [batch.data.businessUnits, displayedAnnualCompanies, initialValues, sourceStates, values]);
+  }, [batch.data.businessUnits, businessUnitInitialValues, displayedAnnualCompanies, initialValues, sourceStates, values]);
 
   function getCompanySaveValues(company: AnnualForecastEntryBatchCompany) {
     return company.businessUnits.flatMap((cell) => {
@@ -504,14 +551,32 @@ export default function AnnualForecastEntryBatchWorkspace({
     });
   }
 
+  function getCompanySaveInitialBusinessUnitValues(company: AnnualForecastEntryBatchCompany) {
+    if (!batch.data.initialMode.editable) return [];
+
+    return company.businessUnits.flatMap((cell) => {
+      const key = cellKey(company.companyName, cell.businessUnit);
+      if (!touchedBusinessUnitInitial.has(key)) return [];
+
+      return [
+        {
+          businessUnit: cell.businessUnit,
+          value: businessUnitInitialValues[key] ?? ""
+        }
+      ];
+    });
+  }
+
   function buildUpdates() {
     return batch.data.companies.flatMap((company) => {
       const valuesForCompany = getCompanySaveValues(company);
+      const initialBusinessUnitValues = getCompanySaveInitialBusinessUnitValues(company);
       const hasInitial = touchedInitial.has(company.companyName);
       const hasActive = touchedActive.has(company.companyName);
       const hasConfidence = touchedConfidence.has(company.companyName);
       const ongoingModified = valuesForCompany.length > 0;
-      const rowModified = ongoingModified || hasInitial || hasActive;
+      const initialBusinessUnitModified = initialBusinessUnitValues.length > 0;
+      const rowModified = ongoingModified || initialBusinessUnitModified || hasInitial || hasActive;
 
       if (!rowModified && !hasConfidence) return [];
 
@@ -526,7 +591,8 @@ export default function AnnualForecastEntryBatchWorkspace({
           activeStatus: hasActive ? activeValues[company.companyName] : undefined,
           initialForecast: hasInitial ? initialValues[company.companyName] : undefined,
           confidence: ongoingModified || hasConfidence ? confidence : undefined,
-          values: valuesForCompany
+          values: valuesForCompany,
+          initialBusinessUnitValues
         }
       ];
     });
@@ -572,6 +638,7 @@ export default function AnnualForecastEntryBatchWorkspace({
         : [
             `Saved annual changes for ${payload.companiesSaved} compan${payload.companiesSaved === 1 ? "y" : "ies"}`,
             `${payload.forecastUpserts} Forecast Ongoing value(s)`,
+            `${payload.initialForecastUpserts ?? 0} Business Unit Initial Forecast value(s)`,
             `${payload.metadataUpserts} annual metadata update(s)`,
             `${payload.activeStatusUpdates} Active status update(s)`,
             `${payload.changeLogRows} log row(s)`
@@ -603,7 +670,10 @@ export default function AnnualForecastEntryBatchWorkspace({
     void saveBatch();
   }
 
-  const visibleBusinessUnitCount = showBusinessUnits ? batch.data.businessUnits.length : 0;
+  const showBusinessUnitInitialForecast = batch.data.initialMode.editable;
+  const visibleBusinessUnitCount = showBusinessUnits
+    ? batch.data.businessUnits.length * (showBusinessUnitInitialForecast ? 2 : 1)
+    : 0;
   const annualTableMinWidth =
     COMPANY_COLUMN_WIDTH +
     ACTIVE_COLUMN_WIDTH +
@@ -842,20 +912,30 @@ export default function AnnualForecastEntryBatchWorkspace({
                 </TableHead>
                 {showBusinessUnits
                   ? batch.data.businessUnits.map((businessUnit) => (
-                      <TableHead
-                        key={businessUnit}
-                        className={`${HEADER_STICKY_CLASS} min-w-[128px] text-right ${MANUAL_HEADER_CLASS}`}
-                        aria-sort={annualSort.key === "business_unit" && annualSort.businessUnit === businessUnit ? "descending" : "none"}
-                      >
-                        <button
-                          type="button"
-                          className={`${SORT_BUTTON_BASE_CLASS} items-end border-amber-200 text-right hover:border-amber-300 hover:bg-amber-50`}
-                          onClick={() => setAnnualSort(nextAnnualBusinessUnitSort(businessUnit))}
+                      <Fragment key={businessUnit}>
+                        <TableHead
+                          className={`${HEADER_STICKY_CLASS} min-w-[128px] text-right ${MANUAL_HEADER_CLASS}`}
+                          aria-sort={annualSort.key === "business_unit" && annualSort.businessUnit === businessUnit ? "descending" : "none"}
                         >
-                          <span>{formatBusinessUnitDisplayName(businessUnit)}</span>
-                          <span className="text-[11px] font-semibold text-slate-500">{annualBusinessUnitSortLabel(annualSort, businessUnit)}</span>
-                        </button>
-                      </TableHead>
+                          <button
+                            type="button"
+                            className={`${SORT_BUTTON_BASE_CLASS} items-end border-amber-200 text-right hover:border-amber-300 hover:bg-amber-50`}
+                            onClick={() => setAnnualSort(nextAnnualBusinessUnitSort(businessUnit))}
+                          >
+                            <span>{formatBusinessUnitDisplayName(businessUnit)}</span>
+                            <span>Forecast Ongoing</span>
+                            <span className="text-[11px] font-semibold text-slate-500">{annualBusinessUnitSortLabel(annualSort, businessUnit)}</span>
+                          </button>
+                        </TableHead>
+                        {showBusinessUnitInitialForecast ? (
+                          <TableHead className={`${HEADER_STICKY_CLASS} min-w-[128px] text-right ${MANUAL_HEADER_CLASS}`}>
+                            <div className="flex min-h-9 w-full flex-col items-end justify-center gap-0.5 rounded-lg border border-amber-200 bg-white px-2 py-1 text-right text-xs font-semibold leading-tight text-slate-800 shadow-sm">
+                              <span>{formatBusinessUnitDisplayName(businessUnit)}</span>
+                              <span>Initial Forecast</span>
+                            </div>
+                          </TableHead>
+                        ) : null}
+                      </Fragment>
                     ))
                   : null}
                 <TableHead className={`${HEADER_STICKY_CLASS} min-w-[150px] bg-white text-right`}>Closed Revenue YTD</TableHead>
@@ -887,14 +967,26 @@ export default function AnnualForecastEntryBatchWorkspace({
                     aria-label="No confidence value for total row"
                   />
                   {showBusinessUnits
-                    ? annualSummary.byBusinessUnit.map((item) => (
-                        <TableCell
-                          key={`total-${item.businessUnit}`}
-                          className={`min-w-[128px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(item.value))}`}
-                        >
-                          {formatPetyrIntegerCurrencyValue(item.value)}
-                        </TableCell>
-                      ))
+                    ? annualSummary.byBusinessUnit.map((item, index) => {
+                        const initialItem = annualSummary.initialByBusinessUnit[index];
+
+                        return (
+                          <Fragment key={`total-${item.businessUnit}`}>
+                            <TableCell
+                              className={`min-w-[128px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(item.value))}`}
+                            >
+                              {formatPetyrIntegerCurrencyValue(item.value)}
+                            </TableCell>
+                            {showBusinessUnitInitialForecast ? (
+                              <TableCell
+                                className={`min-w-[128px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(initialItem?.value))}`}
+                              >
+                                {formatPetyrIntegerCurrencyValue(initialItem?.value ?? 0)}
+                              </TableCell>
+                            ) : null}
+                          </Fragment>
+                        );
+                      })
                     : null}
                   <TableCell className={`min-w-[150px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(annualSummary.revenue))}`}>
                     {formatPetyrIntegerCurrencyValue(annualSummary.revenue)}
@@ -991,6 +1083,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                           ? formatInputValue(cell.aiForecast.value)
                           : "";
                         const currentInputValue = values[key] ?? "";
+                        const currentInitialInputValue = businessUnitInitialValues[key] ?? "";
                         const inputClass =
                           sourceState === "accepted_ai"
                             ? "border-violet-300 bg-violet-50"
@@ -1003,31 +1096,57 @@ export default function AnnualForecastEntryBatchWorkspace({
                                   : "border-amber-200 bg-amber-50";
 
                         return (
-                          <TableCell key={key} className={MANUAL_CELL_CLASS}>
-                            <Input
-                              inputMode="numeric"
-                              disabled={isSaving}
-                              placeholder={aiPlaceholder || "n/a"}
-                              value={currentInputValue}
-                              onFocus={() => acceptAiPlaceholder(company, cell)}
-                              onClick={() => acceptAiPlaceholder(company, cell)}
-                              onChange={(event) => updateValue(company, cell, event.target.value)}
-                              onKeyDown={handleSaveKeyDown}
-                              className={`h-8 min-w-[112px] rounded-xl text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(currentInputValue || aiPlaceholder))} ${inputClass}`}
-                            />
-                            {sourceState ? (
-                              <div className="mt-1 text-right text-[11px] font-medium text-slate-500">
-                                {sourceState === "accepted_ai" ? "AI confirmed" : "Manual"}
-                              </div>
-                            ) : cell.savedForecast.hasSavedValue ? (
-                              <SavedForecastStatus
-                                label={cell.savedForecast.valueSource === "ai_confirmed" ? "AI confirmed" : "Saved"}
-                                aiForecastValue={cell.aiForecast.value}
+                          <Fragment key={key}>
+                            <TableCell className={MANUAL_CELL_CLASS}>
+                              <Input
+                                inputMode="numeric"
+                                disabled={isSaving}
+                                placeholder={aiPlaceholder || "n/a"}
+                                value={currentInputValue}
+                                onFocus={() => acceptAiPlaceholder(company, cell)}
+                                onClick={() => acceptAiPlaceholder(company, cell)}
+                                onChange={(event) => updateValue(company, cell, event.target.value)}
+                                onKeyDown={handleSaveKeyDown}
+                                className={`h-8 min-w-[112px] rounded-xl text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(currentInputValue || aiPlaceholder))} ${inputClass}`}
                               />
-                            ) : aiPlaceholder ? (
-                              <div className="mt-1 text-right text-[11px] text-blue-700">Forecast AI</div>
+                              {sourceState ? (
+                                <div className="mt-1 text-right text-[11px] font-medium text-slate-500">
+                                  {sourceState === "accepted_ai" ? "AI confirmed" : "Manual"}
+                                </div>
+                              ) : cell.savedForecast.hasSavedValue ? (
+                                <SavedForecastStatus
+                                  label={cell.savedForecast.valueSource === "ai_confirmed" ? "AI confirmed" : "Saved"}
+                                  aiForecastValue={cell.aiForecast.value}
+                                />
+                              ) : aiPlaceholder ? (
+                                <div className="mt-1 text-right text-[11px] text-blue-700">Forecast AI</div>
+                              ) : null}
+                            </TableCell>
+                            {showBusinessUnitInitialForecast ? (
+                              <TableCell className={MANUAL_CELL_CLASS}>
+                                <Input
+                                  inputMode="numeric"
+                                  disabled={isSaving}
+                                  placeholder="n/a"
+                                  value={currentInitialInputValue}
+                                  onChange={(event) => updateBusinessUnitInitial(company, cell, event.target.value)}
+                                  onKeyDown={handleSaveKeyDown}
+                                  className={`h-8 min-w-[112px] rounded-xl text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(currentInitialInputValue))} ${
+                                    touchedBusinessUnitInitial.has(key)
+                                      ? "border-emerald-300 bg-emerald-50"
+                                      : cell.initialForecast.hasSavedValue
+                                        ? "border-amber-200 bg-amber-50"
+                                        : "border-amber-200 bg-amber-50"
+                                  }`}
+                                />
+                                {touchedBusinessUnitInitial.has(key) ? (
+                                  <div className="mt-1 text-right text-[11px] font-medium text-slate-500">Manual</div>
+                                ) : cell.initialForecast.hasSavedValue ? (
+                                  <div className="mt-1 text-right text-[11px] text-slate-500">Saved Initial</div>
+                                ) : null}
+                              </TableCell>
                             ) : null}
-                          </TableCell>
+                          </Fragment>
                         );
                       }) : null}
                       <TableCell className={`text-right font-medium ${mutedNumericClass(isEmptyOrZeroDisplay(company.revenue))}`}>
@@ -1063,6 +1182,20 @@ export default function AnnualForecastEntryBatchWorkspace({
               )}
             </TableBody>
           </Table>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isLoading || isSaving}
+            onClick={() => {
+              window.location.href = buildAnnualExportUrl(batch.data.selectedCsms, batch.data.selectedYear);
+            }}
+            className="rounded-xl"
+          >
+            Export Excel
+          </Button>
         </div>
       </CardContent>
     </PetyrCard>

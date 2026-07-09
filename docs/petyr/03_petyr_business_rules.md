@@ -156,6 +156,8 @@ Rules:
   related AI Forecast references render on separate lines, with the AI Forecast
   reference using the AI legend color.
 - The legend row includes a Business Unit collapse/show button immediately after the legend chips; collapsed mode hides all BU input columns and keeps Active through Confidence plus Closed Revenue YTD through Logs visible.
+- Forecast Entry Monthly and Annual cards expose read-only Excel exports. Monthly exports one worksheet per month from January through the current month for the current year, or all 12 months for other selected years. Annual exports include per-Business Unit Initial Forecast columns even when those columns are hidden in the UI.
+- Management View Monthly Aggregate, Business Unit View and Single CSM View expose read-only Excel exports for the selected year and current Company Type Filter.
 - Editable Annual Entry columns use a subtle manual-entry background, while consolidated/read-only columns remain visually quieter.
 - Annual Entry revenue/planned columns are labelled Closed Revenue YTD and Planned This Year; ratio columns explicitly use Forecast Ongoing; the history action is labelled Logs and each row link says `See latest logs`.
 - Annual Entry Planned includes future planning-like statuses (`Draft`, `Plan`,

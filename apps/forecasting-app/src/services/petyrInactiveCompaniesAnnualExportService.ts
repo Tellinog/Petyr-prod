@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/db";
+import { PETYR_ANNUAL_VALUE_SOURCE_INITIAL_ONLY } from "@/lib/petyr/annualForecastEntryRules";
 import { PETYR_BUSINESS_UNITS } from "@/lib/petyr/constants";
 import { PETYR_EXCEL_CURRENCY_NUM_FORMAT } from "@/lib/petyr/formatters";
 import {
@@ -92,7 +93,11 @@ export async function buildInactiveCompaniesAnnualForecastWorkbookXlsx(input: { 
     const companyNames = inactiveStatuses.map((status) => status.companyName);
     const annualForecasts = companyNames.length
       ? await prisma.forecastAnnual.findMany({
-          where: { year: input.year, companyName: { in: companyNames } },
+          where: {
+            year: input.year,
+            companyName: { in: companyNames },
+            NOT: { valueSource: PETYR_ANNUAL_VALUE_SOURCE_INITIAL_ONLY }
+          },
           orderBy: [{ companyName: "asc" }, { businessUnit: "asc" }]
         })
       : [];
