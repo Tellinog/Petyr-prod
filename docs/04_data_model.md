@@ -111,6 +111,7 @@ company_forecast_status
 company_revenue_lifecycle
 app_setting
 petyr_performance_measurement
+user_feedback_ticket
 ai_forecast_cache
 management_objective
 management_objective_change_log
@@ -121,6 +122,12 @@ by Petyr Admin. Forecasting and Redash Ingestor may write operation name,
 service name, status, duration, row count, timestamp and small scalar metadata.
 It must not store raw Redash payloads, uploaded workbook contents, customer rows,
 API keys, secrets or browser DevTools measurements.
+
+`user_feedback_ticket` stores authenticated user feedback submitted from Petyr
+pages. It keeps the selected feedback category, ticket status, message, current
+page, submitted user identity, sanitized browser context and the latest sanitized
+session activity trail. It must not store form field values, passwords, tokens,
+uploaded workbook contents, raw page HTML, API keys or request bodies.
 
 Business Unit is stored as a string for now so the schema can remain compatible with
 future source cleanup. App logic must validate it against the official values:
@@ -392,6 +399,41 @@ petyr.openrouter.model
 ```
 
 If this setting does not exist, Petyr uses `OPENROUTER_DEFAULT_MODEL` from the environment.
+
+### user_feedback_ticket
+
+Purpose:
+- store product feedback and support reports submitted by authenticated Petyr users;
+- provide an admin-visible ticket queue with status tracking and Excel export;
+- preserve enough sanitized context to reproduce issues without collecting form values or secrets.
+
+Categories:
+
+```txt
+bug
+experience
+data_issue
+other
+```
+
+Statuses:
+
+```txt
+open
+in_progress
+resolved
+```
+
+Important fields:
+- category;
+- status;
+- message;
+- page_path and page_url;
+- recent_activity JSON, limited to sanitized route/click/submit events;
+- client_context JSON, limited to browser basics such as user agent, language, timezone, referrer and viewport;
+- submitted_by_email, submitted_by_display_name, submitted_by_role;
+- access_session_id and correlation_id;
+- created_at, updated_at, status_updated_at, status_updated_by and resolved_at.
 
 ### ai_forecast_cache
 

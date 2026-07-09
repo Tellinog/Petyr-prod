@@ -53,14 +53,19 @@ export function getAnnualForecastEntryInitialMode(
   const current = startOfLocalDay(currentDate).getTime();
   const start = new Date(year - 1, 11, 10).getTime();
   const end = new Date(year, 0, 10).getTime();
+  const januaryStart = new Date(year, 0, 1).getTime();
   const validYear = Number.isInteger(year) && year >= PETYR_ANNUAL_FORECAST_START_YEAR;
   const inDefaultWindow = validYear && current >= start && current <= end;
+  const inDefaultJanuaryEntryWindow = inDefaultWindow && current >= januaryStart;
   const adminUnlocked = validYear && override.adminUnlocked === true;
   const editable = inDefaultWindow || adminUnlocked;
 
   return {
     editable,
     adminUnlocked,
+    inDefaultJanuaryEntryWindow,
+    showInitialBusinessUnitsByDefault: inDefaultJanuaryEntryWindow,
+    canToggleInitialBusinessUnits: editable && !inDefaultJanuaryEntryWindow,
     label: editable
       ? adminUnlocked
         ? "Forecast Initial admin-unlocked"

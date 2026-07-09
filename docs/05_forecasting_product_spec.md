@@ -63,6 +63,16 @@ users with `petyr:admin`.
 
 The Petyr workspace shell must be shared across Management View, CSM Overview, Company Detail and Forecast Entry: one descriptive header card, one section navigator and route-aware links. The header card title and supporting copy must describe what the active view offers, so users can understand the page immediately. CSM Overview is temporarily in development and must be visible/accessible only to users with `petyr:admin`; non-admin users must not see its navigator item, must stay on Management when requesting `?view=csm`, and must not receive CSM Overview rendering payloads. For admins, the top-level workspace switches Management/CSM through `?view=management|csm`; Company Detail and Forecast Entry use dedicated routes with query parameters when context is available.
 
+All authenticated Petyr users must have access to a fixed bottom-left
+`Feedback` control across Petyr pages. The feedback modal is in English and lets
+the user choose `Bug`, `Experience`, `Data issue` or `Other`, then describe what
+happened. Submitting feedback creates a PostgreSQL-backed ticket through
+`POST /api/petyr/feedback`; the server derives user identity from the Petyr auth
+session and stores the current page, sanitized browser basics and the latest
+sanitized route/click/form-submit activity. Feedback context must not include
+form field values, passwords, tokens, uploaded workbook contents, raw page HTML,
+request bodies or API keys.
+
 Petyr must provide branded fallback pages for browser-visible errors. Unknown
 routes must render a structured Petyr 404 page, browser bad-request flows must
 render a structured 400 page, and runtime application failures must render a
@@ -409,6 +419,17 @@ Annual Forecast Entry rules:
 - Business Unit columns use the same CSM check order as Monthly Forecast Entry:
   QA, UX/Experience, Accessibility, Security, FTE, TA, AI, OTHER/Other, Express,
   Community;
+- During the automatic January Forecast Initial entry window, each visible
+  Business Unit shows adjacent Forecast Ongoing and Initial Forecast columns.
+  During the automatic December 10-31 preparation window, or during any manual
+  Petyr Admin unlock outside January, each Business Unit starts with Initial
+  Forecast collapsed behind that Business Unit's Forecast Ongoing column and
+  exposes a per-Business Unit show/hide button. When Initial Forecast is locked
+  and no admin unlock is active, the per-Business Unit Initial Forecast columns
+  and their show/hide buttons are hidden.
+- Annual Business Unit headers place the active field label, such as Forecast
+  Ongoing or Initial Forecast, on the left and the Business Unit name plus
+  sorting control on the right to keep the header compact.
 - Management View Business Unit rows and Business Unit revenue charts use the
   same order and visible labels as Forecast Entry, while keeping official
   stored values (`Experience`, `Other`) internally;
@@ -721,6 +742,7 @@ Temporary internal admin area.
 
 Sections, in display order:
 - Data health diagnostics for the Redash Ingestor to PostgreSQL to Petyr service flow;
+- feedback ticket queue, status management and Excel export;
 - Performance test results for sanitized server-side operation measurements;
 - an operator link to the Redash Ingestor dashboard at `/redash-ingestor`;
 - PostgreSQL database backup export/import for server migration and controlled recovery;
@@ -829,6 +851,22 @@ dedicated run history without exposing secrets or raw customer payloads.
 The Petyr Admin manual Daily AI Forecast trigger uses the same deterministic
 service and advisory lock as the scheduled worker, but it disables the
 inter-company delay for the browser request to avoid upstream proxy timeouts.
+
+Petyr feedback ticket admin APIs are:
+
+```txt
+GET /api/petyr/admin/feedback
+PATCH /api/petyr/admin/feedback/[ticketId]
+GET /api/petyr/admin/feedback/summary
+GET /api/petyr/admin/feedback/export-xlsx
+```
+
+They require `petyr:admin`. `/petyr-admin/feedback` shows all feedback tickets,
+sanitized context/activity details, status controls for `Open`, `In progress`
+and `Resolved`, and an Excel export containing all tickets. The main
+`/petyr-admin` page shows open/in-progress ticket counts. The admin-only
+floating Data diagnostics menu may show the open-ticket count and link to the
+feedback queue.
 
 Forecast Entry product-view Excel exports are:
 

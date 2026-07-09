@@ -138,6 +138,7 @@ Petyr owns:
 - change history;
 - AI forecast cache;
 - AI model settings;
+- user feedback tickets;
 - admin import/export operations.
 
 ---
@@ -586,11 +587,20 @@ Table rules:
 - Annual Forecast Entry displays Business Unit columns in the same CSM check
   order as Monthly: QA, UX/Experience, Accessibility, Security, FTE, TA, AI,
   OTHER/Other, Express, Community;
-- while the Forecast Initial window is editable, each visible Business Unit is
-  shown as two adjacent columns: `<Business Unit> Forecast Ongoing` and
-  `<Business Unit> Initial Forecast`. When the window is locked, Annual
-  Forecast Entry hides the per-Business Unit Initial Forecast columns and keeps
-  only the Forecast Ongoing Business Unit columns visible;
+- while the Forecast Initial window is editable from January 1 through the
+  automatic close date, each visible Business Unit is shown as two adjacent
+  columns: `<Business Unit> Forecast Ongoing` and `<Business Unit> Initial
+  Forecast`;
+- during the automatic December 10-31 preparation window, or during any manual
+  Petyr Admin unlock outside the January entry window, each Business Unit starts
+  with its Initial Forecast column collapsed behind that Business Unit's
+  Forecast Ongoing column. The Business Unit header shows the Forecast Ongoing
+  or Initial Forecast label on the left, the Business Unit name and sorting
+  control on the right, and exposes a per-Business Unit button to show or hide
+  Initial Forecast only while Initial Forecast is editable;
+- when the Forecast Initial window is locked and no admin unlock is active,
+  Annual Forecast Entry hides the per-Business Unit Initial Forecast columns and
+  does not show the per-Business Unit Initial Forecast expansion buttons;
 - Management View Business Unit rows and Business Unit revenue charts display
   Business Units in that same order and with the same visible labels, while
   preserving official stored values (`Experience`, `Other`) internally;
@@ -1700,6 +1710,7 @@ Rules for this cycle:
 It is used for these visible sections, in display order:
 
 - data health diagnostics;
+- feedback ticket queue, status management and Excel export;
 - performance test results for sanitized server-side operation measurements;
 - operator link to the Redash Ingestor dashboard at `/redash-ingestor`;
 - PostgreSQL database backup export/import for server migration and controlled recovery;
@@ -1730,6 +1741,23 @@ Forecast Initial window admin workflow rules:
   edit Forecast Initial through Annual Forecast Entry;
 - locking a year again restores the default December 10-January 10 window and
   must not modify existing Initial Forecast values.
+
+Feedback ticket rules:
+
+- all authenticated users with `petyr:read` can submit feedback from the global
+  bottom-left feedback control;
+- categories are `Bug`, `Experience`, `Data issue` and `Other`;
+- submitted tickets are stored in `user_feedback_ticket` with status `open`;
+- Petyr stores authenticated user identity, current page, feedback message,
+  sanitized browser basics and the latest sanitized route/click/form-submit
+  activity;
+- Petyr must not store form field values, passwords, tokens, uploaded workbook
+  contents, raw page HTML, request bodies or API keys in feedback context;
+- `/petyr-admin/feedback` requires `petyr:admin` and lets admins review tickets,
+  export all tickets to Excel and mark tickets `Open`, `In progress` or
+  `Resolved`;
+- the admin-only Data diagnostics floating menu may show the open feedback
+  ticket count and link to `/petyr-admin/feedback`.
 
 Database backup workflow rules:
 

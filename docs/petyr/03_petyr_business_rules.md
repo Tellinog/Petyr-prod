@@ -187,8 +187,15 @@ Rules:
 - Petyr Admin may unlock Forecast Initial for a selected target year at any
   time; while unlocked, users with `petyr:forecast:write` can enter or edit
   Forecast Initial through Annual Forecast Entry outside the default window.
-- During that window, saved Annual Entry Business Unit values also populate
-  `forecast_annual.initial_forecast`.
+- During the January 1-10 automatic Forecast Initial entry window, Annual Entry
+  shows per-Business Unit Initial Forecast columns by default. During the
+  December 10-31 automatic preparation window or any Petyr Admin manual unlock
+  outside January, those per-Business Unit Initial Forecast columns start
+  collapsed behind the matching Forecast Ongoing Business Unit column and can be
+  expanded one Business Unit at a time.
+- Saving Forecast Ongoing Business Unit values does not populate or change
+  `forecast_annual.initial_forecast`; only explicit Business Unit Initial
+  Forecast fields write that value.
 - `forecast_annual_entry.initial_forecast` stores the company/year Forecast
   Initial value entered in the Annual Forecast Entry Initial column. Saving
   Forecast Initial must not replace that submitted value with existing Forecast

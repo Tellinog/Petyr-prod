@@ -219,6 +219,30 @@ Temporary Petyr settings are stored here. The selected OpenRouter model uses
 `setting_key=petyr.openrouter.model` and falls back to `OPENROUTER_DEFAULT_MODEL`
 when no row exists.
 
+## user_feedback_ticket
+
+Petyr stores user-submitted feedback tickets in `user_feedback_ticket`.
+
+Required fields:
+
+- category: `bug` | `experience` | `data_issue` | `other`
+- status: `open` | `in_progress` | `resolved`
+- message
+- page path and page URL
+- sanitized recent activity JSON
+- sanitized client context JSON
+- submitted user email, display name, role, access session ID and correlation ID
+- created/updated timestamps
+- status updater, status-updated timestamp and resolved timestamp
+
+Rules:
+
+- Feedback creation requires `petyr:read`.
+- Admin ticket review, status changes and Excel export require `petyr:admin`.
+- Recent activity stores only minimized route, click and form-submit metadata.
+- Form field values, secrets, tokens, uploaded workbook content, request bodies
+  and raw page HTML must not be stored.
+
 ## ai_forecast_cache
 
 - id

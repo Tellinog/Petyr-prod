@@ -68,15 +68,18 @@ function addRowsSheet(
   };
   styleHeaderRow(sheet.getRow(1));
 
+  const columnKeys = new Set(columns.map((column) => column.key));
   const moneyKeys = new Set(options.moneyKeys ?? []);
   const percentKeys = new Set(options.percentKeys ?? []);
 
   for (const row of rows) {
     const worksheetRow = sheet.addRow(row);
     for (const key of moneyKeys) {
+      if (!columnKeys.has(key)) continue;
       worksheetRow.getCell(key).numFmt = PETYR_EXCEL_CURRENCY_NUM_FORMAT;
     }
     for (const key of percentKeys) {
+      if (!columnKeys.has(key)) continue;
       worksheetRow.getCell(key).numFmt = PETYR_EXCEL_PERCENT_NUM_FORMAT;
     }
   }
@@ -467,7 +470,7 @@ export async function buildManagementForecastExportWorkbookXlsx(input: {
     ]);
     addRowsSheet(workbook, managementScopeLabel(input.scope), managementColumns(input.scope), rows, {
       moneyKeys: [
-        "yearlyObjective",
+        ...(input.scope === "single-csm" ? [] : ["yearlyObjective"]),
         "previousMonthForecast",
         "ongoingForecast",
         "aiForecast",

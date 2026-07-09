@@ -43,6 +43,7 @@ import {
   getPetyrInitialForecastWindowOverrides,
   type PetyrInitialForecastWindowOverrides
 } from "@/services/petyrInitialForecastWindowOverrideService";
+import { getUserFeedbackSummary } from "@/services/petyrUserFeedbackService";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,11 @@ type AiForecastWeightsState = {
 
 type InitialForecastWindowState = {
   setting: PetyrInitialForecastWindowOverrides;
+  error: string | null;
+};
+
+type FeedbackSummaryState = {
+  summary: Awaited<ReturnType<typeof getUserFeedbackSummary>>;
   error: string | null;
 };
 
@@ -226,6 +232,20 @@ async function loadInitialForecastWindow(): Promise<InitialForecastWindowState> 
     return {
       setting: getDefaultPetyrInitialForecastWindowOverrides(),
       error: formatInitialForecastWindowError(error)
+    };
+  }
+}
+
+async function loadFeedbackSummary(): Promise<FeedbackSummaryState> {
+  try {
+    return {
+      summary: await getUserFeedbackSummary(),
+      error: null
+    };
+  } catch (error) {
+    return {
+      summary: { open: 0, inProgress: 0, resolved: 0, total: 0 },
+      error: formatError(error)
     };
   }
 }
@@ -464,6 +484,55 @@ function PerformanceTestResultsSection({ state }: { state: LoadState<PetyrPerfor
             ))}
           </tbody>
         </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeedbackTicketsEntryPoint({ state }: { state: FeedbackSummaryState }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+      {state.error ? (
+        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          Unable to load feedback ticket summary: {state.error}
+        </div>
+      ) : null}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-3xl space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-semibold text-slate-950">User feedback queue</h3>
+            {state.summary.open > 0 ? (
+              <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-800">
+                {formatNumber(state.summary.open)} open
+              </Badge>
+            ) : (
+              <Badge variant="outline">No open tickets</Badge>
+            )}
+          </div>
+          <p>
+            Review submitted feedback, inspect sanitized page context, export tickets to Excel and mark reports as in progress or resolved.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-4">
+            <StatTile label="Open" value={formatNumber(state.summary.open)} />
+            <StatTile label="In progress" value={formatNumber(state.summary.inProgress)} />
+            <StatTile label="Resolved" value={formatNumber(state.summary.resolved)} />
+            <StatTile label="Total" value={formatNumber(state.summary.total)} />
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Link
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+            href="/petyr-admin/feedback"
+          >
+            Open feedback tickets
+          </Link>
+          <a
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50"
+            href="/api/petyr/admin/feedback/export-xlsx"
+          >
+            Export Excel
+          </a>
         </div>
       </div>
     </div>
@@ -822,12 +891,13 @@ function DataHealthSection({ state }: { state: LoadState<PetyrDataHealthResult> 
 
 export default async function PetyrAdminPage() {
   const identity = await requirePetyrPagePermission(PETYR_PERMISSIONS.admin);
-  const [dataHealth, performanceResults, aiSetting, aiForecastWeights, initialForecastWindow, csmFilterCandidates] = await Promise.all([
+  const [dataHealth, performanceResults, aiSetting, aiForecastWeights, initialForecastWindow, feedbackSummary, csmFilterCandidates] = await Promise.all([
     loadDataHealth(),
     loadPerformanceResults(),
     loadAiSetting(),
     loadAiForecastWeights(),
     loadInitialForecastWindow(),
+    loadFeedbackSummary(),
     loadCsmFilterCandidates()
   ]);
   const preferredCsmName = resolvePreferredCsmName(identity.user.displayName, csmFilterCandidates);
@@ -864,6 +934,13 @@ export default async function PetyrAdminPage() {
           title="Data health"
         >
           <DataHealthSection state={dataHealth} />
+        </SectionCard>
+
+        <SectionCard
+          description="User-submitted Petyr feedback tickets with sanitized page context and recent activity."
+          title="Feedback tickets"
+        >
+          <FeedbackTicketsEntryPoint state={feedbackSummary} />
         </SectionCard>
 
         <SectionCard

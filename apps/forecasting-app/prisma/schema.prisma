@@ -90,6 +90,19 @@ enum IntelligenceFeedbackAccuracy {
   unclear
 }
 
+enum UserFeedbackCategory {
+  bug
+  experience
+  data_issue
+  other
+}
+
+enum UserFeedbackStatus {
+  open
+  in_progress
+  resolved
+}
+
 // Read model for the tables owned by apps/redash-ingestor.
 // Forecasting must not call Redash directly: it reads these snapshots from PostgreSQL.
 model RedashSource {
@@ -380,6 +393,32 @@ model PetyrPerformanceMeasurement {
   @@index([service, operation, measuredAt], map: "petyr_performance_measurement_service_op_time_idx")
   @@index([measuredAt], map: "petyr_performance_measurement_measured_at_idx")
   @@map("petyr_performance_measurement")
+}
+
+model UserFeedbackTicket {
+  id                     String               @id @default(cuid())
+  category               UserFeedbackCategory
+  status                 UserFeedbackStatus   @default(open)
+  message                String               @db.Text
+  pagePath               String               @map("page_path") @db.Text
+  pageUrl                String               @map("page_url") @db.Text
+  recentActivity         Json                 @default("[]") @map("recent_activity")
+  clientContext          Json                 @default("{}") @map("client_context")
+  submittedByEmail       String               @map("submitted_by_email")
+  submittedByDisplayName String?              @map("submitted_by_display_name")
+  submittedByRole        String               @map("submitted_by_role")
+  accessSessionId        String               @map("access_session_id")
+  correlationId          String               @map("correlation_id")
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
+  statusUpdatedAt        DateTime?            @map("status_updated_at")
+  statusUpdatedBy        String?              @map("status_updated_by")
+  resolvedAt             DateTime?            @map("resolved_at")
+
+  @@index([status, createdAt], map: "user_feedback_ticket_status_created_idx")
+  @@index([category, createdAt], map: "user_feedback_ticket_category_created_idx")
+  @@index([submittedByEmail, createdAt], map: "user_feedback_ticket_submitter_created_idx")
+  @@map("user_feedback_ticket")
 }
 
 model AiForecastCache {

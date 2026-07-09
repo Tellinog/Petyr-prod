@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -111,6 +111,7 @@ export function PetyrFloatingDiagnosticsMenu({
   diagnostics: PetyrFloatingDiagnosticInput[];
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [feedbackSummary, setFeedbackSummary] = useState<{ open: number; inProgress: number; total: number } | null>(null);
   const normalizedDiagnostics = useMemo(() => normalizeDiagnostics(diagnostics), [diagnostics]);
   const groupedDiagnostics = useMemo(() => groupDiagnostics(normalizedDiagnostics), [normalizedDiagnostics]);
   const blockingCount = groupedDiagnostics.blocking.length;
@@ -119,6 +120,32 @@ export function PetyrFloatingDiagnosticsMenu({
   const totalCount = normalizedDiagnostics.length;
   const hasBlockingIssues = blockingCount > 0;
   const panelId = "petyr-floating-diagnostics-panel";
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadFeedbackSummary() {
+      try {
+        const response = await fetch("/api/petyr/admin/feedback/summary", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = await response.json() as { open?: number; inProgress?: number; total?: number };
+        if (!isMounted) return;
+        setFeedbackSummary({
+          open: typeof payload.open === "number" ? payload.open : 0,
+          inProgress: typeof payload.inProgress === "number" ? payload.inProgress : 0,
+          total: typeof payload.total === "number" ? payload.total : 0
+        });
+      } catch {
+        if (isMounted) setFeedbackSummary(null);
+      }
+    }
+
+    void loadFeedbackSummary();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <div className="fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-3">
@@ -153,6 +180,11 @@ export function PetyrFloatingDiagnosticsMenu({
               </Badge>
               <Badge variant="outline">{infoCount} info</Badge>
               <Badge variant="secondary">{totalCount} total</Badge>
+              {feedbackSummary && feedbackSummary.open > 0 ? (
+                <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-800">
+                  {feedbackSummary.open} open tickets
+                </Badge>
+              ) : null}
             </div>
           </div>
 
@@ -185,6 +217,12 @@ export function PetyrFloatingDiagnosticsMenu({
                 href="/redash-ingestor"
               >
                 Open Redash Ingestor
+              </a>
+              <a
+                className="inline-flex h-9 items-center rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50"
+                href="/petyr-admin/feedback"
+              >
+                Open Feedback Tickets
               </a>
             </div>
           </div>
@@ -225,6 +263,11 @@ export function PetyrFloatingDiagnosticsMenu({
         {hasBlockingIssues ? (
           <Badge variant="outline" className="border-red-200 bg-white text-red-700">
             {blockingCount} blocking
+          </Badge>
+        ) : null}
+        {feedbackSummary && feedbackSummary.open > 0 ? (
+          <Badge variant="outline" className="border-rose-200 bg-white text-rose-700">
+            {feedbackSummary.open} tickets
           </Badge>
         ) : null}
       </Button>

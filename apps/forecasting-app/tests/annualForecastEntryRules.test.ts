@@ -84,6 +84,22 @@ test("FC Initial default window remains editable without admin unlock", () => {
   assert.equal(mode.adminUnlocked, false);
 });
 
+test("Annual BU Initial columns open by default only during the January entry window", () => {
+  const decemberMode = getAnnualForecastEntryInitialMode(2027, dateFor(2026, 12, 10));
+  const januaryMode = getAnnualForecastEntryInitialMode(2027, dateFor(2027, 1, 10));
+  const adminMode = getAnnualForecastEntryInitialMode(2027, dateFor(2027, 8, 15), { adminUnlocked: true });
+  const lockedMode = getAnnualForecastEntryInitialMode(2027, dateFor(2027, 1, 11));
+
+  assert.equal(decemberMode.showInitialBusinessUnitsByDefault, false);
+  assert.equal(decemberMode.canToggleInitialBusinessUnits, true);
+  assert.equal(januaryMode.showInitialBusinessUnitsByDefault, true);
+  assert.equal(januaryMode.canToggleInitialBusinessUnits, false);
+  assert.equal(adminMode.showInitialBusinessUnitsByDefault, false);
+  assert.equal(adminMode.canToggleInitialBusinessUnits, true);
+  assert.equal(lockedMode.showInitialBusinessUnitsByDefault, false);
+  assert.equal(lockedMode.canToggleInitialBusinessUnits, false);
+});
+
 test("Forecast Initial window override parser normalizes valid unlocked years", () => {
   const overrides = parsePetyrInitialForecastWindowOverrides(
     JSON.stringify({ unlockedYears: [2027, "2026", 2027], updatedBy: "admin-user" }),

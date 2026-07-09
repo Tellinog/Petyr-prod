@@ -214,6 +214,12 @@ function confidenceSortRank(value: string) {
   return 3;
 }
 
+function initialExpandedStateFromBatch(batch: AnnualForecastEntryBatchDataResult) {
+  return Object.fromEntries(
+    batch.data.businessUnits.map((businessUnit) => [businessUnit, batch.data.initialMode.showInitialBusinessUnitsByDefault])
+  );
+}
+
 const COMPANY_COLUMN_WIDTH = 220;
 const ACTIVE_COLUMN_WIDTH = 150;
 const INITIAL_COLUMN_WIDTH = 128;
@@ -263,6 +269,7 @@ export default function AnnualForecastEntryBatchWorkspace({
   const [showSavedState, setShowSavedState] = useState(false);
   const [savedSummary, setSavedSummary] = useState("");
   const [showBusinessUnits, setShowBusinessUnits] = useState(true);
+  const [expandedInitialBusinessUnits, setExpandedInitialBusinessUnits] = useState<Record<string, boolean>>(() => initialExpandedStateFromBatch(initialBatch));
   const [isCsmDropdownOpen, setIsCsmDropdownOpen] = useState(false);
   const [annualSort, setAnnualSort] = useState<AnnualSortState>({ key: null, direction: "asc" });
   const [activeVisibilityFilter, setActiveVisibilityFilter] = useState<ActiveVisibilityFilter>("all");
@@ -340,6 +347,7 @@ export default function AnnualForecastEntryBatchWorkspace({
     setTouchedInitial(new Set());
     setTouchedActive(new Set());
     setTouchedConfidence(new Set());
+    setExpandedInitialBusinessUnits(initialExpandedStateFromBatch(nextBatch));
   }
 
   async function loadAnnualBatch(csmNames: string[], year: number) {
@@ -671,8 +679,12 @@ export default function AnnualForecastEntryBatchWorkspace({
   }
 
   const showBusinessUnitInitialForecast = batch.data.initialMode.editable;
+  const visibleInitialBusinessUnits = batch.data.businessUnits.filter(
+    (businessUnit) => showBusinessUnitInitialForecast && (batch.data.initialMode.showInitialBusinessUnitsByDefault || expandedInitialBusinessUnits[businessUnit])
+  );
+  const visibleInitialBusinessUnitSet = new Set(visibleInitialBusinessUnits);
   const visibleBusinessUnitCount = showBusinessUnits
-    ? batch.data.businessUnits.length * (showBusinessUnitInitialForecast ? 2 : 1)
+    ? batch.data.businessUnits.length + visibleInitialBusinessUnits.length
     : 0;
   const annualTableMinWidth =
     COMPANY_COLUMN_WIDTH +
@@ -711,6 +723,13 @@ export default function AnnualForecastEntryBatchWorkspace({
       window.removeEventListener("resize", updateLegendWidth);
     };
   }, [annualTableMinWidth, batch.data.companies.length, showBusinessUnits]);
+
+  function toggleBusinessUnitInitialForecast(businessUnit: string) {
+    setExpandedInitialBusinessUnits((current) => ({
+      ...current,
+      [businessUnit]: !current[businessUnit]
+    }));
+  }
 
   return (
     <PetyrCard>
@@ -917,21 +936,36 @@ export default function AnnualForecastEntryBatchWorkspace({
                           className={`${HEADER_STICKY_CLASS} min-w-[128px] text-right ${MANUAL_HEADER_CLASS}`}
                           aria-sort={annualSort.key === "business_unit" && annualSort.businessUnit === businessUnit ? "descending" : "none"}
                         >
-                          <button
-                            type="button"
-                            className={`${SORT_BUTTON_BASE_CLASS} items-end border-amber-200 text-right hover:border-amber-300 hover:bg-amber-50`}
-                            onClick={() => setAnnualSort(nextAnnualBusinessUnitSort(businessUnit))}
-                          >
-                            <span>{formatBusinessUnitDisplayName(businessUnit)}</span>
-                            <span>Forecast Ongoing</span>
-                            <span className="text-[11px] font-semibold text-slate-500">{annualBusinessUnitSortLabel(annualSort, businessUnit)}</span>
-                          </button>
+                          <div className="flex min-h-9 w-full items-start justify-between gap-2 rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-semibold leading-tight text-slate-800 shadow-sm">
+                            <span className="pt-1 text-left">Forecast Ongoing</span>
+                            <div className="flex min-w-0 flex-col items-end gap-1 text-right">
+                              <button
+                                type="button"
+                                className="max-w-full rounded-md px-1 text-right transition-colors hover:bg-amber-50"
+                                onClick={() => setAnnualSort(nextAnnualBusinessUnitSort(businessUnit))}
+                              >
+                                <span className="block truncate">{formatBusinessUnitDisplayName(businessUnit)}</span>
+                                <span className="block text-[11px] font-semibold text-slate-500">{annualBusinessUnitSortLabel(annualSort, businessUnit)}</span>
+                              </button>
+                              {batch.data.initialMode.canToggleInitialBusinessUnits ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="h-6 rounded-lg border-amber-200 px-2 text-[11px]"
+                                  onClick={() => toggleBusinessUnitInitialForecast(businessUnit)}
+                                  aria-expanded={Boolean(expandedInitialBusinessUnits[businessUnit])}
+                                >
+                                  {expandedInitialBusinessUnits[businessUnit] ? "Hide Initial" : "Show Initial"}
+                                </Button>
+                              ) : null}
+                            </div>
+                          </div>
                         </TableHead>
-                        {showBusinessUnitInitialForecast ? (
+                        {visibleInitialBusinessUnitSet.has(businessUnit) ? (
                           <TableHead className={`${HEADER_STICKY_CLASS} min-w-[128px] text-right ${MANUAL_HEADER_CLASS}`}>
-                            <div className="flex min-h-9 w-full flex-col items-end justify-center gap-0.5 rounded-lg border border-amber-200 bg-white px-2 py-1 text-right text-xs font-semibold leading-tight text-slate-800 shadow-sm">
-                              <span>{formatBusinessUnitDisplayName(businessUnit)}</span>
-                              <span>Initial Forecast</span>
+                            <div className="flex min-h-9 w-full items-start justify-between gap-2 rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-semibold leading-tight text-slate-800 shadow-sm">
+                              <span className="pt-1 text-left">Initial Forecast</span>
+                              <span className="max-w-[72px] truncate text-right">{formatBusinessUnitDisplayName(businessUnit)}</span>
                             </div>
                           </TableHead>
                         ) : null}
@@ -977,7 +1011,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                             >
                               {formatPetyrIntegerCurrencyValue(item.value)}
                             </TableCell>
-                            {showBusinessUnitInitialForecast ? (
+                            {visibleInitialBusinessUnitSet.has(item.businessUnit) ? (
                               <TableCell
                                 className={`min-w-[128px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(initialItem?.value))}`}
                               >
@@ -1122,7 +1156,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                                 <div className="mt-1 text-right text-[11px] text-blue-700">Forecast AI</div>
                               ) : null}
                             </TableCell>
-                            {showBusinessUnitInitialForecast ? (
+                            {visibleInitialBusinessUnitSet.has(cell.businessUnit) ? (
                               <TableCell className={MANUAL_CELL_CLASS}>
                                 <Input
                                   inputMode="numeric"

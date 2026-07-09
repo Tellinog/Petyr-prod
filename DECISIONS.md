@@ -13,6 +13,16 @@ Each decision should include:
 
 ---
 
+## 2026-07-09 - Minimize automatic context in Petyr feedback tickets
+
+- **Status:** Accepted.
+- **Context:** Product requested a global feedback area that automatically captures as much useful context as possible, including user, current page and recent operations, while remaining safe for all Petyr users.
+- **Decision:** Petyr feedback tickets store authenticated user identity, current page, basic browser context and a short sanitized trail of recent route views, named clicks and form submit events. The trail is limited to the latest 20 events and is sanitized both client-side and server-side. Petyr does not store form field values, passwords, tokens, uploaded workbook contents, raw page HTML, request bodies or API keys in feedback context.
+- **Alternatives discarded:** Storing only message/page/user with no recent activity; capturing richer browser/page state including field values or page snapshots.
+- **Reason:** Recent sanitized operations help admins reproduce bugs and data issues without turning feedback into broad browser telemetry or collecting sensitive business/user input.
+- **Consequences:** Admins get useful context and Excel export, but they may still need to ask the submitter for extra details when the sanitized trail omits form contents or sensitive data by design.
+- **Related docs:** `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/04_data_model.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/02_petyr_data_model_target.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+
 ## 2026-07-09 - Separate Annual Business Unit Initial Forecast from Forecast Ongoing
 
 - **Status:** Accepted.

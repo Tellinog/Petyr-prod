@@ -20,6 +20,27 @@ Each entry must include:
 
 ## 2026-07-09
 
+- **Area:** Petyr / Global feedback tickets
+- **Change:** Added a global bottom-left authenticated feedback control with English category/message UI, PostgreSQL-backed `user_feedback_ticket` persistence, admin feedback APIs, `/petyr-admin/feedback` review/status workspace, all-ticket Excel export, `/petyr-admin` ticket summary card and open-ticket notifications in the admin-only Data diagnostics floating menu.
+- **Reason:** Product requested an always-available feedback area that automatically captures user, page and recent operations, then lets admins manage submitted reports as tickets.
+- **Impact:** New Prisma enums/table/migration, API routes, admin UI and global UI were added. Feedback context is privacy-minimized: Petyr stores only sanitized route/click/form-submit metadata plus basic browser context, not form field values, secrets, workbook contents, request bodies or raw page HTML. Submit requires `petyr:read`; admin review/status/export requires `petyr:admin`.
+- **Files/documents involved:** `apps/forecasting-app/prisma/schema.prisma`, `apps/forecasting-app/prisma/migrations/202607090001_add_user_feedback_tickets/migration.sql`, `apps/forecasting-app/src/services/petyrUserFeedbackService.ts`, `apps/forecasting-app/src/lib/petyr/userFeedback.ts`, `apps/forecasting-app/src/app/api/petyr/feedback/route.ts`, `apps/forecasting-app/src/app/api/petyr/admin/feedback/*`, `apps/forecasting-app/src/components/petyr/PetyrFeedbackButton.tsx`, `apps/forecasting-app/src/app/layout.tsx`, `apps/forecasting-app/src/app/petyr-admin/feedback/page.tsx`, `apps/forecasting-app/src/components/petyr/PetyrFeedbackStatusControl.tsx`, `apps/forecasting-app/src/components/petyr/PetyrFloatingDiagnosticsMenu.tsx`, `apps/forecasting-app/src/app/petyr-admin/page.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/04_data_model.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/02_petyr_data_model_target.md`, `apps/forecasting-app/README.md`, `DECISIONS.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Annual Forecast Entry / Business Unit Initial Forecast UI
+- **Change:** Reworked Annual Forecast Entry Business Unit headers so the field label sits on the left while the Business Unit name, sort state and Initial Forecast expansion control sit on the right. Per-Business Unit Initial Forecast columns now stay visible by default only during the automatic January Forecast Initial entry window. During the automatic December 10-31 preparation window or any manual Petyr Admin unlock outside January, each Business Unit Initial Forecast column starts collapsed behind its Forecast Ongoing column and can be expanded per Business Unit. When Forecast Initial is locked and no admin unlock is active, the Initial Forecast expansion controls remain hidden.
+- **Reason:** Product requested a more compact Annual Forecast Entry header and per-Business Unit Initial Forecast expansion outside the January entry window to reduce table height/width while preserving manual entry when the window is open.
+- **Impact:** Annual Forecast Entry UI behavior changed only. Forecast Initial/Ongoing persistence, save validation, audit logs, exports, database schema, permissions, Redash/PostgreSQL reads and Management calculations are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/src/lib/petyr/annualForecastEntryRules.ts`, `apps/forecasting-app/tests/annualForecastEntryRules.test.ts`, `apps/forecasting-app/README.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Management Excel export runtime bugfix
+- **Change:** Hardened the shared Petyr Excel worksheet formatter so currency and percentage formats are applied only to columns present in the generated sheet, and removed `yearlyObjective` from Management Single CSM export money formatting.
+- **Reason:** Single CSM View export has no Yearly Objective column; formatting that missing key made ExcelJS interpret the key as a cell address and throw `Out of bounds. Excel supports columns from 1 to 16384`.
+- **Impact:** `scope=single-csm` Management export can generate an `.xlsx` workbook instead of returning a JSON error. Monthly Aggregate and Business Unit exports still format Yearly Objective. No data, schema, permissions, forecast saves, objectives, Redash reads or audit behavior changed.
+- **Files/documents involved:** `apps/forecasting-app/src/services/petyrForecastingExportService.ts`, `DEVLOG.md`.
+- **Follow-up:** None.
+
 - **Area:** Petyr / Forecast Entry and Management Excel exports
 - **Change:** Added read-only Excel export endpoints and UI buttons for Forecast Entry Monthly, Forecast Entry Annual, Management Monthly Aggregate, Management Business Unit View and Management Single CSM View. Monthly Forecast Entry export creates one worksheet per month from January through the current month for the current year, or all 12 months for other selected years. Annual Forecast Entry export includes company totals and per-Business Unit Ongoing, Initial and AI Forecast columns, including BU Initial Forecast columns even when hidden in the UI. Management exports download monthly rows for the selected year and current Company Type Filter.
 - **Reason:** Product requested first-pass Excel downloads from the product cards before refining each export's exact expected columns.
