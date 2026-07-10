@@ -2,6 +2,36 @@
 
 import { useState } from "react";
 
+type IntelligenceRunResponse = {
+  runId?: unknown;
+  status?: unknown;
+  error?: unknown;
+  errors?: unknown;
+  phase?: unknown;
+  details?: unknown;
+  hint?: unknown;
+};
+
+const redactionPatterns: Array<[RegExp, string]> = [
+  [/Authorization\s*:\s*Bearer\s+[^\n\r"}]+/gi, "Authorization: Bearer [redacted]"],
+  [/Bearer\s+[A-Za-z0-9._~+/=-]{12,}/g, "Bearer [redacted]"],
+  [/(api[_-]?key|token|secret|password)(\s*[=:]\s*)[^\s,"}]+/gi, "$1$2[redacted]"],
+  [/("(?:api[_-]?key|authorization|token|secret|password)"\s*:\s*")[^"]+(")/gi, "$1[redacted]$2"],
+  [/postgres(?:ql)?:\/\/[^\s"'<>]+/gi, "postgres://[redacted]"]
+];
+
+function redactedText(value: string) {
+  return redactionPatterns.reduce((current, [pattern, replacement]) => current.replace(pattern, replacement), value);
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
 export default function IntelligenceAdminRunControl({
   maxCompanies,
   maxResultsPerCompany,
@@ -26,12 +56,14 @@ export default function IntelligenceAdminRunControl({
   const [dryRun, setDryRun] = useState(true);
   const [workerEnabled, setWorkerEnabled] = useState(initialWorkerEnabled);
   const [status, setStatus] = useState<string | null>(null);
+  const [details, setDetails] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [toggling, setToggling] = useState(false);
 
   async function run() {
     setLoading(true);
     setStatus(null);
+    setDetails([]);
 
     try {
       const response = await fetch("/api/petyr/admin/intelligence/runs", {
@@ -48,15 +80,26 @@ export default function IntelligenceAdminRunControl({
           maxResultsPerCompany
         })
       });
-      const payload = await response.json().catch(() => ({}));
+      const payload = await response.json().catch(() => ({})) as IntelligenceRunResponse;
 
       if (!response.ok) {
-        throw new Error(typeof payload.error === "string" ? payload.error : "Unable to run Intelligence.");
+        const errorMessage = stringValue(payload.error) ?? "Unable to run Intelligence.";
+        setStatus(redactedText(errorMessage));
+        setDetails([
+          ...stringArray(payload.details),
+          ...stringArray(payload.errors),
+          ...(stringValue(payload.phase) ? [`phase: ${stringValue(payload.phase)}`] : []),
+          ...(stringValue(payload.hint) ? [`hint: ${stringValue(payload.hint)}`] : [])
+        ].map(redactedText));
+        return;
       }
 
-      setStatus(`Run ${payload.runId ?? ""} finished as ${payload.status ?? "submitted"}.`);
+      const runId = stringValue(payload.runId) ?? "";
+      const runStatus = stringValue(payload.status) ?? "submitted";
+      setStatus(`Run ${runId} finished as ${runStatus}.`);
+      setDetails(stringArray(payload.errors).map(redactedText));
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Unable to run Intelligence.");
+      setStatus(error instanceof Error ? redactedText(error.message) : "Unable to run Intelligence.");
     } finally {
       setLoading(false);
     }
@@ -65,6 +108,7 @@ export default function IntelligenceAdminRunControl({
   async function toggleWorker(enabled: boolean) {
     setToggling(true);
     setStatus(null);
+    setDetails([]);
 
     try {
       const response = await fetch("/api/petyr/admin/intelligence/worker", {
@@ -155,7 +199,18 @@ export default function IntelligenceAdminRunControl({
           {toggling ? "Updating..." : workerEnabled ? "Disable worker" : "Enable worker"}
         </button>
       </div>
-      {status ? <div className="rounded-md border border-slate-200 bg-white p-2 text-sm text-slate-700">{status}</div> : null}
+      {status ? (
+        <div className="rounded-md border border-slate-200 bg-white p-2 text-sm text-slate-700">
+          <div>{status}</div>
+          {details.length > 0 ? (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-600">
+              {details.map((detail, index) => (
+                <li key={`${detail}-${index}`}>{detail}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

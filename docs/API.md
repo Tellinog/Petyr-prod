@@ -73,6 +73,7 @@ Rules:
 - enforce per-run caps before provider calls.
 - non-dry-run manual scans use the same advisory-lock path as the worker;
 - daily aggregate provider budget is checked before every Exa/OpenRouter attempt.
+- unexpected execution failures return JSON with `error`, `phase`, sanitized `details` and a troubleshooting `hint` so the admin UI can show why a dry-run failed without exposing provider keys, app secrets or database credentials.
 
 ### GET /api/petyr/admin/intelligence/calibration
 

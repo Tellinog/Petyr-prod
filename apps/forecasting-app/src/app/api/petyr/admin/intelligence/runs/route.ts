@@ -8,6 +8,7 @@ import { runCompanyIntelligenceScan } from "@/services/intelligence/intelligence
 import { runIntelligenceScanWorkerOnce } from "@/services/intelligence/intelligenceWorkerService";
 import { getIntelligenceWorkerStatus } from "@/services/intelligence/intelligenceWorkerSettingsService";
 import { listIntelligenceRuns } from "@/services/intelligence/runLogger";
+import { formatIntelligenceRunApiError } from "@/services/intelligence/apiError";
 
 export const dynamic = "force-dynamic";
 
@@ -67,22 +68,29 @@ export async function POST(request: Request) {
     }
   }
 
-  const result = dryRun
-    ? await runCompanyIntelligenceScan({
-      dryRun,
-      companyName: typeof payload.companyName === "string" ? payload.companyName.trim() : null,
-      maxCompanies: typeof payload.maxCompanies === "number" ? payload.maxCompanies : null,
-      maxResultsPerCompany: typeof payload.maxResultsPerCompany === "number" ? payload.maxResultsPerCompany : null,
-      createdBy: auth.email,
-      runSource: "manual"
-    })
-    : await runIntelligenceScanWorkerOnce({
-      runSource: "manual",
-      createdBy: auth.email,
-      companyName: typeof payload.companyName === "string" ? payload.companyName.trim() : null,
-      maxCompanies: typeof payload.maxCompanies === "number" ? payload.maxCompanies : null,
-      maxResultsPerCompany: typeof payload.maxResultsPerCompany === "number" ? payload.maxResultsPerCompany : null
-    });
+  try {
+    const result = dryRun
+      ? await runCompanyIntelligenceScan({
+        dryRun,
+        companyName: typeof payload.companyName === "string" ? payload.companyName.trim() : null,
+        maxCompanies: typeof payload.maxCompanies === "number" ? payload.maxCompanies : null,
+        maxResultsPerCompany: typeof payload.maxResultsPerCompany === "number" ? payload.maxResultsPerCompany : null,
+        createdBy: auth.email,
+        runSource: "manual"
+      })
+      : await runIntelligenceScanWorkerOnce({
+        runSource: "manual",
+        createdBy: auth.email,
+        companyName: typeof payload.companyName === "string" ? payload.companyName.trim() : null,
+        maxCompanies: typeof payload.maxCompanies === "number" ? payload.maxCompanies : null,
+        maxResultsPerCompany: typeof payload.maxResultsPerCompany === "number" ? payload.maxResultsPerCompany : null
+      });
 
-  return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    return NextResponse.json(
+      formatIntelligenceRunApiError(error, dryRun ? "manual dry-run scan" : "manual real scan"),
+      { status: 500, headers: { "Cache-Control": "no-store" } }
+    );
+  }
 }

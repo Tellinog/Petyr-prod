@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ExaSearchClient } from "../src/services/intelligence/exaSearchClient";
+import { formatIntelligenceRunApiError } from "../src/services/intelligence/apiError";
 import { isAuthorizedAppInternalRequest } from "../src/services/intelligence/intelligenceApiAuth";
 import { canSpendIntelligenceRequests, getIntelligenceDailyBudgetStatus } from "../src/services/intelligence/intelligenceBudgetService";
 import { getIntelligenceWorkerStatus, setIntelligenceWorkerEnabled } from "../src/services/intelligence/intelligenceWorkerSettingsService";
@@ -234,4 +235,20 @@ test("worker setting can be toggled through app_setting without exposing secrets
       process.env.INTELLIGENCE_WORKER_ENABLED = previousWorkerEnabled;
     }
   }
+});
+
+test("admin run API error details are useful and sanitized", () => {
+  const formatted = formatIntelligenceRunApiError(
+    new Error("Prisma failed for postgres://user:secret@db:5432/petyr with OPENROUTER_API_KEY=sk-live-token"),
+    "manual dry-run scan"
+  );
+  const details = formatted.details.join("\n");
+
+  assert.equal(formatted.error, "Unable to run Intelligence.");
+  assert.equal(formatted.phase, "manual dry-run scan");
+  assert.match(details, /Prisma failed/);
+  assert.match(details, /postgres:\/\/\[redacted\]/);
+  assert.match(details, /OPENROUTER_API_KEY=\[redacted\]/);
+  assert.doesNotMatch(details, /user:secret/);
+  assert.doesNotMatch(details, /sk-live-token/);
 });
