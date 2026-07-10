@@ -20,6 +20,13 @@ Each entry must include:
 
 ## 2026-07-10
 
+- **Area:** Petyr / Intelligence run history
+- **Change:** Made Petyr Intelligence raw run-history and generated-insight inserts write `created_at` / `updated_at` timestamps explicitly instead of relying on database defaults for Prisma `@updatedAt` fields.
+- **Reason:** The admin dry-run could fail with PostgreSQL `23502` when the deployed `company_intelligence_run.updated_at` column was `NOT NULL` but had no active database default, because raw SQL inserts do not trigger Prisma client `@updatedAt` behavior.
+- **Impact:** Manual Intelligence dry-runs and real scans can create run-history rows even if the database default has drifted. No schema, permissions, provider configuration, company selection, provider budget policy, forecast tables or Redash data flow changed.
+- **Files/documents involved:** `apps/forecasting-app/src/services/intelligence/runLogger.ts`, `DEVLOG.md`.
+- **Follow-up:** None.
+
 - **Area:** Petyr / Intelligence admin diagnostics
 - **Change:** Hardened the admin Intelligence run trigger so failed dry-runs and manual scans return structured JSON diagnostics with execution phase, sanitized error details and a troubleshooting hint. The `/petyr-admin/intelligence` run control now displays those details plus service-returned `errors[]` instead of falling back to only `Unable to run Intelligence`.
 - **Reason:** A dry-run failure was too opaque to diagnose from the UI.

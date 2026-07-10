@@ -46,12 +46,13 @@ export async function createIntelligenceRun(input: {
   await prisma.$executeRaw`
     INSERT INTO "company_intelligence_run" (
       "id", "run_scope", "company_name", "csm_name", "status", "dry_run",
-      "selected_companies_count", "selected_reason", "budget_policy_json", "created_by"
+      "started_at", "selected_companies_count", "selected_reason", "budget_policy_json",
+      "created_by", "created_at", "updated_at"
     )
     VALUES (
-      ${id}, ${input.runScope}, ${input.companyName ?? null}, ${input.csmName ?? null}, 'running',
-      ${input.dryRun}, ${input.selectedCompaniesCount}, ${input.selectedReason},
-      ${json(input.budgetPolicy)}::jsonb, ${input.createdBy}
+      ${id}, ${input.runScope}, ${input.companyName ?? null}, ${input.csmName ?? null},
+      'running'::"IntelligenceRunStatus", ${input.dryRun}, now(), ${input.selectedCompaniesCount},
+      ${input.selectedReason}, ${json(input.budgetPolicy)}::jsonb, ${input.createdBy}, now(), now()
     )
   `;
 
@@ -216,7 +217,8 @@ export async function persistGeneratedInsight(input: {
     INSERT INTO "company_intelligence_insight" (
       "id", "company_name", "company_id", "csm_name", "run_id", "business_unit", "insight_type",
       "title", "summary", "rationale", "suggested_action", "urgency", "confidence",
-      "assumptions_or_limits", "provider", "model", "prompt_version"
+      "assumptions_or_limits", "provider", "model", "prompt_version",
+      "generated_at", "created_at", "updated_at"
     )
     VALUES (
       ${insightId}, ${input.company.companyName}, ${input.insight.companyId}, ${input.company.csmName},
@@ -224,7 +226,7 @@ export async function persistGeneratedInsight(input: {
       ${input.insight.title}, ${input.insight.summary}, ${input.insight.rationale},
       ${input.insight.suggestedAction}, ${input.insight.urgency}::"IntelligenceUrgency",
       ${input.insight.confidence}, ${json(input.insight.assumptionsOrLimits)}::jsonb,
-      ${input.provider}, ${input.model}, ${input.promptVersion}
+      ${input.provider}, ${input.model}, ${input.promptVersion}, now(), now(), now()
     )
   `;
 
