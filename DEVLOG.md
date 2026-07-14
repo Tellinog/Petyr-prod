@@ -20,6 +20,13 @@ Each entry must include:
 
 ## 2026-07-10
 
+- **Area:** Petyr / Intelligence admin run output
+- **Change:** Added a `Last run output` panel to `/petyr-admin/intelligence` manual runs, showing run id, status, dry-run flag, selected-company count, provider counters, error count, dry-run planned queries and a sanitized JSON response.
+- **Reason:** Admins could trigger Intelligence runs successfully but could not inspect the immediate output returned by the run endpoint.
+- **Impact:** UI observability changed only. No scan selection, provider execution, permissions, database schema, provider secrets, forecasting tables or Redash data flow changed.
+- **Files/documents involved:** `apps/forecasting-app/src/components/intelligence/IntelligenceAdminRunControl.tsx`, `docs/UX.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
 - **Area:** Petyr / Intelligence run history
 - **Change:** Made Petyr Intelligence raw run-history and generated-insight inserts write `created_at` / `updated_at` timestamps explicitly instead of relying on database defaults for Prisma `@updatedAt` fields.
 - **Reason:** The admin dry-run could fail with PostgreSQL `23502` when the deployed `company_intelligence_run.updated_at` column was `NOT NULL` but had no active database default, because raw SQL inserts do not trigger Prisma client `@updatedAt` behavior.

@@ -5,6 +5,13 @@ import { useState } from "react";
 type IntelligenceRunResponse = {
   runId?: unknown;
   status?: unknown;
+  dryRun?: unknown;
+  selectedCompanies?: unknown;
+  plannedQueries?: unknown;
+  exaRequestsUsed?: unknown;
+  exaResultsReceived?: unknown;
+  openrouterRequestsUsed?: unknown;
+  dailyBudget?: unknown;
   error?: unknown;
   errors?: unknown;
   phase?: unknown;
@@ -32,6 +39,18 @@ function stringValue(value: unknown) {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
+function numberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function safeJson(value: unknown) {
+  try {
+    return redactedText(JSON.stringify(value, null, 2));
+  } catch {
+    return "Unable to render run output.";
+  }
+}
+
 export default function IntelligenceAdminRunControl({
   maxCompanies,
   maxResultsPerCompany,
@@ -57,6 +76,7 @@ export default function IntelligenceAdminRunControl({
   const [workerEnabled, setWorkerEnabled] = useState(initialWorkerEnabled);
   const [status, setStatus] = useState<string | null>(null);
   const [details, setDetails] = useState<string[]>([]);
+  const [lastRunOutput, setLastRunOutput] = useState<IntelligenceRunResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [toggling, setToggling] = useState(false);
 
@@ -64,6 +84,7 @@ export default function IntelligenceAdminRunControl({
     setLoading(true);
     setStatus(null);
     setDetails([]);
+    setLastRunOutput(null);
 
     try {
       const response = await fetch("/api/petyr/admin/intelligence/runs", {
@@ -91,6 +112,7 @@ export default function IntelligenceAdminRunControl({
           ...(stringValue(payload.phase) ? [`phase: ${stringValue(payload.phase)}`] : []),
           ...(stringValue(payload.hint) ? [`hint: ${stringValue(payload.hint)}`] : [])
         ].map(redactedText));
+        setLastRunOutput(payload);
         return;
       }
 
@@ -98,6 +120,7 @@ export default function IntelligenceAdminRunControl({
       const runStatus = stringValue(payload.status) ?? "submitted";
       setStatus(`Run ${runId} finished as ${runStatus}.`);
       setDetails(stringArray(payload.errors).map(redactedText));
+      setLastRunOutput(payload);
     } catch (error) {
       setStatus(error instanceof Error ? redactedText(error.message) : "Unable to run Intelligence.");
     } finally {
@@ -109,6 +132,7 @@ export default function IntelligenceAdminRunControl({
     setToggling(true);
     setStatus(null);
     setDetails([]);
+    setLastRunOutput(null);
 
     try {
       const response = await fetch("/api/petyr/admin/intelligence/worker", {
@@ -209,6 +233,59 @@ export default function IntelligenceAdminRunControl({
               ))}
             </ul>
           ) : null}
+        </div>
+      ) : null}
+      {lastRunOutput ? (
+        <div className="rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">
+          <div className="font-semibold">Last run output</div>
+          <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="uppercase tracking-wide text-slate-500">Run ID</dt>
+              <dd className="mt-1 break-all font-medium">{redactedText(stringValue(lastRunOutput.runId) ?? "n/a")}</dd>
+            </div>
+            <div>
+              <dt className="uppercase tracking-wide text-slate-500">Status</dt>
+              <dd className="mt-1 font-medium">{redactedText(stringValue(lastRunOutput.status) ?? "n/a")}</dd>
+            </div>
+            <div>
+              <dt className="uppercase tracking-wide text-slate-500">Dry run</dt>
+              <dd className="mt-1 font-medium">{lastRunOutput.dryRun === true ? "yes" : lastRunOutput.dryRun === false ? "no" : "n/a"}</dd>
+            </div>
+            <div>
+              <dt className="uppercase tracking-wide text-slate-500">Companies</dt>
+              <dd className="mt-1 font-medium">{numberValue(lastRunOutput.selectedCompanies) ?? "n/a"}</dd>
+            </div>
+            <div>
+              <dt className="uppercase tracking-wide text-slate-500">Exa requests</dt>
+              <dd className="mt-1 font-medium">{numberValue(lastRunOutput.exaRequestsUsed) ?? "n/a"}</dd>
+            </div>
+            <div>
+              <dt className="uppercase tracking-wide text-slate-500">Exa results</dt>
+              <dd className="mt-1 font-medium">{numberValue(lastRunOutput.exaResultsReceived) ?? "n/a"}</dd>
+            </div>
+            <div>
+              <dt className="uppercase tracking-wide text-slate-500">OpenRouter</dt>
+              <dd className="mt-1 font-medium">{numberValue(lastRunOutput.openrouterRequestsUsed) ?? "n/a"}</dd>
+            </div>
+            <div>
+              <dt className="uppercase tracking-wide text-slate-500">Errors</dt>
+              <dd className="mt-1 font-medium">{stringArray(lastRunOutput.errors).length}</dd>
+            </div>
+          </dl>
+          {stringArray(lastRunOutput.plannedQueries).length > 0 ? (
+            <div className="mt-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Planned dry-run queries</div>
+              <ol className="mt-2 list-decimal space-y-2 pl-5 text-xs text-slate-700">
+                {stringArray(lastRunOutput.plannedQueries).map((query, index) => (
+                  <li className="break-words" key={`${query}-${index}`}>{redactedText(query)}</li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
+          <details className="mt-4">
+            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-500">Sanitized JSON response</summary>
+            <pre className="mt-2 max-h-80 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-100">{safeJson(lastRunOutput)}</pre>
+          </details>
         </div>
       ) : null}
     </div>

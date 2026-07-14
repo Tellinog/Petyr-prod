@@ -55,6 +55,8 @@ This page may link to Forecasting Company Detail for deterministic revenue/forec
 - scheduled worker enabled/disabled status.
 - protected enable/disable worker action.
 - daily provider budget used/remaining.
+- latest manual run output, including dry-run planned queries, selected-company
+  count, provider counters, errors and a sanitized JSON response for debugging.
 
 The admin UI should show default MVP limits before a run:
 
