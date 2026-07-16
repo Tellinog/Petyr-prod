@@ -12,7 +12,7 @@ This base app includes:
 - the approved Petyr visual rendering at `/forecasting`;
 - Management Objectives in Management View, with `/forecasting/entry/objectives` kept as a management-only compatibility route;
 - PostgreSQL database backup export/import in `/petyr-admin`;
-- global authenticated feedback tickets with admin review and Excel export;
+- global authenticated feedback tickets with permission-scoped review and Excel export;
 - admin-only separated Petyr Intelligence at `/intelligence` and `/petyr-admin/intelligence`;
 - Excel-first monthly forecast import/export in `/petyr-admin`;
 - admin-only annual Forecast Ongoing Excel import in `/petyr-admin`;
@@ -395,10 +395,14 @@ GET /api/petyr/admin/feedback/export-xlsx
 ```
 
 The floating bottom-left feedback button is available to authenticated users
-with `petyr:read`. It saves category, message, current page, authenticated user,
+with `petyr:read` or `petyr:feedback:manage`. It saves category, message, current page, authenticated user,
 sanitized browser basics and the latest sanitized route/click/form-submit
-activity. Admin review, status changes and Excel export require `petyr:admin`
-and are available from `/petyr-admin/feedback`.
+activity. Review, status changes and Excel export require either
+`petyr:feedback:manage` or `petyr:admin` and are available from
+`/petyr-admin/feedback`. Eligible users see a `Review feedback` extension on the
+global feedback control with the current open-ticket count. A grant containing
+only `petyr:feedback:manage` is valid and lands directly on the feedback queue;
+it does not grant Forecasting or other Petyr Admin access.
 
 Petyr Admin database backup workflow uses:
 

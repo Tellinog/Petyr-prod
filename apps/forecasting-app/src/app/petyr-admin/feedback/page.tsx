@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PetyrFeedbackStatusControl from "@/components/petyr/PetyrFeedbackStatusControl";
-import { requirePetyrPagePermission } from "@/lib/petyr/auth";
-import { PETYR_PERMISSIONS } from "@/lib/petyr/authCore";
+import { requirePetyrPageAnyPermission } from "@/lib/petyr/auth";
+import { hasPetyrPermission, PETYR_PERMISSIONS } from "@/lib/petyr/authCore";
 import {
   USER_FEEDBACK_CATEGORY_LABELS,
   USER_FEEDBACK_STATUS_LABELS,
@@ -49,7 +49,12 @@ export default async function PetyrAdminFeedbackPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requirePetyrPagePermission(PETYR_PERMISSIONS.admin);
+  const identity = await requirePetyrPageAnyPermission([
+    PETYR_PERMISSIONS.feedbackManage,
+    PETYR_PERMISSIONS.admin
+  ]);
+  const canOpenAdmin = hasPetyrPermission(identity, PETYR_PERMISSIONS.admin);
+  const canOpenForecasting = hasPetyrPermission(identity, PETYR_PERMISSIONS.read);
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const requestedStatus = firstParam(resolvedSearchParams.status);
   const status = requestedStatus === "all" ? "all" : parseUserFeedbackStatus(requestedStatus) ?? "all";
@@ -76,18 +81,18 @@ export default async function PetyrAdminFeedbackPage({
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link
+            {canOpenAdmin ? <Link
               className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50"
               href="/petyr-admin"
             >
               Back to Petyr Admin
-            </Link>
-            <Link
+            </Link> : null}
+            {canOpenForecasting ? <Link
               className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50"
               href="/forecasting"
             >
               Back to Forecasting
-            </Link>
+            </Link> : null}
             <a
               className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-800"
               href="/api/petyr/admin/feedback/export-xlsx"

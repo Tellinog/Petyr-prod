@@ -52,8 +52,8 @@
 
 - **Area:** Access Control / Petyr route permissions
 - **Problem/question:** Petyr route-level permissions needed an MVP matrix before tool-side Access Layer integration.
-- **Impact:** Resolved for Petyr-owned routes. Petyr now uses `petyr:read`, `petyr:forecast:write`, `petyr:management:write`, `petyr:admin` and reserves `petyr:redash:operator` for the Redash Ingestor operator surface.
-- **Status:** Resolved for Petyr-owned routes on 2026-06-19. Redash Ingestor gateway enforcement remains tracked separately below because `/redash-ingestor` bypasses Petyr.
+- **Impact:** Resolved for Petyr-owned routes. Petyr now uses `petyr:read`, `petyr:forecast:write`, `petyr:management:write`, `petyr:feedback:manage`, `petyr:admin` and reserves `petyr:redash:operator` for the Redash Ingestor operator surface. `petyr:feedback:manage` grants the feedback queue, summary, status updates and export without granting Forecasting or other admin capabilities.
+- **Status:** Resolved for Petyr-owned routes on 2026-06-19; feedback management was split into its own permission on 2026-07-16. Redash Ingestor gateway enforcement remains tracked separately below because `/redash-ingestor` bypasses Petyr.
 - **Proposal / next action:** Register the same permission keys on the external Access Layer `petyr` tool. Implement gateway or Redash Ingestor protection for `/redash-ingestor` before exposing that operator surface publicly.
 
 ## Protect Redash Ingestor operator and sync routes before public exposure

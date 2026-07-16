@@ -10,6 +10,7 @@
     "petyr:read",
     "petyr:forecast:write",
     "petyr:management:write",
+    "petyr:feedback:manage",
     "petyr:admin"
   ],
   "recommended_environment": {

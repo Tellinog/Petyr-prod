@@ -9,7 +9,8 @@ import {
   getPetyrPublicRedirectUrl,
   toAccessLayerIdentity,
   type AccessLayerExchangeResponse,
-  hasUsablePetyrGrant
+  hasUsablePetyrGrant,
+  getPetyrDefaultLandingPath
 } from "@/lib/petyr/authCore";
 import { createPetyrSessionCookie } from "@/lib/petyr/auth";
 
@@ -110,5 +111,5 @@ export async function GET(request: Request) {
     secure: process.env.NODE_ENV === "production"
   });
 
-  return NextResponse.redirect(getPetyrPublicRedirectUrl("/forecasting", request.url, config));
+  return NextResponse.redirect(getPetyrPublicRedirectUrl(getPetyrDefaultLandingPath(identity), request.url, config));
 }

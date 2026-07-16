@@ -1746,8 +1746,8 @@ Forecast Initial window admin workflow rules:
 
 Feedback ticket rules:
 
-- all authenticated users with `petyr:read` can submit feedback from the global
-  bottom-left feedback control;
+- all authenticated users with `petyr:read`, `petyr:feedback:manage` or
+  `petyr:admin` can submit feedback from the global bottom-left feedback control;
 - categories are `Bug`, `Experience`, `Data issue` and `Other`;
 - submitted tickets are stored in `user_feedback_ticket` with status `open`;
 - Petyr stores authenticated user identity, current page, feedback message,
@@ -1755,10 +1755,14 @@ Feedback ticket rules:
   activity;
 - Petyr must not store form field values, passwords, tokens, uploaded workbook
   contents, raw page HTML, request bodies or API keys in feedback context;
-- `/petyr-admin/feedback` requires `petyr:admin` and lets admins review tickets,
+- `/petyr-admin/feedback` requires `petyr:feedback:manage` or `petyr:admin` and lets authorized reviewers review tickets,
   export all tickets to Excel and mark tickets `Open`, `In progress` or
   `Resolved`;
-- the admin-only Data diagnostics floating menu may show the open feedback
+- users with `petyr:feedback:manage` or `petyr:admin` see a `Review feedback`
+  extension beside the global Feedback control with the open-ticket count;
+- a grant containing only `petyr:feedback:manage` is valid and lands directly on
+  `/petyr-admin/feedback`, without granting Forecasting or unrelated Petyr Admin access;
+- the admin-only Data diagnostics floating menu may also show the open feedback
   ticket count and link to `/petyr-admin/feedback`.
 
 Database backup workflow rules:

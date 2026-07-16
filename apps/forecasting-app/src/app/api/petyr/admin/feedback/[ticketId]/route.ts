@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requirePetyrApiPermission } from "@/lib/petyr/auth";
+import { requirePetyrApiAnyPermission } from "@/lib/petyr/auth";
 import { PETYR_PERMISSIONS } from "@/lib/petyr/authCore";
 import {
   parseUserFeedbackStatus,
@@ -12,7 +12,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ ticketId: string }> }
 ) {
-  const auth = await requirePetyrApiPermission(PETYR_PERMISSIONS.admin);
+  const auth = await requirePetyrApiAnyPermission([PETYR_PERMISSIONS.feedbackManage, PETYR_PERMISSIONS.admin]);
   if (auth instanceof NextResponse) return auth;
 
   const { ticketId } = await params;

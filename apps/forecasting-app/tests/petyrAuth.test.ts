@@ -5,6 +5,8 @@ import {
   ALL_PETYR_PERMISSIONS,
   PETYR_PERMISSIONS,
   createAuthState,
+  canManagePetyrFeedback,
+  getPetyrDefaultLandingPath,
   getLocalDevelopmentIdentity,
   getPetyrPublicRedirectUrl,
   hasPetyrPermission,
@@ -153,6 +155,27 @@ test("Access Layer exchange payload without Petyr read permission is not a usabl
   });
 
   assert.equal(hasUsablePetyrGrant(identity), false);
+});
+
+test("feedback manager grant is usable without Petyr read and lands in feedback review", () => {
+  const identity = {
+    ...getLocalDevelopmentIdentity(),
+    permissions: [PETYR_PERMISSIONS.feedbackManage]
+  };
+
+  assert.equal(hasUsablePetyrGrant(identity), true);
+  assert.equal(canManagePetyrFeedback(identity), true);
+  assert.equal(hasPetyrPermission(identity, PETYR_PERMISSIONS.admin), false);
+  assert.equal(getPetyrDefaultLandingPath(identity), "/petyr-admin/feedback");
+});
+
+test("admin retains feedback management access", () => {
+  const identity = {
+    ...getLocalDevelopmentIdentity(),
+    permissions: [PETYR_PERMISSIONS.admin]
+  };
+
+  assert.equal(canManagePetyrFeedback(identity), true);
 });
 
 test("CSM identity matching resolves exact names case-insensitively", () => {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requirePetyrApiPermission } from "@/lib/petyr/auth";
+import { requirePetyrApiAnyPermission } from "@/lib/petyr/auth";
 import { PETYR_PERMISSIONS } from "@/lib/petyr/authCore";
 import {
   getUserFeedbackSummary,
@@ -10,7 +10,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const auth = await requirePetyrApiPermission(PETYR_PERMISSIONS.admin);
+  const auth = await requirePetyrApiAnyPermission([PETYR_PERMISSIONS.feedbackManage, PETYR_PERMISSIONS.admin]);
   if (auth instanceof NextResponse) return auth;
 
   const url = new URL(request.url);

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -90,13 +91,14 @@ function buildClientContext() {
   };
 }
 
-export default function PetyrFeedbackButton() {
+export default function PetyrFeedbackButton({ canReviewFeedback }: { canReviewFeedback: boolean }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [category, setCategory] = useState<FeedbackCategory>("bug");
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [openFeedbackCount, setOpenFeedbackCount] = useState<number | null>(null);
   const isHidden = useMemo(() => pathname?.startsWith("/auth") || pathname?.includes("/auth/"), [pathname]);
 
   useEffect(() => {
@@ -148,6 +150,27 @@ export default function PetyrFeedbackButton() {
     };
   }, [isHidden]);
 
+  useEffect(() => {
+    if (!canReviewFeedback || isHidden) return;
+
+    let isMounted = true;
+    void fetch("/api/petyr/admin/feedback/summary", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Unable to load feedback summary.");
+        return response.json() as Promise<{ open?: number }>;
+      })
+      .then((summary) => {
+        if (isMounted) setOpenFeedbackCount(typeof summary.open === "number" ? summary.open : 0);
+      })
+      .catch(() => {
+        if (isMounted) setOpenFeedbackCount(0);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [canReviewFeedback, isHidden]);
+
   if (isHidden) return null;
 
   async function submitFeedback() {
@@ -183,6 +206,9 @@ export default function PetyrFeedbackButton() {
       }
 
       setStatus("success");
+      if (canReviewFeedback) {
+        setOpenFeedbackCount((current) => (current ?? 0) + 1);
+      }
       setMessage("");
       setCategory("bug");
       window.setTimeout(() => {
@@ -281,14 +307,30 @@ export default function PetyrFeedbackButton() {
         </div>
       ) : null}
 
-      <Button
-        type="button"
-        className="h-11 rounded-xl px-4 shadow-lg"
-        aria-expanded={isOpen}
-        onClick={() => setIsOpen((current) => !current)}
-      >
-        Feedback
-      </Button>
+      <div className="flex items-center overflow-hidden rounded-xl shadow-lg">
+        <Button
+          type="button"
+          className="h-11 rounded-none px-4 shadow-none"
+          aria-expanded={isOpen}
+          onClick={() => setIsOpen((current) => !current)}
+        >
+          Feedback
+        </Button>
+        {canReviewFeedback ? (
+          <Link
+            href="/petyr-admin/feedback"
+            className="inline-flex h-11 items-center gap-2 border-l border-slate-700 bg-slate-950 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+          >
+            Review feedback
+            <span
+              className="inline-flex min-w-6 items-center justify-center rounded-full bg-white px-1.5 py-0.5 text-xs font-semibold tabular-nums text-slate-950"
+              aria-label={`${openFeedbackCount ?? 0} open feedback tickets`}
+            >
+              {openFeedbackCount ?? 0}
+            </span>
+          </Link>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requirePetyrApiPermission } from "@/lib/petyr/auth";
+import { requirePetyrApiAnyPermission } from "@/lib/petyr/auth";
 import { PETYR_PERMISSIONS } from "@/lib/petyr/authCore";
 import {
   createUserFeedbackTicket,
@@ -9,7 +9,11 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const auth = await requirePetyrApiPermission(PETYR_PERMISSIONS.read);
+  const auth = await requirePetyrApiAnyPermission([
+    PETYR_PERMISSIONS.read,
+    PETYR_PERMISSIONS.feedbackManage,
+    PETYR_PERMISSIONS.admin
+  ]);
   if (auth instanceof NextResponse) return auth;
 
   const payload = await request.json().catch(() => null) as {

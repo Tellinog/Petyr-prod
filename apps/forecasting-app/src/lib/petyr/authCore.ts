@@ -7,6 +7,7 @@ export const PETYR_PERMISSIONS = {
   read: "petyr:read",
   forecastWrite: "petyr:forecast:write",
   managementWrite: "petyr:management:write",
+  feedbackManage: "petyr:feedback:manage",
   admin: "petyr:admin",
   redashOperator: "petyr:redash:operator"
 } as const;
@@ -139,8 +140,20 @@ export function hasPetyrPermission(identity: PetyrAuthIdentity, permission: Pety
   return identity.permissions.includes(permission);
 }
 
+export function hasAnyPetyrPermission(identity: PetyrAuthIdentity, permissions: PetyrPermission[]) {
+  return permissions.some((permission) => hasPetyrPermission(identity, permission));
+}
+
+export function canManagePetyrFeedback(identity: PetyrAuthIdentity) {
+  return hasAnyPetyrPermission(identity, [PETYR_PERMISSIONS.feedbackManage, PETYR_PERMISSIONS.admin]);
+}
+
 export function hasUsablePetyrGrant(identity: PetyrAuthIdentity) {
-  return hasPetyrPermission(identity, PETYR_PERMISSIONS.read);
+  return hasPetyrPermission(identity, PETYR_PERMISSIONS.read) || canManagePetyrFeedback(identity);
+}
+
+export function getPetyrDefaultLandingPath(identity: PetyrAuthIdentity) {
+  return hasPetyrPermission(identity, PETYR_PERMISSIONS.read) ? "/forecasting" : "/petyr-admin/feedback";
 }
 
 export function requirePetyrPermissionValue(identity: PetyrAuthIdentity, permission: PetyrPermission) {

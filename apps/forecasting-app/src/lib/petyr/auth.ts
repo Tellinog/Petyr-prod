@@ -9,7 +9,8 @@ import {
   readPetyrAuthConfig,
   signPetyrSession,
   verifyPetyrSession,
-  hasPetyrPermission
+  hasPetyrPermission,
+  hasAnyPetyrPermission
 } from "./authCore";
 
 export type PetyrAuthResult =
@@ -68,6 +69,35 @@ export async function requirePetyrApiPermission(permission: PetyrPermission) {
   }
 
   if (!hasPetyrPermission(result.identity, permission)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  return result.identity;
+}
+
+export async function requirePetyrPageAnyPermission(permissions: PetyrPermission[]) {
+  const result = await getPetyrAuthIdentity();
+
+  if (!result.ok) {
+    if (result.status === 401) redirect("/auth/login");
+    throw new Error(result.error);
+  }
+
+  if (!hasAnyPetyrPermission(result.identity, permissions)) {
+    throw new Error(`Petyr permission denied: ${permissions.join(" or ")}.`);
+  }
+
+  return result.identity;
+}
+
+export async function requirePetyrApiAnyPermission(permissions: PetyrPermission[]) {
+  const result = await getPetyrAuthIdentity();
+
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  if (!hasAnyPetyrPermission(result.identity, permissions)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

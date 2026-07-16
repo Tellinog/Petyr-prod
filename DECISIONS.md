@@ -13,6 +13,16 @@ Each decision should include:
 
 ---
 
+## 2026-07-16 - Separate Petyr feedback management from administrator access
+
+- **Status:** Accepted.
+- **Context:** Feedback review, status management and export were protected only by `petyr:admin`, preventing non-admin collaborators from owning the feedback queue.
+- **Decision:** Introduce `petyr:feedback:manage`. The dedicated permission and `petyr:admin` both authorize the complete feedback backoffice: page, ticket list, summary/open count, status updates and Excel export. A feedback-only grant is a valid Petyr session and lands on `/petyr-admin/feedback`, without access to Forecasting or unrelated admin features.
+- **Alternatives discarded:** Granting full `petyr:admin`; using a hardcoded email/role allowlist; making feedback review available to every `petyr:read` user.
+- **Reason:** Feedback ownership is an independent operational responsibility and should follow least privilege.
+- **Consequences:** The Access Layer Petyr tool must register and assign `petyr:feedback:manage`. Eligible users see a `Review feedback` extension beside the global Feedback button with the open-ticket count. Existing admins retain access without needing an immediate grant migration.
+- **Related docs:** `apps/forecasting-app/README.md`, `docs/05_forecasting_product_spec.md`, `docs/access-control/BACKLOG.md`, `DEVLOG.md`.
+
 ## 2026-07-09 - Minimize automatic context in Petyr feedback tickets
 
 - **Status:** Accepted.

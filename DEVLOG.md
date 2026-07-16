@@ -18,6 +18,15 @@ Each entry must include:
 
 ---
 
+## 2026-07-16
+
+- **Area:** Petyr / Feedback access control and navigation
+- **Change:** Added the dedicated `petyr:feedback:manage` permission for the complete feedback backoffice while retaining equivalent access for `petyr:admin`. Feedback-only grants now pass login and land directly on `/petyr-admin/feedback`. The global Feedback control shows eligible users an adjacent `Review feedback` action with the current open-ticket count.
+- **Reason:** Product requested that selected non-admin collaborators can review and manage Forecasting feedback without receiving unrelated administrator capabilities.
+- **Impact:** Page and API authorization changed for feedback list, summary, status updates and Excel export. Feedback-only users can also submit feedback from the existing global control, but cannot open Forecasting or other Petyr Admin sections unless separately permitted. No database schema, feedback persistence, Redash data flow or forecast calculations changed.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/petyr/authCore.ts`, `apps/forecasting-app/src/lib/petyr/auth.ts`, `apps/forecasting-app/src/app/auth/callback/route.ts`, `apps/forecasting-app/src/app/layout.tsx`, `apps/forecasting-app/src/components/petyr/PetyrFeedbackButton.tsx`, `apps/forecasting-app/src/app/petyr-admin/feedback/page.tsx`, `apps/forecasting-app/src/app/api/petyr/feedback/route.ts`, `apps/forecasting-app/src/app/api/petyr/admin/feedback/*`, `apps/forecasting-app/tests/petyrAuth.test.ts`, `petyr/access-layer-tools/petyr.tool.json`, `apps/forecasting-app/README.md`, `docs/05_forecasting_product_spec.md`, `docs/access-control/BACKLOG.md`, `DECISIONS.md`, `DEVLOG.md`.
+- **Follow-up:** Register `petyr:feedback:manage` in the production Access Layer Petyr tool and assign it to the intended collaborators.
+
 ## 2026-07-10
 
 - **Area:** Petyr / Intelligence admin run output

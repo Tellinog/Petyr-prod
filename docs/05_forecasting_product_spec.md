@@ -63,7 +63,7 @@ users with `petyr:admin`.
 
 The Petyr workspace shell must be shared across Management View, CSM Overview, Company Detail and Forecast Entry: one descriptive header card, one section navigator and route-aware links. The header card title and supporting copy must describe what the active view offers, so users can understand the page immediately. CSM Overview is temporarily in development and must be visible/accessible only to users with `petyr:admin`; non-admin users must not see its navigator item, must stay on Management when requesting `?view=csm`, and must not receive CSM Overview rendering payloads. For admins, the top-level workspace switches Management/CSM through `?view=management|csm`; Company Detail and Forecast Entry use dedicated routes with query parameters when context is available.
 
-All authenticated Petyr users must have access to a fixed bottom-left
+All authenticated Petyr users with `petyr:read` or `petyr:feedback:manage` must have access to a fixed bottom-left
 `Feedback` control across Petyr pages. The feedback modal is in English and lets
 the user choose `Bug`, `Experience`, `Data issue` or `Other`, then describe what
 happened. Submitting feedback creates a PostgreSQL-backed ticket through
@@ -863,12 +863,16 @@ GET /api/petyr/admin/feedback/summary
 GET /api/petyr/admin/feedback/export-xlsx
 ```
 
-They require `petyr:admin`. `/petyr-admin/feedback` shows all feedback tickets,
+They require `petyr:feedback:manage` or `petyr:admin`. `/petyr-admin/feedback` shows all feedback tickets,
 sanitized context/activity details, status controls for `Open`, `In progress`
 and `Resolved`, and an Excel export containing all tickets. The main
 `/petyr-admin` page shows open/in-progress ticket counts. The admin-only
 floating Data diagnostics menu may show the open-ticket count and link to the
-feedback queue.
+feedback queue. The global bottom-left Feedback control exposes an adjacent
+`Review feedback` action and numeric open-ticket indicator to users with
+`petyr:feedback:manage` or `petyr:admin`. A feedback-only grant is accepted as a
+valid Petyr session and lands directly on `/petyr-admin/feedback`; it does not
+grant `/forecasting` or any other Petyr Admin capability.
 
 Forecast Entry product-view Excel exports are:
 
