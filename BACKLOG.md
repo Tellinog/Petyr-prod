@@ -23,6 +23,22 @@ Project-specific backlog items should be placed in the most specific backlog ava
 
 ---
 
+## Reconcile Monthly Forecast Entry Active-column documentation
+
+- **Area:** Petyr / Monthly Forecast Entry / Table layout
+- **Problem/question:** `PETYR_PRODUCT_AND_DATA_LOGIC.md` still says the Monthly Active column follows Company, while the current documented implementation change and UI place Active as the first pinned column before Company.
+- **Impact:** The Monthly table column order is ambiguous for future UI work and documentation-driven implementation.
+- **Status:** Open.
+- **Proposal / next action:** Confirm the approved Monthly table order, then align the Petyr product and forecasting-spec documentation in a dedicated documentation task.
+
+## Reconcile planned-campaign floor with residual cap
+
+- **Area:** Petyr / AI Forecasting / Deterministic monthly suggestion
+- **Problem/question:** The documented contract says a valid planned campaign is a target-month floor, but `petyrAiForecastStrategyService.ts` capped the agreement-linked component by residual allowance, allowing a suggestion below the planned value.
+- **Impact:** Resolved on 2026-07-22. A valid company + Business Unit + target-month planned campaign total is now a non-derogable deterministic AI Forecast floor; residual caps apply only to the additional agreement-linked signal.
+- **Status:** Resolved on 2026-07-22.
+- **Proposal / next action:** Monitor production suggestions after the next Daily AI Forecast run; existing cache rows require regeneration to reflect the corrected floor.
+
 ## Define lifecycle handling for companies without selected-year revenue
 
 - **Area:** Petyr / Management View / Company revenue lifecycle

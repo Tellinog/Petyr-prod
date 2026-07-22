@@ -226,9 +226,12 @@ Annual sections.
 
 Normal `/forecasting/entry` requires `petyr:forecast:write` and is accessible to
 users who can write CSM forecasts. It no longer shows the old full single-company
-editor. The Monthly section defaults to the current server month/year, exposes
-a CSM filter plus Month and Year controls, and renders the selected CSM's companies in one batch table. Changing CSM reloads immediately from the CSM dropdown; changing Month or Year requires pressing the same-row `Load` button.
-The Annual section is separate, exposes a compact single-row CSM multi-select dropdown with checkboxes and a Year filter, and renders the current annual portfolio for the selected annual cycle. The CSM dropdown defaults to the same preselected CSM as Monthly Forecast Entry, allows that default CSM to be deselected, and summarizes multiple selections as the first selected CSM plus the count of additional selected CSMs. Annual users can select one or more CSMs and see the combined company list for all selected CSM portfolios. The Monthly and Annual CSM selectors stay synchronized when the Annual section has exactly one selected CSM; when Annual has multiple selected CSMs, Monthly remains on its single selected CSM.
+editor. The Monthly section defaults to the current server month/year, exposes a
+compact CSM multi-select dropdown with checkboxes plus Month and Year controls,
+and renders the combined company portfolio for all selected CSMs in one batch
+table. The CSM summary shows the first selected CSM plus the count of additional
+selected CSMs; changing the selection, Month or Year requires pressing the
+same-row `Load` button. The Annual section uses the same multi-select behavior.
 
 Normal Forecast Entry must not expose a company filter, Forecast Intelligence,
 deterministic preview, apply AI forecast, import/export, diagnostics or admin
@@ -286,12 +289,13 @@ the dedicated `/forecasting/entry/faq` page, with visible `FAQ` text next to the
 question mark. The FAQ page explains Forecast Ongoing, Previous Month Forecast,
 Forecast Initial, logs, input deadline windows, forecast urgency ordering,
 monthly editability, deterministic preview, baseline calculations, residual
-pressure, rule-based alerts and Forecast Intelligence boundaries without changing
+pressure, the rule that valid planned campaigns are a non-derogable AI Forecast
+floor for their company/Business Unit/month, rule-based alerts and Forecast Intelligence boundaries without changing
 formulas or persistence behavior. It must keep the same four-section workspace
 header/navigation available so users can continue navigating.
 
 Normal batch table rules:
-- rows are companies/customers associated to the selected CSM through
+- rows are companies/customers associated to every selected CSM through
   Company Ownership workspaces updated in the last 6 months; a company may
   appear under more than one CSM when multiple recent company-CSM associations
   exist;
@@ -300,17 +304,19 @@ Normal batch table rules:
   name ascending or descending;
 - each Monthly Business Unit header can sort the visible rows from highest to
   lowest value for that Business Unit, considering saved forecast values and
-  AI placeholder values when no CSM value is saved. Local edits keep their row
-  in place; sorting and Active visibility are reapplied only after a successful save;
+  AI placeholder values when no CSM value is saved. Local forecast-value edits
+  keep their row in place; sorting and Active visibility are reapplied only
+  after a successful forecast save. Status-checkbox autosaves update the row
+  state immediately;
 - Monthly Forecast Entry includes an `Active` column immediately after Company,
   before the Business Unit groups. The header uses the same all/active/inactive
   visibility filter as Annual Forecast Entry. The row checkbox persists
-  company active/inactive status through `company_forecast_status`, creates
-  save-session/change-log audit rows and clears numeric AI Forecast cache rows
-  when the company is set inactive;
+  company active/inactive status immediately through `company_forecast_status`
+  without reloading the batch/page, creates save-session/change-log audit rows
+  and clears numeric AI Forecast cache rows when the company is set inactive;
 - each Monthly company row shows the company-level total of the currently
-  active Business Unit forecast values directly under the company name,
-  replacing the previous company-status label in that position;
+  active Business Unit forecast values in a highlighted `Monthly Total` column
+  between Company and the Business Unit columns;
 - columns are grouped by the 10 official Petyr Business Units only;
 - Business Unit columns are ordered for fast CSM checks as QA, UX/Experience,
   Accessibility, Security, FTE, TA, AI, OTHER/Other, Express, Community;
@@ -417,6 +423,9 @@ Annual Forecast Entry rules:
 - the Active column can filter visible Annual rows to all companies, active
   companies only or inactive companies only. This is a client-side table view
   filter and does not modify `company_forecast_status`;
+- changing an Annual row checkbox persists company active/inactive status
+  immediately without reloading the batch/page, while retaining normal
+  save-session/change-log audit and numeric AI Forecast cache cleanup;
 - company names link to Company Detail; Annual company rows show only the linked
   company name in the first column, without a company-level Forecast Ongoing
   total label or CSM label beneath it; the Logs action opens Company Detail

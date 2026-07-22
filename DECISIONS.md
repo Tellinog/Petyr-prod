@@ -13,6 +13,16 @@ Each decision should include:
 
 ---
 
+## 2026-07-22 - Preserve valid planned campaign value as the AI Forecast floor
+
+- **Status:** Accepted.
+- **Context:** A valid planned campaign can be linked to an agreement whose residual allowance is lower than the campaign value. The previous deterministic residual cap could consequently make the AI Forecast suggestion lower than the known planned value for the same company, Business Unit and target month.
+- **Decision:** The total value of valid planned campaigns for the exact company + Business Unit + target month is a non-derogable floor for deterministic AI Forecast. Residual allocation may cap only the incremental agreement-linked signal. Final commercial rounding remains at 100 EUR and rounds up where nearest-100 rounding would otherwise fall below the planned floor.
+- **Alternatives discarded:** Letting the residual cap override known planned campaign value; copying the AI value directly into CSM-owned Previous Month or Ongoing Forecast fields.
+- **Reason:** A planned campaign is an explicit commercial signal for that precise delivery month and BU. CSM forecasts remain user-owned, but the AI suggestion must not understate known planned value.
+- **Consequences:** A valid planned TA campaign of 20,000 EUR for Sorgenia in September produces a deterministic AI suggestion of at least 20,000 EUR when the row is otherwise eligible. Existing saved CSM forecasts are not changed, and existing AI cache rows refresh on their next manual or daily generation.
+- **Related docs:** `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `docs/petyr/AI_FORECASTING_DESIGN.md`, `BACKLOG.md`, `DEVLOG.md`.
+
 ## 2026-07-22 - Allow CSM-triggered Petyr source refresh through a constrained command path
 
 - **Status:** Accepted.

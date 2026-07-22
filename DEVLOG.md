@@ -20,6 +20,41 @@ Each entry must include:
 
 ## 2026-07-22
 
+- **Area:** Petyr / Monthly Forecast Entry total visibility
+- **Change:** Moved each company's Monthly Forecast Entry total out of the secondary line under the company name into a highlighted `Monthly Total` column between Company and the Business Unit columns, matching the annual-entry table hierarchy. The highlighted portfolio total now aligns in that same column.
+- **Reason:** The total was visually easy to miss when presented as supporting text below the company name.
+- **Impact:** UI-only change. The existing active Business Unit total calculation, selected-period behavior, filtering, sorting, persistence and audit flow are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / AI Forecasting / Planned campaign floor
+- **Change:** Made the total valid planned campaign value for the same company, Business Unit and target month a non-derogable deterministic AI Forecast floor. Residual allocation now caps only the additional agreement-linked signal; nearest-100 commercial rounding rounds up when necessary to preserve that floor. Added a focused regression test for a 20K planned TA campaign with a lower linked residual allowance.
+- **Reason:** A known planned campaign must never receive an AI suggestion below its value merely because the linked agreement residual allocation is lower.
+- **Impact:** Newly generated eligible AI Forecast cache rows may increase to the planned campaign floor. Previous Month and Ongoing remain CSM-owned values and are not auto-overwritten; they continue to show AI only as an unconfirmed suggestion when applicable. Existing cache rows refresh on their next generation.
+- **Files/documents involved:** `apps/forecasting-app/src/services/petyrAiForecastStrategyService.ts`, `apps/forecasting-app/tests/aiForecastIntelligence.test.ts`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `docs/petyr/AI_FORECASTING_DESIGN.md`, `DECISIONS.md`, `BACKLOG.md`, `DEVLOG.md`.
+- **Follow-up:** Run or wait for a Daily AI Forecast generation to refresh existing eligible cache rows, then validate a representative planned campaign in Forecast Entry.
+
+- **Area:** Petyr / Forecast Entry company status alignment
+- **Change:** Moved the Monthly Forecast Entry Active checkbox/filter to the first pinned table column, matching Annual Forecast Entry. A successful status-only save now immediately synchronizes the Active/Inactive state between the Monthly and Annual tabs in the open workspace.
+- **Reason:** Active/Inactive needs to be equally prominent in both entry grids and must not appear inconsistent when users switch between annual and monthly views.
+- **Impact:** Both tabs continue to persist the shared company-level `company_forecast_status` record through their existing audited save endpoints. No schema, API contract, forecast value, note, confidence, Initial Forecast or AI Forecast rule changed.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Monthly Forecast Entry / CSM filtering
+- **Change:** Extended Monthly Forecast Entry with the Annual-style CSM multi-select. Multiple selected CSMs load one combined monthly portfolio, persist in the route query, synchronize with Annual Forecast Entry and are retained by the read-only Monthly Excel export. Monthly saves are submitted per canonical row CSM so existing ownership validation and audit semantics remain intact.
+- **Reason:** Product requested the same multi-CSM portfolio workflow already available in Annual Forecast Entry.
+- **Impact:** Monthly filter and export behavior changed. No schema, permissions, forecast calculations, ownership rules or audit model changed.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/services/forecastEntryBatchService.ts`, `apps/forecasting-app/src/services/petyrDataService.ts`, Forecast Entry batch/export routes, `apps/forecasting-app/src/services/petyrForecastingExportService.ts`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** Validate the combined-portfolio save and Excel export with a production-like Company Ownership dataset.
+
+- **Area:** Petyr / Forecast Entry company status
+- **Change:** Monthly and Annual Active row checkboxes now save company status immediately. Each row updates optimistically in place and rolls back with an inline error if the status request fails; the batch/page is not reloaded.
+- **Reason:** Changing a company between ON and OFF required an explicit forecast Save before the row state was applied, and a reload interrupted the user’s working focus.
+- **Impact:** The existing Monthly/Annual batch-save endpoints retain their normal save-session, change-log and inactive-company numeric AI Forecast cache cleanup behavior. Forecast value, note, confidence and Initial Forecast drafts are untouched by a status-only save.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
 - **Area:** Petyr / Forecast Entry table stability
 - **Change:** Monthly and Annual Forecast Entry now keep sorting and the Active visibility result based on the last saved batch while a row is being edited. After a successful save, the refreshed batch reapplies the selected ordering and visibility filter.
 - **Reason:** Editing a value could immediately reorder or hide the row, causing users to lose their position in the portfolio.

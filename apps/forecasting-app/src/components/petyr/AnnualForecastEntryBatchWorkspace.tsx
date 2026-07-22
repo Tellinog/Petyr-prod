@@ -272,10 +272,14 @@ const SORT_BUTTON_BASE_CLASS =
 
 export default function AnnualForecastEntryBatchWorkspace({
   initialBatch,
-  onBatchChange
+  onBatchChange,
+  companyActiveStatuses,
+  onCompanyStatusChange
 }: {
   initialBatch: AnnualForecastEntryBatchDataResult;
   onBatchChange?: (batch: AnnualForecastEntryBatchDataResult) => void;
+  companyActiveStatuses?: Readonly<Record<string, boolean>>;
+  onCompanyStatusChange?: (companyName: string, isActive: boolean) => void;
 }) {
   const [batch, setBatch] = useState(initialBatch);
   const [selectedCsms, setSelectedCsms] = useState<string[]>(() => initialBatch.data.selectedCsms ?? [initialBatch.data.selectedCsm].filter(Boolean));
@@ -284,11 +288,11 @@ export default function AnnualForecastEntryBatchWorkspace({
   const [businessUnitInitialValues, setBusinessUnitInitialValues] = useState<Record<string, string>>(() => businessUnitInitialValuesFromBatch(initialBatch));
   const [initialValues, setInitialValues] = useState<Record<string, string>>(() => initialValuesFromBatch(initialBatch));
   const [activeValues, setActiveValues] = useState<Record<string, boolean>>(() => activeValuesFromBatch(initialBatch));
+  const [statusSavingCompanies, setStatusSavingCompanies] = useState<Set<string>>(() => new Set());
   const [confidenceValues, setConfidenceValues] = useState<Record<string, string>>(() => confidenceValuesFromBatch(initialBatch));
   const [sourceStates, setSourceStates] = useState<Record<string, SourceState | undefined>>({});
   const [touchedBusinessUnitInitial, setTouchedBusinessUnitInitial] = useState<Set<string>>(() => new Set());
   const [touchedInitial, setTouchedInitial] = useState<Set<string>>(() => new Set());
-  const [touchedActive, setTouchedActive] = useState<Set<string>>(() => new Set());
   const [touchedConfidence, setTouchedConfidence] = useState<Set<string>>(() => new Set());
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -312,9 +316,8 @@ export default function AnnualForecastEntryBatchWorkspace({
       Object.values(sourceStates).some(Boolean) ||
       touchedBusinessUnitInitial.size > 0 ||
       touchedInitial.size > 0 ||
-      touchedActive.size > 0 ||
       touchedConfidence.size > 0,
-    [sourceStates, touchedBusinessUnitInitial, touchedInitial, touchedActive, touchedConfidence]
+    [sourceStates, touchedBusinessUnitInitial, touchedInitial, touchedConfidence]
   );
 
   useEffect(() => {
@@ -370,11 +373,11 @@ export default function AnnualForecastEntryBatchWorkspace({
     setBusinessUnitInitialValues(businessUnitInitialValuesFromBatch(nextBatch));
     setInitialValues(initialValuesFromBatch(nextBatch));
     setActiveValues(activeValuesFromBatch(nextBatch));
+    setStatusSavingCompanies(new Set());
     setConfidenceValues(confidenceValuesFromBatch(nextBatch));
     setSourceStates({});
     setTouchedBusinessUnitInitial(new Set());
     setTouchedInitial(new Set());
-    setTouchedActive(new Set());
     setTouchedConfidence(new Set());
     setExpandedInitialBusinessUnits(initialExpandedStateFromBatch(nextBatch));
   }
@@ -437,9 +440,51 @@ export default function AnnualForecastEntryBatchWorkspace({
     setTouchedInitial((existing) => new Set(existing).add(companyName));
   }
 
-  function updateActive(companyName: string, value: boolean) {
+  function companyIsForecastActive(company: AnnualForecastEntryBatchCompany) {
+    return companyActiveStatuses?.[company.companyName] ?? activeValues[company.companyName] ?? company.isForecastActive;
+  }
+
+  async function updateActive(company: AnnualForecastEntryBatchCompany, value: boolean) {
+    const companyName = company.companyName;
+    const previousValue = companyIsForecastActive(company);
+    if (value === previousValue || statusSavingCompanies.has(companyName)) return;
+
     setActiveValues((existing) => ({ ...existing, [companyName]: value }));
-    setTouchedActive((existing) => new Set(existing).add(companyName));
+    onCompanyStatusChange?.(companyName, value);
+    setStatusSavingCompanies((existing) => new Set(existing).add(companyName));
+    setNotice(null);
+
+    try {
+      const response = await fetch("/api/petyr/forecast-entry/annual-batch/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          csmName: batch.data.selectedCsm,
+          csmNames: batch.data.selectedCsms,
+          year: batch.data.selectedYear,
+          updates: [{ companyName, activeStatus: value, values: [], initialBusinessUnitValues: [] }]
+        })
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? payload.detail ?? "Unable to save company status.");
+      }
+
+    } catch (error) {
+      setActiveValues((existing) => ({ ...existing, [companyName]: previousValue }));
+      onCompanyStatusChange?.(companyName, previousValue);
+      setNotice({
+        type: "error",
+        text: error instanceof Error ? error.message : "Unable to save company status."
+      });
+    } finally {
+      setStatusSavingCompanies((existing) => {
+        const next = new Set(existing);
+        next.delete(companyName);
+        return next;
+      });
+    }
   }
 
   function updateConfidence(companyName: string, value: string) {
@@ -501,7 +546,7 @@ export default function AnnualForecastEntryBatchWorkspace({
 
   const displayedAnnualCompanies = useMemo(() => {
     const filteredCompanies = batch.data.companies.filter((company) => {
-      const isActive = company.isForecastActive;
+      const isActive = companyIsForecastActive(company);
       if (activeVisibilityFilter === "active") return isActive;
       if (activeVisibilityFilter === "inactive") return !isActive;
       return true;
@@ -537,7 +582,7 @@ export default function AnnualForecastEntryBatchWorkspace({
 
       return left.companyName.localeCompare(right.companyName);
     });
-  }, [activeVisibilityFilter, annualSort, batch.data.companies]);
+  }, [activeValues, activeVisibilityFilter, annualSort, batch.data.companies]);
 
   const annualSummary = useMemo(() => {
     const byBusinessUnit = Object.fromEntries(batch.data.businessUnits.map((businessUnit) => [businessUnit, 0])) as Record<string, number>;
@@ -614,11 +659,10 @@ export default function AnnualForecastEntryBatchWorkspace({
       const valuesForCompany = getCompanySaveValues(company);
       const initialBusinessUnitValues = getCompanySaveInitialBusinessUnitValues(company);
       const hasInitial = touchedInitial.has(company.companyName);
-      const hasActive = touchedActive.has(company.companyName);
       const hasConfidence = touchedConfidence.has(company.companyName);
       const ongoingModified = valuesForCompany.length > 0;
       const initialBusinessUnitModified = initialBusinessUnitValues.length > 0;
-      const rowModified = ongoingModified || initialBusinessUnitModified || hasInitial || hasActive;
+      const rowModified = ongoingModified || initialBusinessUnitModified || hasInitial;
 
       if (!rowModified && !hasConfidence) return [];
 
@@ -630,7 +674,7 @@ export default function AnnualForecastEntryBatchWorkspace({
       return [
         {
           companyName: company.companyName,
-          activeStatus: hasActive ? activeValues[company.companyName] : undefined,
+          activeStatus: undefined,
           initialForecast: hasInitial ? initialValues[company.companyName] : undefined,
           confidence: ongoingModified || hasConfidence ? confidence : undefined,
           values: valuesForCompany,
@@ -1110,22 +1154,23 @@ export default function AnnualForecastEntryBatchWorkspace({
                     planned: company.planned,
                     fcOngoing
                   });
-                  const inactiveClass = company.isForecastActive ? "" : "bg-slate-50 text-slate-500 opacity-75";
+                  const isActive = companyIsForecastActive(company);
+                  const inactiveClass = isActive ? "" : "bg-slate-50 text-slate-500 opacity-75";
 
                   return (
                     <TableRow key={company.companyName} className={inactiveClass}>
-                      <TableCell className={`${ACTIVE_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} ${company.isForecastActive ? MANUAL_CELL_CLASS : "bg-slate-50"}`}>
+                      <TableCell className={`${ACTIVE_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} ${isActive ? MANUAL_CELL_CLASS : "bg-slate-50"}`}>
                         <label className="inline-flex items-center gap-2 text-sm">
                           <input
                             type="checkbox"
-                            checked={activeValues[company.companyName] ?? company.isForecastActive}
-                            disabled={isSaving}
-                            onChange={(event) => updateActive(company.companyName, event.target.checked)}
+                            checked={isActive}
+                            disabled={isSaving || statusSavingCompanies.has(company.companyName)}
+                            onChange={(event) => void updateActive(company, event.target.checked)}
                           />
-                          {activeValues[company.companyName] ? "ON" : "OFF"}
+                          {isActive ? "ON" : "OFF"}
                         </label>
                       </TableCell>
-                      <TableCell className={`${COMPANY_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} ${company.isForecastActive ? "bg-white" : "bg-slate-50"}`}>
+                      <TableCell className={`${COMPANY_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} ${isActive ? "bg-white" : "bg-slate-50"}`}>
                         <Link
                           href={buildCompanyDetailPageUrl(company.companyName, batch.data.selectedYear, company.csmName)}
                           className="font-semibold text-slate-900 underline-offset-4 hover:underline"
@@ -1133,7 +1178,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                           {company.companyName}
                         </Link>
                       </TableCell>
-                      <TableCell className={`${CONFIDENCE_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} ${company.isForecastActive ? "bg-amber-50" : "bg-slate-50"}`}>
+                      <TableCell className={`${CONFIDENCE_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} ${isActive ? "bg-amber-50" : "bg-slate-50"}`}>
                         <div className="relative min-w-[130px]">
                           <span
                             aria-hidden="true"

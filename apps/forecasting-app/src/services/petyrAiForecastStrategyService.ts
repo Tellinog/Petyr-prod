@@ -277,8 +277,11 @@ function roundCommercial(value: number, direction: "floor" | "nearest" | "ceil")
   return Math.round(normalized / COMMERCIAL_ROUNDING_GRANULARITY) * COMMERCIAL_ROUNDING_GRANULARITY;
 }
 
-function roundForecastValue(value: number) {
-  return roundCommercial(value, "nearest");
+function roundForecastValue(value: number, minimum = 0) {
+  return Math.max(
+    roundCommercial(value, "nearest"),
+    roundCommercial(minimum, "ceil")
+  );
 }
 
 function monthIndex(year: number, month: number) {
@@ -1101,7 +1104,10 @@ function applyResidualAllocationCap(input: {
     input.allocation.cappedLinkedPlannedCampaignValue
   );
 
-  return roundMoney(unlinkedPlannedValue + linkedResidualComponent);
+  return roundMoney(Math.max(
+    input.plannedCampaignsValue,
+    unlinkedPlannedValue + linkedResidualComponent
+  ));
 }
 
 
@@ -1242,7 +1248,7 @@ export function buildDeterministicForecastCandidates(input: BuildCandidateInput)
       if (businessUnitAttribution.method === "title_token") dataQualityFlags.push("agreement_bu_title_token_match");
       if (agreementResidualAllocation.status === "capped" || baselineForecast < uncappedBaseline) {
         dataQualityFlags.push("agreement_residual_cap_applied");
-        explanationParts.push("Forecast was capped so the agreement-linked component does not exceed historical-guided residual allowance.");
+        explanationParts.push("Residual allocation capped the agreement-linked component, while valid planned campaign value remains the target-month forecast floor.");
       }
       if (agreementResidualAllocation.plannedExceedsResidual) {
         dataQualityFlags.push("planned_exceeds_residual_allowance");
@@ -1264,7 +1270,7 @@ export function buildDeterministicForecastCandidates(input: BuildCandidateInput)
       residualPressureLevel: agreementResidualSignal.residualPressureLevel,
       adviceCandidate: agreementResidualSignal.adviceCandidate,
       agreementResidualSignal,
-      roundedForecastValue: roundForecastValue(baselineForecast),
+      roundedForecastValue: roundForecastValue(baselineForecast, candidate.plannedCampaignsValue),
       roundingGranularity: COMMERCIAL_ROUNDING_GRANULARITY,
       businessUnitAttribution,
       agreementResidualAllocation,

@@ -38,6 +38,7 @@ export class ForecastEntryBatchError extends Error {
 
 export type ForecastEntryBatchQuery = {
   csmName?: unknown;
+  csmNames?: unknown;
   preferredCsmName?: unknown;
   year?: unknown;
   month?: unknown;
@@ -72,6 +73,7 @@ export type ForecastEntryBatchCompany = {
 
 export type ForecastEntryBatchData = {
   selectedCsm: string;
+  selectedCsms: string[];
   csmOptions: string[];
   year: number;
   month: number;
@@ -150,7 +152,7 @@ function monthlyCacheKey(input: ForecastEntryBatchQuery, year: number, month: nu
     "monthly",
     year,
     month,
-    normalizeKey(asString(input.csmName)),
+    parseRequestedCsmNames(input).map(normalizeKey).sort().join(","),
     normalizeKey(asString(input.preferredCsmName))
   ].join(":");
 }
@@ -223,6 +225,21 @@ function parseMoney(value: unknown) {
   return new Prisma.Decimal(normalized);
 }
 
+function parseRequestedCsmNames(input: { csmName?: unknown; csmNames?: unknown }) {
+  const rawValues = Array.isArray(input.csmNames) ? input.csmNames : input.csmNames ? [input.csmNames] : input.csmName ? [input.csmName] : [];
+  const seen = new Set<string>();
+
+  return rawValues.flatMap((value) => {
+    if (typeof value !== "string") return [];
+    return value.split(",").map((item) => item.trim()).filter(Boolean);
+  }).filter((name) => {
+    const key = normalizeKey(name);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function parseMoneyOrZero(value: unknown) {
   if (typeof value === "string" && !value.trim()) {
     return new Prisma.Decimal(0);
@@ -265,16 +282,19 @@ function toCompanyOptions(rows: Awaited<ReturnType<typeof getForecastEntryCompan
 }
 
 function selectCsm(input: ForecastEntryBatchQuery, companies: CompanyOption[]) {
-  const requestedCsm = asString(input.csmName);
+  const requestedCsms = parseRequestedCsmNames(input);
   const csmOptions = [...new Set(companies.map((company) => company.csmName || "Unassigned"))].sort((left, right) =>
     left.localeCompare(right)
   );
-  const preferredCsm = requestedCsm ? null : resolvePreferredCsmName(input.preferredCsmName, csmOptions);
-  const selected = requestedCsm || preferredCsm || csmOptions[0] || "Unassigned";
+  const preferredCsm = requestedCsms.length > 0 ? null : resolvePreferredCsmName(input.preferredCsmName, csmOptions);
+  const selectedCsms = requestedCsms.length > 0 ? requestedCsms : [preferredCsm || csmOptions[0] || "Unassigned"];
+  const selected = selectedCsms.join(", ");
+  const missingSelected = selectedCsms.filter((csmName) => !csmOptions.some((option) => normalizeKey(option) === normalizeKey(csmName)));
 
   return {
     selectedCsm: selected,
-    csmOptions: selected && !csmOptions.includes(selected) ? [selected, ...csmOptions] : csmOptions
+    selectedCsms,
+    csmOptions: [...missingSelected, ...csmOptions]
   };
 }
 
@@ -309,6 +329,7 @@ export async function getForecastEntryBatch(input: ForecastEntryBatchQuery = {})
       const diagnostics: string[] = [];
       const scopedResult = await getForecastEntryScopedBatch({
         csmName: input.csmName,
+        csmNames: input.csmNames,
         preferredCsmName: input.preferredCsmName,
         year,
         month
@@ -324,6 +345,7 @@ export async function getForecastEntryBatch(input: ForecastEntryBatchQuery = {})
             diagnostics: uniqueDiagnostics(diagnostics),
             data: {
               selectedCsm: scopedResult.selectedCsm,
+              selectedCsms: scopedResult.selectedCsms,
               csmOptions: scopedResult.csmOptions,
               year,
               month,
@@ -344,11 +366,11 @@ export async function getForecastEntryBatch(input: ForecastEntryBatchQuery = {})
       diagnostics.push(...companiesResult.diagnostics);
 
       const companies = toCompanyOptions(companiesResult.data);
-      const { selectedCsm, csmOptions } = selectCsm(input, companies);
-      const selectedCsmKey = normalizeKey(selectedCsm);
-      const scopedCompanies = companies.filter((company) => normalizeKey(company.csmName || "Unassigned") === selectedCsmKey);
+      const { selectedCsm, selectedCsms, csmOptions } = selectCsm(input, companies);
+      const selectedCsmKeys = new Set(selectedCsms.map(normalizeKey));
+      const scopedCompanies = companies.filter((company) => selectedCsmKeys.has(normalizeKey(company.csmName || "Unassigned")));
       const contextsResult = await getForecastEntryContextsBatch({
-        csmName: selectedCsm,
+        csmName: selectedCsms[0] ?? selectedCsm,
         companies: scopedCompanies,
         year,
         month
@@ -363,6 +385,7 @@ export async function getForecastEntryBatch(input: ForecastEntryBatchQuery = {})
           diagnostics: uniqueDiagnostics(diagnostics),
           data: {
             selectedCsm,
+            selectedCsms,
             csmOptions,
             year,
             month,

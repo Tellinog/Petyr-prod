@@ -400,14 +400,15 @@ Monthly Forecast Entry table rules:
   is saved. Local edits keep their row in place; sorting and Active visibility
   are reapplied only after a successful save;
 - each Monthly company row shows the company-level total of the currently
-  active Business Unit forecast values directly under the company name,
-  replacing the previous company-status label in that position;
+  active Business Unit forecast values in a highlighted `Monthly Total` column
+  between Company and the Business Unit columns;
 - Monthly Forecast Entry includes an `Active` column immediately after Company,
   before the Business Unit groups. The header uses the same all/active/inactive
   visibility filter as Annual Forecast Entry. The per-row checkbox saves the
-  company active/inactive status to `company_forecast_status`, creates normal
-  save-session/change-log audit rows and clears numeric AI Forecast cache rows
-  when the company is set inactive;
+  company active/inactive status immediately to `company_forecast_status`,
+  updates the row without a batch/page reload, creates normal save-session/
+  change-log audit rows and clears numeric AI Forecast cache rows when the
+  company is set inactive;
 - Business Unit groups start collapsed and show only the active editable field;
 - when the selected month is before the current month, collapsed Business Unit
   groups show the selected-month `Closed Revenue` value instead of a forecast
@@ -540,7 +541,14 @@ Initial Forecast is now owned by the normal Annual Forecast Entry workflow:
   automatic scheduler/consolidation endpoint are deprecated and must not be used
   for product behavior.
 
-### 10.2 Annual Forecast Entry
+### 10.2 Monthly Forecast Entry filters
+
+Monthly Forecast Entry uses a CSM multi-select dropdown so users can select one
+or more CSMs and review the combined company portfolio. It uses the same
+checkbox dropdown, selected-CSM summary and `Load` interaction as Annual
+Forecast Entry. Monthly exports retain the selected multi-CSM portfolio.
+
+### 10.3 Annual Forecast Entry
 
 Normal `/forecasting/entry` contains a separate Annual Forecast Entry section
 for CSMs, distinct from the Monthly Forecast Entry section.
@@ -575,6 +583,8 @@ Table rules:
   when no CSM value is saved. Local edits keep their row in place; sorting and
   Active visibility are reapplied only after a successful save;
 - inactive companies remain visible with muted styling by default;
+- changing a Monthly or Annual row Active checkbox saves that company status
+  immediately and updates the row in place without a batch/page reload;
 - the Active column can filter the visible Annual rows to all companies, active
   companies only or inactive companies only; this is a client-side table view
   filter and does not modify `company_forecast_status`;
@@ -1500,7 +1510,10 @@ Deterministic baseline strategies:
   `Planning`, `Pipeline`, `Tentative`, `Proposal`, `Proposed`), `Setup`,
   `Recruiting` and future `Running` are planned future. `Running` with end date
   today or in the past belongs to revenue/closed/current-activity reasoning when
-  eligible there.
+  eligible there. The total valid planned value for the exact company, Business
+  Unit and target month is a non-derogable AI Forecast floor; residual
+  allocation may cap only the additional agreement-linked signal, never lower
+  the final suggestion below that planned value.
 - Agreement residual allocation: consider only active agreements with `residual > 0` and future expiry. Link agreements to campaigns by company plus agreement name, estimate remaining months to expiry, allocate residual over time, attribute to Business Units through sanitized title tokens, linked-agreement history, then company+BU history fallback, and cap only the agreement-linked forecast component so it cannot exceed the residual allowance. Linked planned campaigns above the allowance create a local watchout signal.
 
 The LLM intelligence layer:

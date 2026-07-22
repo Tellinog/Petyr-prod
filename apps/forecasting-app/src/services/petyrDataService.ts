@@ -4427,6 +4427,7 @@ export type PetyrForecastEntryScopedCompany = {
 
 export type PetyrForecastEntryScopedBatch = {
   selectedCsm: string;
+  selectedCsms: string[];
   csmOptions: string[];
   companies: PetyrForecastEntryScopedCompany[];
   contexts: PetyrForecastEntryContext[];
@@ -4546,6 +4547,7 @@ function priorityScoreFromOverview(company: PetyrCompanyOverview | null, fallbac
 
 export async function getForecastEntryScopedBatch(input: {
   csmName?: unknown;
+  csmNames?: unknown;
   preferredCsmName?: unknown;
   year: number;
   month: number;
@@ -4560,6 +4562,7 @@ export async function getForecastEntryScopedBatch(input: {
   if (ownershipSelection.companies.length === 0) {
     return {
       selectedCsm: ownershipSelection.selectedCsm,
+      selectedCsms: ownershipSelection.selectedCsms,
       csmOptions: ownershipSelection.csmOptions,
       companies: [],
       contexts: [],
@@ -4708,7 +4711,7 @@ export async function getForecastEntryScopedBatch(input: {
       });
 
       return {
-        csmName: ownershipSelection.selectedCsm,
+        csmName: companyInput.csmName || ownershipSelection.selectedCsm,
         companyName: resolvedCompanyName,
         year: resolvedYear,
         month: resolvedMonth,
@@ -4723,6 +4726,7 @@ export async function getForecastEntryScopedBatch(input: {
 
     return {
       selectedCsm: ownershipSelection.selectedCsm,
+      selectedCsms: ownershipSelection.selectedCsms,
       csmOptions: ownershipSelection.csmOptions,
       companies,
       contexts,

@@ -133,12 +133,12 @@ function annualMonthLimit(year: number) {
 
 export async function buildForecastEntryMonthlyExportWorkbookXlsx(input: {
   year: number;
-  csmName?: string | null;
+  csmNames?: string[];
   preferredCsmName?: string | null;
 }) {
   const finishPerformance = startPetyrPerformanceTimer("exportForecastEntryMonthlyWorkbookXlsx", {
     year: input.year,
-    hasCsmName: Boolean(input.csmName?.trim())
+    csmCount: input.csmNames?.length ?? 0
   });
 
   try {
@@ -147,14 +147,14 @@ export async function buildForecastEntryMonthlyExportWorkbookXlsx(input: {
     const monthResults = await Promise.all(
       Array.from({ length: maxMonth }, (_, index) =>
         getForecastEntryBatch({
-          csmName: input.csmName,
+          csmNames: input.csmNames,
           preferredCsmName: input.preferredCsmName,
           year: input.year,
           month: index + 1
         })
       )
     );
-    const selectedCsm = monthResults[0]?.data.selectedCsm ?? input.csmName ?? "";
+    const selectedCsm = monthResults[0]?.data.selectedCsm ?? input.csmNames?.join(", ") ?? "";
 
     addInfoSheet(workbook, "Petyr Monthly Forecast Entry export", [
       ["CSM", selectedCsm || "Selected by Petyr"],

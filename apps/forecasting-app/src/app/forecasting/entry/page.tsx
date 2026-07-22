@@ -17,7 +17,7 @@ function firstParam(value: string | string[] | undefined) {
 
 function getForecastEntryQuery(searchParams: SearchParams) {
   return {
-    csmName: firstParam(searchParams.csmName)?.trim() ?? "",
+    csmNames: (Array.isArray(searchParams.csmName) ? searchParams.csmName : [searchParams.csmName]).flatMap((value) => value?.trim() ? [value.trim()] : []),
     year: firstParam(searchParams.year)?.trim() ?? "",
     month: firstParam(searchParams.month)?.trim() ?? ""
   };
@@ -29,7 +29,7 @@ export default async function ForecastEntryPage({ searchParams }: ForecastEntryP
   const query = getForecastEntryQuery(resolvedSearchParams);
   const canViewCsmOverview = hasPetyrPermission(identity, PETYR_PERMISSIONS.admin);
   const initialBatch = await getForecastEntryBatch({
-    csmName: query.csmName,
+    csmNames: query.csmNames,
     preferredCsmName: identity.user.displayName,
     year: query.year,
     month: query.month

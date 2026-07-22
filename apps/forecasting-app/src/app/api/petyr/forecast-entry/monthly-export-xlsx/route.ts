@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const year = parseYear(searchParams.get("year"));
-  const csmName = searchParams.get("csmName")?.trim() || null;
+  const csmNames = searchParams.getAll("csmName").map((value) => value.trim()).filter(Boolean);
 
   if (!year) {
     return NextResponse.json({ error: "Invalid year query parameter" }, { status: 400 });
@@ -35,10 +35,10 @@ export async function GET(request: Request) {
   try {
     const workbook = await buildForecastEntryMonthlyExportWorkbookXlsx({
       year,
-      csmName,
+      csmNames,
       preferredCsmName: auth.user.displayName
     });
-    const csmFilenamePart = filenamePart(csmName);
+    const csmFilenamePart = filenamePart(csmNames.join("-"));
     const filename = `petyr-forecast-entry-monthly-${year}${csmFilenamePart ? `-${csmFilenamePart}` : ""}.xlsx`;
 
     return new NextResponse(workbook, {

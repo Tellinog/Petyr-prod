@@ -75,7 +75,7 @@ Accepted calibration control:
 
 - Petyr Admin stores one global Management/Finance baseline weight set;
 - weights apply only to historical weighted baseline, monthly seasonality and run-rate;
-- planned campaigns remain a target-month floor;
+- planned campaigns remain a non-derogable target-month floor for the same company and Business Unit;
 - agreement residual remains allocation/cap pressure;
 - if no weights are configured, Petyr uses the compatible positive-signal average fallback.
 
@@ -242,6 +242,10 @@ status allowlist:
 `Running` with end date today or in the past belongs to revenue/closed/current-
 activity reasoning when the revenue rules make that coherent. Future `Running`
 campaigns are planned future pipeline and may contribute to the planned floor.
+The total valid planned value for the exact company, Business Unit and target
+month is never reduced by residual allocation. Final commercial rounding uses
+the nearest 100 EUR unless that would fall below the planned floor, in which
+case it rounds the floor up to the next 100 EUR.
 
 ### Agreement residual allocation
 
@@ -256,7 +260,7 @@ Rules:
 - estimate remaining months until expiry and allocate residual over time instead of pulling the full residual into the first forecast year;
 - attribute residual to Business Units by sanitized title-token match first, linked-agreement historical consumption second and company+BU history fallback third;
 - cap the agreement-linked forecast component by the local monthly allowance and historical capacity;
-- if a linked planned campaign exceeds the allowance, cap locally and emit a watchout signal;
+- if a linked planned campaign exceeds the allowance, cap the residual-backed component and emit a watchout signal, while retaining the complete planned campaign value as the final forecast floor;
 - do not treat expired residuals as active residual pressure for the future forecast baseline.
 
 The signal must expose residual amount, allowance, cap status, attribution method, matched sanitized tokens and coverage gap so the LLM can identify opportunities or watchouts without changing the forecast number.

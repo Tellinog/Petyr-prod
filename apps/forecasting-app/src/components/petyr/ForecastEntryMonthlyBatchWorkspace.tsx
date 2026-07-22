@@ -53,34 +53,34 @@ function forecastTypeLabel(forecastType: string | null) {
   return "Forecast";
 }
 
-function buildBatchUrl(csmName: string, year: number, month: number) {
+function buildBatchUrl(csmNames: string[], year: number, month: number) {
   const params = new URLSearchParams();
-  if (csmName) params.set("csmName", csmName);
+  for (const csmName of csmNames) if (csmName) params.append("csmName", csmName);
   params.set("year", String(year));
   params.set("month", String(month));
   const query = params.toString();
   return query ? `/api/petyr/forecast-entry/batch?${query}` : "/api/petyr/forecast-entry/batch";
 }
 
-function buildAnnualBatchUrl(csmName: string, year?: string) {
+function buildAnnualBatchUrl(csmNames: string[], year?: string) {
   const params = new URLSearchParams();
-  if (csmName) params.set("csmName", csmName);
+  for (const csmName of csmNames) if (csmName) params.append("csmName", csmName);
   if (year) params.set("year", year);
   const query = params.toString();
   return query ? `/api/petyr/forecast-entry/annual-batch?${query}` : "/api/petyr/forecast-entry/annual-batch";
 }
 
-function buildMonthlyExportUrl(csmName: string, year: number) {
+function buildMonthlyExportUrl(csmNames: string[], year: number) {
   const params = new URLSearchParams();
-  if (csmName) params.set("csmName", csmName);
+  for (const csmName of csmNames) if (csmName) params.append("csmName", csmName);
   params.set("year", String(year));
   return `/api/petyr/forecast-entry/monthly-export-xlsx?${params.toString()}`;
 }
 
 
-function buildEntryPageUrl(csmName: string, year?: number, month?: number) {
+function buildEntryPageUrl(csmNames: string[], year?: number, month?: number) {
   const params = new URLSearchParams();
-  if (csmName) params.set("csmName", csmName);
+  for (const csmName of csmNames) if (csmName) params.append("csmName", csmName);
   if (year) params.set("year", String(year));
   if (month) params.set("month", String(month));
   const query = params.toString();
@@ -156,6 +156,12 @@ function monthlyCompanySortLabel(direction: MonthlyCompanySortDirection) {
 
 function monthlyBusinessUnitSortLabel(sort: MonthlySortState, businessUnit: string) {
   return sort.key === "business_unit" && sort.businessUnit === businessUnit ? "High-Low" : "Sort";
+}
+
+function selectedCsmsLabel(csmNames: string[]) {
+  if (csmNames.length === 0) return "No CSM selected";
+  if (csmNames.length === 1) return csmNames[0];
+  return `${csmNames[0]} + ${csmNames.length - 1}`;
 }
 
 function isPastMonthlyPeriod(year: number, month: number) {
@@ -268,7 +274,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
   canViewCsmOverview?: boolean;
 }) {
   const [batch, setBatch] = useState(initialBatch);
-  const [selectedCsm, setSelectedCsm] = useState(initialBatch.data.selectedCsm);
+  const [selectedCsms, setSelectedCsms] = useState<string[]>(() => initialBatch.data.selectedCsms ?? [initialBatch.data.selectedCsm].filter(Boolean));
   const [draftMonth, setDraftMonth] = useState(String(initialBatch.data.month));
   const [draftYear, setDraftYear] = useState(String(initialBatch.data.year));
   const [expandedBusinessUnits, setExpandedBusinessUnits] = useState<Set<string>>(() => new Set());
@@ -288,8 +294,10 @@ export default function ForecastEntryMonthlyBatchWorkspace({
   const [annualLoadAttempted, setAnnualLoadAttempted] = useState(Boolean(initialAnnualBatch));
   const [monthlySort, setMonthlySort] = useState<MonthlySortState>({ key: "company", direction: "asc" });
   const [activeValues, setActiveValues] = useState<Record<string, boolean>>(() => activeValuesFromBatch(initialBatch));
-  const [touchedActive, setTouchedActive] = useState<Set<string>>(() => new Set());
+  const [statusSavingCompanies, setStatusSavingCompanies] = useState<Set<string>>(() => new Set());
   const [activeVisibilityFilter, setActiveVisibilityFilter] = useState<ActiveVisibilityFilter>("all");
+  const [isCsmDropdownOpen, setIsCsmDropdownOpen] = useState(false);
+  const csmDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const editableForecastType = batch.data.entryMode.editableForecastType;
   const isLocked = batch.data.entryMode.locked || !editableForecastType;
@@ -307,17 +315,28 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     setValues(valuesFromBatch(batch));
     setActiveValues(activeValuesFromBatch(batch));
     setSourceStates({});
-    setTouchedActive(new Set());
+    setStatusSavingCompanies(new Set());
     setNotes({});
     setDraftMonth(String(batch.data.month));
     setDraftYear(String(batch.data.year));
-    window.history.replaceState(null, "", buildEntryPageUrl(batch.data.selectedCsm, batch.data.year, batch.data.month));
+    setSelectedCsms(batch.data.selectedCsms ?? [batch.data.selectedCsm].filter(Boolean));
+    setIsCsmDropdownOpen(false);
+    window.history.replaceState(null, "", buildEntryPageUrl(batch.data.selectedCsms ?? [batch.data.selectedCsm].filter(Boolean), batch.data.year, batch.data.month));
   }, [batch]);
 
   useEffect(() => {
     void loadAnnualBatchIfNeeded();
     // Annual Forecast Entry is a background warmup for the initial CSM/year.
     // Filter changes reload it through loadBatch/onBatchChange synchronization.
+  }, []);
+
+  useEffect(() => {
+    function closeCsmDropdownOnOutsideClick(event: MouseEvent) {
+      if (!csmDropdownRef.current?.contains(event.target as Node)) setIsCsmDropdownOpen(false);
+    }
+
+    document.addEventListener("mousedown", closeCsmDropdownOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeCsmDropdownOnOutsideClick);
   }, []);
 
   useEffect(() => {
@@ -355,13 +374,14 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     });
   }
 
-  async function loadBatch(csmName: string, year = batch.data.year, month = batch.data.month) {
-    setSelectedCsm(csmName);
+  async function loadBatch(csmNames: string[], year = batch.data.year, month = batch.data.month) {
+    const nextCsms = csmNames.length > 0 ? csmNames : selectedCsms;
+    setSelectedCsms(nextCsms);
     setIsLoading(true);
     setNotice(null);
 
     try {
-      const response = await fetch(buildBatchUrl(csmName, year, month), { cache: "no-store" });
+      const response = await fetch(buildBatchUrl(nextCsms, year, month), { cache: "no-store" });
       const payload = (await response.json()) as ForecastEntryBatchDataResult;
 
       if (!response.ok) {
@@ -369,10 +389,10 @@ export default function ForecastEntryMonthlyBatchWorkspace({
       }
 
       setBatch(payload);
-      setSelectedCsm(payload.data.selectedCsm);
+      setSelectedCsms(payload.data.selectedCsms ?? [payload.data.selectedCsm].filter(Boolean));
 
       if (annualBatch) {
-        const annualResponse = await fetch(buildAnnualBatchUrl(payload.data.selectedCsm, String(annualBatch.data.selectedYear)), { cache: "no-store" });
+        const annualResponse = await fetch(buildAnnualBatchUrl(payload.data.selectedCsms ?? [payload.data.selectedCsm].filter(Boolean), String(annualBatch.data.selectedYear)), { cache: "no-store" });
         const annualPayload = (await annualResponse.json()) as AnnualForecastEntryBatchDataResult;
 
         if (!annualResponse.ok) {
@@ -401,7 +421,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
       return;
     }
 
-    await loadBatch(batch.data.selectedCsm, year, month);
+    await loadBatch(selectedCsms, year, month);
   }
   async function loadAnnualBatchIfNeeded() {
     if (annualBatch || isAnnualLoading) return;
@@ -411,7 +431,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     setNotice(null);
 
     try {
-      const response = await fetch(buildAnnualBatchUrl(batch.data.selectedCsm, initialAnnualYear), { cache: "no-store" });
+      const response = await fetch(buildAnnualBatchUrl(batch.data.selectedCsms ?? [batch.data.selectedCsm].filter(Boolean), initialAnnualYear), { cache: "no-store" });
       const payload = (await response.json()) as AnnualForecastEntryBatchDataResult;
 
       if (!response.ok) {
@@ -480,28 +500,89 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     setNotes((existing) => ({ ...existing, [companyName]: value }));
   }
 
-  function updateActive(companyName: string, value: boolean) {
+  function toggleCsmSelection(csmName: string) {
+    setSelectedCsms((current) =>
+      current.includes(csmName) ? current.filter((selectedCsm) => selectedCsm !== csmName) : [...current, csmName]
+    );
+  }
+
+  function companyIsForecastActive(company: ForecastEntryBatchCompany) {
+    return activeValues[company.companyName] ?? company.isForecastActive;
+  }
+
+  function synchronizeCompanyStatus(companyName: string, isActive: boolean) {
+    setActiveValues((existing) => ({ ...existing, [companyName]: isActive }));
+    setAnnualBatch((current) => {
+      if (!current) return current;
+
+      return {
+        ...current,
+        data: {
+          ...current.data,
+          companies: current.data.companies.map((company) =>
+            company.companyName === companyName ? { ...company, isForecastActive: isActive } : company
+          )
+        }
+      };
+    });
+  }
+
+  async function updateActive(company: ForecastEntryBatchCompany, value: boolean) {
+    const companyName = company.companyName;
+    const previousValue = companyIsForecastActive(company);
+    if (value === previousValue || statusSavingCompanies.has(companyName)) return;
+
     setActiveValues((existing) => ({ ...existing, [companyName]: value }));
-    setTouchedActive((existing) => new Set(existing).add(companyName));
+    setStatusSavingCompanies((existing) => new Set(existing).add(companyName));
+    setNotice(null);
+
+    try {
+      const response = await fetch("/api/petyr/forecast-entry/batch/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          csmName: company.csmName,
+          year: batch.data.year,
+          month: batch.data.month,
+          updates: [{ companyName, activeStatus: value, values: [] }]
+        })
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? payload.detail ?? "Unable to save company status.");
+      }
+
+      synchronizeCompanyStatus(companyName, value);
+    } catch (error) {
+      setActiveValues((existing) => ({ ...existing, [companyName]: previousValue }));
+      setNotice({
+        type: "error",
+        text: error instanceof Error ? error.message : "Unable to save company status."
+      });
+    } finally {
+      setStatusSavingCompanies((existing) => {
+        const next = new Set(existing);
+        next.delete(companyName);
+        return next;
+      });
+    }
   }
 
   async function saveBatch() {
     if (saveInFlightRef.current) return;
 
-    const hasActiveChanges = touchedActive.size > 0;
-    if ((isLocked || !editableForecastType) && !hasActiveChanges) return;
+    if (isLocked || !editableForecastType) return;
 
     const updates = [];
 
     for (const company of batch.data.companies) {
       const note = notes[company.companyName]?.trim() ?? "";
       const saveValues = getCompanySaveValues(company, editableForecastType, values, sourceStates);
-      const hasActive = touchedActive.has(company.companyName);
-
-      if (note || companyHasTouchedValue(company, sourceStates) || hasActive) {
+      if (note || companyHasTouchedValue(company, sourceStates)) {
         updates.push({
           companyName: company.companyName,
-          activeStatus: hasActive ? activeValues[company.companyName] : undefined,
+          activeStatus: undefined,
           note,
           values: saveValues
         });
@@ -518,33 +599,37 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     setNotice(null);
 
     try {
-      const response = await fetch("/api/petyr/forecast-entry/batch/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          csmName: batch.data.selectedCsm,
-          year: batch.data.year,
-          month: batch.data.month,
-          forecastType: editableForecastType,
-          updates
-        })
-      });
-      const payload = await response.json();
-
-      if (!response.ok) {
-        throw new Error(payload.error ?? payload.detail ?? "Unable to save Forecast Entry batch.");
+      const updatesByCsm = new Map<string, typeof updates>();
+      for (const update of updates) {
+        const csmName = batch.data.companies.find((company) => company.companyName === update.companyName)?.csmName ?? "";
+        updatesByCsm.set(csmName, [...(updatesByCsm.get(csmName) ?? []), update]);
       }
 
-      const successText = payload.noChanges
-        ? "No changes detected"
-        : `Saved ${payload.forecastUpserts} value(s) and ${payload.activeStatusUpdates ?? 0} Active status update(s) across ${payload.companiesSaved} compan${payload.companiesSaved === 1 ? "y" : "ies"}.`;
+      const payloads = await Promise.all([...updatesByCsm.entries()].map(async ([csmName, csmUpdates]) => {
+        const response = await fetch("/api/petyr/forecast-entry/batch/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ csmName, year: batch.data.year, month: batch.data.month, forecastType: editableForecastType, updates: csmUpdates })
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error ?? payload.detail ?? "Unable to save Forecast Entry batch.");
+        return payload;
+      }));
 
-      setBatch(payload.batch);
+      const forecastUpserts = payloads.reduce((sum, payload) => sum + payload.forecastUpserts, 0);
+      const activeStatusUpdates = payloads.reduce((sum, payload) => sum + (payload.activeStatusUpdates ?? 0), 0);
+      const companiesSaved = payloads.reduce((sum, payload) => sum + payload.companiesSaved, 0);
+      const noChanges = payloads.every((payload) => payload.noChanges);
+      const successText = noChanges
+        ? "No changes detected"
+        : `Saved ${forecastUpserts} value(s) and ${activeStatusUpdates} Active status update(s) across ${companiesSaved} compan${companiesSaved === 1 ? "y" : "ies"}.`;
+
+      await loadBatch(selectedCsms);
       setNotice({
         type: "success",
         text: successText
       });
-      if (!payload.noChanges) {
+      if (!noChanges) {
         markSavedState(successText);
       }
     } catch (error) {
@@ -566,12 +651,12 @@ export default function ForecastEntryMonthlyBatchWorkspace({
   }
 
   const tableColumnCount = useMemo(() => {
-    return 3 + batch.data.businessUnits.reduce((sum, businessUnit) => sum + (expandedBusinessUnits.has(businessUnit) ? 3 : 1), 0);
+    return 4 + batch.data.businessUnits.reduce((sum, businessUnit) => sum + (expandedBusinessUnits.has(businessUnit) ? 3 : 1), 0);
   }, [batch.data.businessUnits, expandedBusinessUnits]);
   const periodSelectionChanged = draftMonth !== String(batch.data.month) || draftYear !== String(batch.data.year);
   const monthlyCompanies = useMemo(() => {
     return batch.data.companies.filter((company) => {
-      const isActive = company.isForecastActive;
+      const isActive = companyIsForecastActive(company);
       if (activeVisibilityFilter === "active") return isActive;
       if (activeVisibilityFilter === "inactive") return !isActive;
       return true;
@@ -585,7 +670,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
       const result = left.companyName.localeCompare(right.companyName);
       return monthlySort.direction === "asc" ? result : -result;
     });
-  }, [activeVisibilityFilter, batch.data.companies, editableForecastType, isPastSelectedPeriod, monthlySort]);
+  }, [activeValues, activeVisibilityFilter, batch.data.companies, editableForecastType, isPastSelectedPeriod, monthlySort]);
 
   const monthlySummary = useMemo(() => {
     const byBusinessUnit = Object.fromEntries(
@@ -638,7 +723,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     <PetyrWorkspaceShell
       activeSection="entry"
       companyDetailHref={companyDetailHref}
-      forecastEntryHref={buildEntryPageUrl(batch.data.selectedCsm, batch.data.year, batch.data.month)}
+      forecastEntryHref={buildEntryPageUrl(batch.data.selectedCsms ?? [batch.data.selectedCsm].filter(Boolean), batch.data.year, batch.data.month)}
       canViewCsmOverview={canViewCsmOverview}
       canRefreshSourceData
       contentClassName="max-w-[1800px]"
@@ -677,7 +762,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
         <CardHeader>
           <CardTitle>Monthly Forecast Batch</CardTitle>
           <CardDescription>
-            {batch.data.selectedCsm}: {batch.data.companies.length} compan{batch.data.companies.length === 1 ? "y" : "ies"} - {selectedMonthLabel}
+            {selectedCsmsLabel(batch.data.selectedCsms ?? [batch.data.selectedCsm].filter(Boolean))}: {batch.data.companies.length} compan{batch.data.companies.length === 1 ? "y" : "ies"} - {selectedMonthLabel}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -690,23 +775,26 @@ export default function ForecastEntryMonthlyBatchWorkspace({
           <div className="sticky top-4 z-40 flex h-[calc(100dvh-2rem)] min-h-0 flex-col gap-3">
           <div className="shrink-0 space-y-2 border-b border-slate-200 bg-white/95 pb-2 pt-1 backdrop-blur">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_150px_120px_auto_minmax(0,1fr)] lg:items-end">
-              <PetyrSelectField
-                label="CSM"
-                disabled={isLoading || isSaving}
-                value={selectedCsm}
-                onChange={(event) => {
-                  void loadBatch(event.target.value);
-                }}
-              >
-                {batch.data.csmOptions.map((csmName) => (
-                  <option key={csmName} value={csmName}>
-                    {csmName}
-                  </option>
-                ))}
-              </PetyrSelectField>
+              <div ref={csmDropdownRef} className="relative space-y-1 text-sm font-medium text-slate-700">
+                <span>CSM</span>
+                <Button type="button" variant="outline" disabled={isLoading || isSaving} onClick={() => setIsCsmDropdownOpen((current) => !current)} className="h-10 w-full justify-between rounded-xl bg-white px-3 text-left font-normal" aria-haspopup="listbox" aria-expanded={isCsmDropdownOpen}>
+                  <span className="truncate">{selectedCsmsLabel(selectedCsms)}</span>
+                  <span className="ml-3 shrink-0 text-slate-400">v</span>
+                </Button>
+                {isCsmDropdownOpen ? (
+                  <div role="listbox" aria-multiselectable="true" className="absolute left-0 top-full z-[70] mt-2 max-h-64 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10">
+                    {batch.data.csmOptions.map((csmName) => (
+                      <label key={csmName} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                        <input type="checkbox" checked={selectedCsms.includes(csmName)} disabled={isLoading || isSaving} onChange={() => toggleCsmSelection(csmName)} />
+                        <span className="truncate">{csmName}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <PetyrSelectField
                 label="Month"
-                disabled={isLoading || isSaving}
+                disabled={isLoading || isSaving || selectedCsms.length === 0}
                 value={draftMonth}
                 onChange={(event) => setDraftMonth(event.target.value)}
               >
@@ -732,7 +820,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
               <Button
                 type="button"
                 variant={periodSelectionChanged ? "default" : "outline"}
-                disabled={isLoading || isSaving}
+                disabled={isLoading || isSaving || selectedCsms.length === 0}
                 onClick={() => {
                   void loadSelectedPeriod();
                 }}
@@ -757,27 +845,9 @@ export default function ForecastEntryMonthlyBatchWorkspace({
               <TableHeader>
                 <TableRow className="h-20 hover:bg-transparent">
                   <TableHead
-                    className="sticky left-0 top-0 z-[60] min-w-[240px] bg-white align-top shadow-[0_1px_0_0_rgba(226,232,240,1)]"
+                    className="sticky left-0 top-0 z-[60] min-w-[150px] bg-amber-50 align-top shadow-[0_1px_0_0_rgba(226,232,240,1)]"
                     rowSpan={2}
-                    aria-sort={monthlySort.key === "company" ? (monthlySort.direction === "asc" ? "ascending" : "descending") : "none"}
                   >
-                    <button
-                      type="button"
-                      className="inline-flex h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
-                      onClick={() =>
-                        setMonthlySort((current) => ({
-                          key: "company",
-                          direction: current.key === "company" && current.direction === "asc" ? "desc" : "asc"
-                        }))
-                      }
-                    >
-                      <span>Company</span>
-                      <span className="text-xs font-semibold text-slate-500">
-                        {monthlySort.key === "company" ? monthlyCompanySortLabel(monthlySort.direction) : "Sort"}
-                      </span>
-                    </button>
-                  </TableHead>
-                  <TableHead className="sticky top-0 z-50 min-w-[180px] bg-amber-50 align-top shadow-[0_1px_0_0_rgba(226,232,240,1)]" rowSpan={2}>
                     <div className="space-y-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-semibold text-slate-800 shadow-sm">
                       <div className="flex min-h-8 items-center gap-2">
                         <span className="shrink-0">Active</span>
@@ -797,6 +867,33 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                         Company status is global, not monthly.
                       </p>
                     </div>
+                  </TableHead>
+                  <TableHead
+                    className="sticky left-[150px] top-0 z-[60] min-w-[240px] bg-white align-top shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]"
+                    rowSpan={2}
+                    aria-sort={monthlySort.key === "company" ? (monthlySort.direction === "asc" ? "ascending" : "descending") : "none"}
+                  >
+                    <button
+                      type="button"
+                      className="inline-flex h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+                      onClick={() =>
+                        setMonthlySort((current) => ({
+                          key: "company",
+                          direction: current.key === "company" && current.direction === "asc" ? "desc" : "asc"
+                        }))
+                      }
+                    >
+                      <span>Company</span>
+                      <span className="text-xs font-semibold text-slate-500">
+                        {monthlySort.key === "company" ? monthlyCompanySortLabel(monthlySort.direction) : "Sort"}
+                      </span>
+                    </button>
+                  </TableHead>
+                  <TableHead
+                    className="sticky top-0 z-50 min-w-[190px] border-l border-cyan-200 bg-cyan-50 text-right text-xs font-semibold text-cyan-950 shadow-[0_1px_0_0_rgba(226,232,240,1)]"
+                    rowSpan={2}
+                  >
+                    Monthly Total
                   </TableHead>
                   {batch.data.businessUnits.map((businessUnit) => {
                     const expanded = expandedBusinessUnits.has(businessUnit);
@@ -864,7 +961,8 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                 {monthlyCompanies.length > 0 ? (
                   <>
                     <TableRow className="sticky top-32 z-30 border-b-2 border-cyan-200 bg-cyan-50 shadow-[0_1px_0_0_rgba(165,243,252,1)] hover:bg-cyan-50">
-                      <TableCell className="sticky left-0 z-40 min-w-[240px] border-r border-cyan-200 bg-cyan-50">
+                      <TableCell className="sticky left-0 z-40 min-w-[150px] border-r border-cyan-200 bg-cyan-50" aria-label="No active status for total row" />
+                      <TableCell className="sticky left-[150px] z-40 min-w-[240px] border-r border-cyan-200 bg-cyan-50 shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]">
                         <div className="text-[11px] font-semibold uppercase tracking-wide text-cyan-800">
                           {selectedMonthLabel} {isPastSelectedPeriod ? "Closed Revenue" : "CSM Forecast"}
                         </div>
@@ -873,7 +971,9 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                           {formatPetyrIntegerCurrencyValue(compactPortfolioTotal)}
                         </div>
                       </TableCell>
-                      <TableCell className="min-w-[150px] bg-cyan-50" aria-label="No active status for total row" />
+                      <TableCell className={`min-w-[190px] ${monthlyTotalCellClass(compactPortfolioTotal)}`}>
+                        {formatPetyrIntegerCurrencyValue(compactPortfolioTotal)}
+                      </TableCell>
                       {batch.data.businessUnits.flatMap((businessUnit) => {
                         const expanded = expandedBusinessUnits.has(businessUnit);
                         const totals = monthlySummary.byBusinessUnit[businessUnit] ?? {
@@ -906,29 +1006,32 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                       })}
                       <TableCell className="min-w-[260px] bg-cyan-50" aria-label="No note for total row" />
                     </TableRow>
-                    {monthlyCompanies.map((company) => (
-                      <TableRow key={company.companyName} className={company.isForecastActive ? "" : "bg-slate-50 text-slate-500 opacity-75"}>
-                      <TableCell className="sticky left-0 z-10 min-w-[240px] bg-white">
+                    {monthlyCompanies.map((company) => {
+                      const isActive = companyIsForecastActive(company);
+
+                      return (
+                      <TableRow key={company.companyName} className={isActive ? "" : "bg-slate-50 text-slate-500 opacity-75"}>
+                      <TableCell className={`sticky left-0 z-20 min-w-[150px] border-r border-slate-200 ${isActive ? "bg-amber-50" : "bg-slate-50"}`}>
+                        <label className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={isActive}
+                            disabled={isSaving || statusSavingCompanies.has(company.companyName)}
+                            onChange={(event) => void updateActive(company, event.target.checked)}
+                          />
+                          {isActive ? "ON" : "OFF"}
+                        </label>
+                      </TableCell>
+                      <TableCell className={`sticky left-[150px] z-20 min-w-[240px] bg-white shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)] ${isActive ? "bg-white" : "bg-slate-50"}`}>
                         <Link
                           href={buildCompanyDetailPageUrl(company.companyName, batch.data.year, company.csmName)}
                           className="font-semibold text-slate-900 underline-offset-4 hover:underline"
                         >
                           {company.companyName}
                         </Link>
-                        <div className={`mt-1 text-xs font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(currentCompanyForecastTotal(company)))}`}>
-                          Totale forecast BU: {formatPetyrIntegerCurrencyValue(currentCompanyForecastTotal(company))}
-                        </div>
                       </TableCell>
-                      <TableCell className="min-w-[150px] border-l border-slate-200 bg-amber-50">
-                        <label className="inline-flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={activeValues[company.companyName] ?? company.isForecastActive}
-                            disabled={isSaving}
-                            onChange={(event) => updateActive(company.companyName, event.target.checked)}
-                          />
-                          {activeValues[company.companyName] ? "ON" : "OFF"}
-                        </label>
+                      <TableCell className={`min-w-[190px] border-l border-cyan-200 bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(currentCompanyForecastTotal(company)))}`}>
+                        {formatPetyrIntegerCurrencyValue(currentCompanyForecastTotal(company))}
                       </TableCell>
                       {company.businessUnits.flatMap((cell) => {
                         const expanded = expandedBusinessUnits.has(cell.businessUnit);
@@ -1023,7 +1126,8 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                         />
                       </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </>
                 ) : (
                   <TableRow>
@@ -1043,7 +1147,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
               variant="outline"
               disabled={isLoading || isSaving}
               onClick={() => {
-                window.location.href = buildMonthlyExportUrl(batch.data.selectedCsm, batch.data.year);
+                window.location.href = buildMonthlyExportUrl(batch.data.selectedCsms ?? [batch.data.selectedCsm].filter(Boolean), batch.data.year);
               }}
               className="rounded-xl"
             >
@@ -1060,10 +1164,12 @@ export default function ForecastEntryMonthlyBatchWorkspace({
             <AnnualForecastEntryBatchWorkspace
               key={`${annualBatch.data.selectedCsms.join("|")}-${annualBatch.data.selectedYear}`}
               initialBatch={annualBatch}
+              companyActiveStatuses={activeValues}
+              onCompanyStatusChange={synchronizeCompanyStatus}
               onBatchChange={(nextBatch) => {
                 setAnnualBatch(nextBatch);
-                if (nextBatch.data.selectedCsms.length === 1 && nextBatch.data.selectedCsms[0] !== batch.data.selectedCsm) {
-                  void loadBatch(nextBatch.data.selectedCsms[0]);
+                if (nextBatch.data.selectedCsms.join("\u0000") !== (batch.data.selectedCsms ?? [batch.data.selectedCsm].filter(Boolean)).join("\u0000")) {
+                  void loadBatch(nextBatch.data.selectedCsms);
                 }
               }}
             />
@@ -1099,7 +1205,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                 showSavedState ? "bg-emerald-600 text-white hover:bg-emerald-600" : ""
               }`}
               type="button"
-              disabled={(isLocked && touchedActive.size === 0) || isSaving || isLoading}
+              disabled={isLocked || isSaving || isLoading}
               onClick={saveBatch}
             >
               {isSaving ? "Saving" : "Save"}

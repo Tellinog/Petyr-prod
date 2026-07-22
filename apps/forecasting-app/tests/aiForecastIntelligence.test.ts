@@ -1196,6 +1196,55 @@ test("deterministic AI Forecast final value rounds to nearest 100 EUR", () => {
   assert.equal(qa?.roundedForecastValue, 1200);
 });
 
+test("deterministic AI Forecast keeps a valid planned campaign as a target-month floor despite residual caps", () => {
+  const candidates = buildDeterministicForecastCandidates({
+    companyName: "Sorgenia",
+    year: 2026,
+    currentDate: new Date("2026-07-22T00:00:00.000Z"),
+    eligibleMonths: [9],
+    historicalPoints: [
+      { businessUnit: "TA", year: 2026, month: 6, closedRevenue: 1200, agreementName: "Sorgenia agreement", campaignName: "Historical TA" }
+    ],
+    plannedCampaigns: [
+      { businessUnit: "TA", year: 2026, month: 9, value: 20000, agreementName: "Sorgenia agreement", campaignName: "September TA" }
+    ],
+    campaigns: [
+      {
+        name: "September TA",
+        status: "Planned",
+        businessUnit: "TA",
+        agreementName: "Sorgenia agreement",
+        agreementLink: "",
+        value: 20000,
+        revenue: 20000,
+        costs: 0,
+        grossMarginPct: null,
+        startDate: null,
+        endDate: "2026-09-30",
+        link: ""
+      }
+    ],
+    agreements: [
+      {
+        name: "Sorgenia agreement",
+        status: "active",
+        totalValue: 5000,
+        residualValue: 5000,
+        expiryDate: "2026-12-31",
+        agreementDealLink: "",
+        link: ""
+      }
+    ],
+    baselineWeights: getDefaultPetyrAiForecastBaselineWeights()
+  });
+  const ta = candidates.find((candidate) => candidate.businessUnit === "TA" && candidate.month === 9);
+
+  assert.equal(ta?.plannedCampaignsValue, 20000);
+  assert.equal(ta?.baselineForecast, 20000);
+  assert.equal(ta?.roundedForecastValue, 20000);
+  assert.equal(ta?.agreementResidualAllocation.status, "capped");
+});
+
 test("deterministic AI Forecast only generates Business Units with historical closed revenue", () => {
   const candidates = buildDeterministicForecastCandidates({
     companyName: "No AI History Co",

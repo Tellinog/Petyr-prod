@@ -92,8 +92,10 @@ Rules:
 - Monthly Forecast Entry can sort the visible company portfolio by Company.
 - Monthly Forecast Entry can sort the visible company portfolio by each
   Business Unit from highest to lowest value, using saved values and AI
-  placeholders when no CSM value is saved. Local edits keep their row in place;
-  sorting and Active visibility are reapplied only after a successful save.
+  placeholders when no CSM value is saved. Local forecast-value edits keep their
+  row in place; sorting and Active visibility are reapplied only after a
+  successful forecast save. Status-checkbox autosaves update the row state
+  immediately.
 - Monthly Forecast Entry uses Ongoing Forecast as the active compact/editable
   field from the 15th of the month before the selected month onward. Future
   selected months before that cutoff use Previous Month Forecast. Past months
@@ -105,9 +107,10 @@ Rules:
   change the value before saving.
 - Monthly Forecast Entry includes an `Active` column immediately after Company,
   before the Business Unit groups. Its header uses the same all/active/inactive
-  visibility filter as Annual Forecast Entry, and its row checkbox persists the
-  company status through `company_forecast_status` with normal save-session and
-  change-log audit.
+  visibility filter as Annual Forecast Entry. Changing its row checkbox saves
+  the company status immediately through `company_forecast_status`, updates the
+  row state without reloading the batch/page, and retains normal save-session
+  and change-log audit.
 - Each Monthly company row shows the company-level total of the currently
   active Business Unit forecast values directly under the company name,
   replacing the previous company-status label in that position.
@@ -127,12 +130,17 @@ Rules:
 - Annual Forecast Entry can sort visible rows by Company, Forecast Ongoing,
   Confidence and each visible Business Unit. Business Unit
   sorting orders rows from highest to lowest value, using saved values and AI
-  placeholders when no CSM value is saved. Local edits keep their row in place;
-  sorting and Active visibility are reapplied only after a successful save.
+  placeholders when no CSM value is saved. Local forecast-value edits keep their
+  row in place; sorting and Active visibility are reapplied only after a
+  successful forecast save. Status-checkbox autosaves update the row state
+  immediately.
 - Annual Forecast Entry shows all active and inactive rows by default, and the
   Active column can filter the visible table to all, active only or inactive
   only without changing persisted company status. The Annual portfolio total row
   reflects the visible rows when this filter is applied.
+- Changing an Annual Entry row checkbox saves the company status immediately,
+  updates the row without a batch/page reload and retains normal save-session
+  and change-log audit.
 - Annual company rows show only the linked company name in the first column,
   without a company-level Forecast Ongoing total label or CSM label beneath it.
 - Annual Forecast Entry is the default tab when opening `/forecasting/entry`; Monthly remains selectable.
@@ -301,6 +309,12 @@ Missing or unknown statuses must be diagnosed and excluded until there is a
 new documented business decision. `Running` is Planned only when its campaign
 end date is tomorrow or later; `Running` with end date today or in the past is
 handled by the closed revenue/revenue logic when otherwise eligible there.
+
+For the deterministic AI Forecast, the total value of all valid planned
+campaigns for the same company, Business Unit and target month is a mandatory
+floor. Agreement residual allocation can cap only the additional
+agreement-linked component; it must not reduce the final AI suggestion below
+the planned campaign total.
 
 Campaigns whose end date is today or in the past but whose status is not
 `Completed` must appear as Company Detail relevant insights so operators can
