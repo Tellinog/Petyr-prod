@@ -2184,6 +2184,7 @@ export default function PetyrMVPRendering({
   canViewAdminTools = false,
   canViewCsmOverview = false,
   canManageObjectives = false,
+  canRefreshSourceData = false,
   renderingState = 'ready',
   onRetryRenderingData,
 }: {
@@ -2193,6 +2194,7 @@ export default function PetyrMVPRendering({
   canViewAdminTools?: boolean;
   canViewCsmOverview?: boolean;
   canManageObjectives?: boolean;
+  canRefreshSourceData?: boolean;
   renderingState?: RenderingState;
   onRetryRenderingData?: () => void;
 }) {
@@ -2215,6 +2217,7 @@ export default function PetyrMVPRendering({
           companyDetailHref={menuCompanyDetailHref}
           forecastEntryHref={menuForecastEntryHref}
           canViewCsmOverview={canViewCsmOverview}
+          canRefreshSourceData={canRefreshSourceData}
         >
           {workspaceBody}
           {renderingState === 'ready' && canViewAdminTools ? <PetyrFloatingDiagnosticsMenu diagnostics={data.diagnostics} /> : null}

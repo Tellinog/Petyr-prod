@@ -118,6 +118,13 @@ Responsible for:
 Forecasting app must not call Redash. It reads PostgreSQL-backed Redash-derived
 data, or future stable internal data APIs, but not Redash APIs directly.
 
+The CSM-facing manual data refresh is a constrained command exception, not a
+product-data read path. `forecasting-app` authorizes users with
+`petyr:forecast:write` (or `petyr:admin`) and sends a server-to-server command to
+Redash Ingestor using `APP_INTERNAL_SECRET`. Redash Ingestor remains the only
+service that calls Redash and materializes its results. The command is fixed to
+the three approved Petyr sources and cannot select arbitrary Redash queries.
+
 Petyr Admin is the user-facing operational bridge for Petyr data health. It must
 provide a path to the Redash Ingestor dashboard when operators need to inspect
 sync/dashboard/API details. Forecasting pages must keep the floating Data
@@ -209,6 +216,11 @@ deterministic-only generation for active companies and saves numeric rows to
 `ai_forecast_cache`. CSM-owned forecast rows are not overwritten. Future
 post-sync or LLM/OpenRouter batch automation requires a separate documented
 decision.
+
+CSM-triggered source refresh uses the same global Ingestor lock as the nightly
+worker. It first forces fresh Redash executions for the approved Petyr queries,
+then stores the returned raw snapshots and rebuilds their PostgreSQL latest
+tables. It does not write CSM forecasts or trigger AI Forecast generation.
 
 ## Why not direct Redash access from forecasting?
 

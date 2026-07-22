@@ -1003,6 +1003,7 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
       companyDetailHref={companyDetailHref}
       forecastEntryHref={forecastEntryHref}
       canViewCsmOverview={canViewAdminTools}
+      canRefreshSourceData={canAddCompanyNotes || canViewAdminTools}
     >
       <PetyrSectionTitle
         title="Company Detail"

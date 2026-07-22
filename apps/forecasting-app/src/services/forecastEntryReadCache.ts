@@ -7,7 +7,16 @@ type CacheEntry<T> = {
 
 const readCache = new Map<string, CacheEntry<unknown>>();
 
-export async function getPetyrCachedRead<T>(key: string, loader: () => Promise<T>) {
+export async function getPetyrCachedRead<T>(key: string, loader: () => Promise<T>, options: { ttlMs?: number } = {}) {
+  const ttlMs = options.ttlMs ?? PETYR_READ_CACHE_TTL_MS;
+
+  if (ttlMs <= 0) {
+    return {
+      cacheHit: false,
+      value: await loader()
+    };
+  }
+
   const now = Date.now();
   const existing = readCache.get(key) as CacheEntry<T> | undefined;
 
@@ -20,7 +29,7 @@ export async function getPetyrCachedRead<T>(key: string, loader: () => Promise<T
 
   const promise = loader();
   readCache.set(key, {
-    expiresAt: now + PETYR_READ_CACHE_TTL_MS,
+    expiresAt: now + ttlMs,
     promise
   });
 

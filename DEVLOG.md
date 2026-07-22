@@ -18,6 +18,50 @@ Each entry must include:
 
 ---
 
+## 2026-07-22
+
+- **Area:** Petyr / CSM source-data refresh
+- **Change:** Added `Refresh data` to the shared Forecasting header for `petyr:forecast:write` and `petyr:admin` users, with an explicit 2-5 minute confirmation/status flow. Added protected `POST /api/petyr/data-refresh` and a server-to-server Redash Ingestor command that forces fresh execution of the three approved Petyr queries before snapshot persistence and PostgreSQL latest-table materialization under the existing global sync lock.
+- **Reason:** CSMs need to refresh Redash-derived Petyr data on demand instead of waiting for the normal 01:30 nightly ingestion.
+- **Impact:** CSM forecast writers and admins can request fresh `master_campaigns`, `master_agreements` and `company_ownership` data from Petyr without access to the technical Ingestor dashboard or arbitrary query selection. Petyr still never calls Redash directly; `APP_INTERNAL_SECRET` remains server-side and `REDASH_INGESTOR_INTERNAL_URL` configures the internal command target. The current page reloads after success. Forecast values and AI Forecast generation are unchanged.
+- **Files/documents involved:** `apps/redash-ingestor/src/services/syncService.ts`, `apps/redash-ingestor/src/app/api/redash/petyr-refresh/route.ts`, `apps/forecasting-app/src/app/api/petyr/data-refresh/route.ts`, `apps/forecasting-app/src/services/petyrSourceDataRefreshService.ts`, `apps/forecasting-app/src/components/petyr/PetyrSourceDataRefreshControl.tsx`, shared Petyr workspace components/routes, auth tests, `.env.example`, app env example, `docker-compose.yml`, `platform-home/nginx.conf`, architecture/product/source/API/operations/access-control docs, `DECISIONS.md`, `DEVLOG.md`.
+- **Follow-up:** Verify one production-like 2-5 minute refresh after deployment and confirm the Access Layer CSM role includes `petyr:forecast:write` as already required for Forecast Entry.
+
+- **Area:** Petyr / Monthly Forecast Entry table navigation
+- **Change:** Kept the Monthly Forecast controls, legend, Business Unit group headers, column headers and portfolio-total row visible during portfolio review. The table now occupies a dedicated sticky viewport area with its own vertical scroll; the two header rows and total row use non-overlapping sticky offsets and explicit stacking levels.
+- **Reason:** Scrolling the page could move the Monthly table underneath the top controls, while the second header row used a 48px offset even though the Business Unit header row is taller. This hid the Business Unit label and made the fixed table context disappear.
+- **Impact:** UI/navigation only. Monthly forecast values, sorting, active status, notes, save sessions, change logs, API contracts and calculations are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md` (existing Monthly table rule), `docs/05_forecasting_product_spec.md` (existing Monthly table rule), `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecast Entry persistence
+- **Change:** Made Monthly and Annual Forecast Entry save flows read-after-write consistent: interactive portfolio reads bypass the local 60-second cache, and each workspace now serializes Save/Enter submissions so an older concurrent response cannot replace a newer save result. Clearing an editable Business Unit Forecast Ongoing field now persists `0`; its local and annual total calculations also treat the cleared field as zero.
+- **Reason:** Users could intermittently see previously saved values after a reload, annual Forecast Ongoing could lag the edited Business Unit values, and a cleared Business Unit was rejected as empty.
+- **Impact:** No schema, permissions or API route changes. Monthly and Annual saves retain their normal save-session and sparse change-log audit, with an effective clear recorded as a value change to zero.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/src/services/forecastEntryBatchService.ts`, `apps/forecasting-app/src/services/annualForecastEntryBatchService.ts`, `apps/forecasting-app/src/services/forecastEntryReadCache.ts`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** Validate the save-and-reload flow against a representative production portfolio after deployment.
+
+- **Area:** Petyr / Forecast Entry annual focus
+- **Change:** Made Annual Forecast Entry the default `/forecasting/entry` tab. The company-level Forecast Initial column now starts collapsed behind an annual-header show/hide control; it opens with the existing values and inputs, collapses again on demand, and no longer provides sorting. Forecast Ongoing stays visible and sortable.
+- **Reason:** Annual Ongoing Forecast needs to be the first, more prominent operational view while Initial Forecast remains available on demand.
+- **Impact:** UI-only change; no forecast values, persistence, API contracts, permissions, calculations or audit behavior changed.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Annual Forecast Entry / Confidence
+- **Change:** Added a semaphore treatment to the Annual Forecast Entry Confidence selector: `01 High` renders green, `02 Mid` yellow and `03 Low` red, with a matching status dot.
+- **Reason:** Make the CSM-entered Confidence level immediately scannable in the annual portfolio.
+- **Impact:** The persisted confidence values, validation, sorting and save flow are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Annual Forecast Entry table navigation
+- **Change:** Moved the Active column before Customer in Annual Forecast Entry and pinned both columns during horizontal scrolling. Removed the non-contiguous Confidence pin to prevent overlap with intervening forecast columns.
+- **Reason:** Product requested that the active state be immediately visible before the customer name and remain available while reviewing the wide annual grid.
+- **Impact:** UI layout/navigation only. Active status editing, filtering, saving, audit logging and annual forecast calculations are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `DEVLOG.md`.
+- **Follow-up:** None.
+
 ## 2026-07-16
 
 - **Area:** Petyr / Feedback access control and navigation

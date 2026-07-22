@@ -203,7 +203,7 @@ function getCompanySaveValues(
     const rawValue = values[key] ?? "";
     const nextValue = parseMoneyInput(rawValue);
     if (nextValue === null) {
-      return [{ businessUnit: cell.businessUnit, value: rawValue, sourceState }];
+      return [{ businessUnit: cell.businessUnit, value: rawValue.trim() ? rawValue : "0", sourceState }];
     }
 
     const current = activeForecast(cell, editableForecastType);
@@ -281,7 +281,8 @@ export default function ForecastEntryMonthlyBatchWorkspace({
   const [showSavedState, setShowSavedState] = useState(false);
   const [savedSummary, setSavedSummary] = useState("");
   const savedStateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [activeEntryTab, setActiveEntryTab] = useState("monthly");
+  const saveInFlightRef = useRef(false);
+  const [activeEntryTab, setActiveEntryTab] = useState("annual");
   const [annualBatch, setAnnualBatch] = useState<AnnualForecastEntryBatchDataResult | null>(initialAnnualBatch);
   const [isAnnualLoading, setIsAnnualLoading] = useState(false);
   const [annualLoadAttempted, setAnnualLoadAttempted] = useState(Boolean(initialAnnualBatch));
@@ -452,7 +453,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     const key = cellKey(company.companyName, cell.businessUnit);
     const parsed = parseMoneyInput(values[key] ?? "");
 
-    if (forecastType === editableForecastType && sourceStates[key] && parsed !== null) return parsed;
+    if (forecastType === editableForecastType && sourceStates[key]) return parsed ?? 0;
 
     const forecast = forecastForType(cell, forecastType);
     return forecast?.hasSavedCsmValue ? forecast.value ?? 0 : 0;
@@ -466,7 +467,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     const forecastType = (editableForecastType ?? "previous_month") as MonthlyForecastType;
     const key = cellKey(company.companyName, cell.businessUnit);
     const parsed = parseMoneyInput(values[key] ?? "");
-    if (sourceStates[key] && parsed !== null) return parsed;
+    if (sourceStates[key]) return parsed ?? 0;
 
     const forecast = forecastForType(cell, forecastType);
     if (forecast?.hasSavedCsmValue) return forecast.value ?? 0;
@@ -489,6 +490,8 @@ export default function ForecastEntryMonthlyBatchWorkspace({
   }
 
   async function saveBatch() {
+    if (saveInFlightRef.current) return;
+
     const hasActiveChanges = touchedActive.size > 0;
     if ((isLocked || !editableForecastType) && !hasActiveChanges) return;
 
@@ -514,6 +517,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
       return;
     }
 
+    saveInFlightRef.current = true;
     setIsSaving(true);
     setNotice(null);
 
@@ -553,12 +557,13 @@ export default function ForecastEntryMonthlyBatchWorkspace({
         text: error instanceof Error ? error.message : "Unable to save Forecast Entry batch."
       });
     } finally {
+      saveInFlightRef.current = false;
       setIsSaving(false);
     }
   }
 
   function handleSaveKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== "Enter" || isSaving) return;
+    if (event.key !== "Enter" || isSaving || saveInFlightRef.current) return;
 
     event.preventDefault();
     void saveBatch();
@@ -639,12 +644,13 @@ export default function ForecastEntryMonthlyBatchWorkspace({
       companyDetailHref={companyDetailHref}
       forecastEntryHref={buildEntryPageUrl(batch.data.selectedCsm, batch.data.year, batch.data.month)}
       canViewCsmOverview={canViewCsmOverview}
+      canRefreshSourceData
       contentClassName="max-w-[1800px]"
     >
       <section>
         <PetyrSectionTitle
           title="Forecast Entry"
-          description={`Switch between monthly and annual forecast entry. Monthly lets you select a CSM and update active forecast cells for ${selectedMonthLabel}.`}
+          description={`Review annual Forecast Ongoing by default, or switch to monthly forecast entry for ${selectedMonthLabel}.`}
           actions={
             <Badge variant={isLocked ? "outline" : "secondary"}>
               {isLocked ? batch.data.entryMode.label : activeLabel}
@@ -657,16 +663,16 @@ export default function ForecastEntryMonthlyBatchWorkspace({
       {notice ? <PetyrInlineNotice tone={notice.type === "success" ? "success" : "danger"}>{notice.text}</PetyrInlineNotice> : null}
 
       <Tabs
-        defaultValue="monthly"
+        defaultValue="annual"
         className="space-y-5"
         onValueChange={setActiveEntryTab}
       >
         <TabsList className="rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
-          <TabsTrigger value="monthly" className="rounded-xl">
-            Monthly Forecast Entry
-          </TabsTrigger>
           <TabsTrigger value="annual" className="rounded-xl">
             Annual Forecast Entry
+          </TabsTrigger>
+          <TabsTrigger value="monthly" className="rounded-xl">
+            Monthly Forecast Entry
           </TabsTrigger>
         </TabsList>
 
@@ -685,7 +691,8 @@ export default function ForecastEntryMonthlyBatchWorkspace({
               : `${activeLabel} is editable for ${selectedMonthLabel}. Other forecast fields and ${closedRevenueHeader} are read-only.`}
           </PetyrInlineNotice>
 
-          <div className="sticky top-0 z-40 space-y-2 border-b border-slate-200 bg-white/95 pb-2 pt-1 backdrop-blur">
+          <div className="sticky top-4 z-40 flex h-[calc(100dvh-2rem)] min-h-0 flex-col gap-3">
+          <div className="shrink-0 space-y-2 border-b border-slate-200 bg-white/95 pb-2 pt-1 backdrop-blur">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_150px_120px_auto_minmax(0,1fr)] lg:items-end">
               <PetyrSelectField
                 label="CSM"
@@ -749,12 +756,12 @@ export default function ForecastEntryMonthlyBatchWorkspace({
             </div>
           </div>
 
-          <div className="max-h-[calc(100vh-2rem)] overflow-auto rounded-2xl border border-slate-200 bg-white">
+          <div className="min-h-0 flex-1 overflow-auto rounded-2xl border border-slate-200 bg-white">
             <Table className="min-w-max [&_tbody_td]:align-top [&_tbody_td]:py-[5px]">
               <TableHeader>
-                <TableRow className="hover:bg-transparent">
+                <TableRow className="h-20 hover:bg-transparent">
                   <TableHead
-                    className="sticky left-0 top-0 z-40 min-w-[240px] bg-white align-top shadow-[0_1px_0_0_rgba(226,232,240,1)]"
+                    className="sticky left-0 top-0 z-[60] min-w-[240px] bg-white align-top shadow-[0_1px_0_0_rgba(226,232,240,1)]"
                     rowSpan={2}
                     aria-sort={monthlySort.key === "company" ? (monthlySort.direction === "asc" ? "ascending" : "descending") : "none"}
                   >
@@ -774,7 +781,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                       </span>
                     </button>
                   </TableHead>
-                  <TableHead className="sticky top-0 z-30 min-w-[180px] bg-amber-50 align-top shadow-[0_1px_0_0_rgba(226,232,240,1)]" rowSpan={2}>
+                  <TableHead className="sticky top-0 z-50 min-w-[180px] bg-amber-50 align-top shadow-[0_1px_0_0_rgba(226,232,240,1)]" rowSpan={2}>
                     <div className="space-y-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-semibold text-slate-800 shadow-sm">
                       <div className="flex min-h-8 items-center gap-2">
                         <span className="shrink-0">Active</span>
@@ -800,7 +807,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                     return (
                       <TableHead
                         key={businessUnit}
-                        className="sticky top-0 z-30 min-w-[190px] border-l border-slate-200 bg-slate-50 text-center shadow-[0_1px_0_0_rgba(226,232,240,1)]"
+                        className="sticky top-0 z-50 min-w-[190px] border-l border-slate-200 bg-slate-50 text-center shadow-[0_1px_0_0_rgba(226,232,240,1)]"
                         colSpan={expanded ? 3 : 1}
                       >
                         <div className="flex w-full items-center gap-2">
@@ -826,7 +833,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                       </TableHead>
                     );
                   })}
-                  <TableHead className="sticky top-0 z-30 min-w-[260px] bg-white shadow-[0_1px_0_0_rgba(226,232,240,1)]" rowSpan={2}>
+                  <TableHead className="sticky top-0 z-50 min-w-[260px] bg-white shadow-[0_1px_0_0_rgba(226,232,240,1)]" rowSpan={2}>
                     Note
                   </TableHead>
                 </TableRow>
@@ -835,7 +842,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                     const expanded = expandedBusinessUnits.has(businessUnit);
                     if (!expanded) {
                       return [
-                      <TableHead key={`${businessUnit}-active`} className="sticky top-12 z-30 min-w-[190px] border-l border-slate-200 bg-white text-xs text-slate-700 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
+                       <TableHead key={`${businessUnit}-active`} className="sticky top-20 z-40 min-w-[190px] border-l border-slate-200 bg-white text-xs text-slate-700 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
                         {compactBusinessUnitHeader}
                       </TableHead>
                       ];
@@ -845,12 +852,12 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                       ...EXPANDED_FORECAST_COLUMNS.map((forecastType) => (
                         <TableHead
                           key={`${businessUnit}-${forecastType}`}
-                          className={`sticky top-12 z-30 min-w-[190px] border-l border-slate-200 text-xs shadow-[0_1px_0_0_rgba(226,232,240,1)] ${expandedForecastHeaderClass(forecastType, editableForecastType)}`}
+                          className={`sticky top-20 z-40 min-w-[190px] border-l border-slate-200 text-xs shadow-[0_1px_0_0_rgba(226,232,240,1)] ${expandedForecastHeaderClass(forecastType, editableForecastType)}`}
                         >
                           {forecastTypeLabel(forecastType)}
                         </TableHead>
                       )),
-                      <TableHead key={`${businessUnit}-closed`} className="sticky top-12 z-30 min-w-[170px] border-l border-slate-200 bg-amber-50 text-xs text-amber-900 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
+                      <TableHead key={`${businessUnit}-closed`} className="sticky top-20 z-40 min-w-[170px] border-l border-slate-200 bg-amber-50 text-xs text-amber-900 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
                         {closedRevenueHeader}
                       </TableHead>
                     ];
@@ -860,8 +867,8 @@ export default function ForecastEntryMonthlyBatchWorkspace({
               <TableBody>
                 {monthlyCompanies.length > 0 ? (
                   <>
-                    <TableRow className="sticky top-24 z-20 border-b-2 border-cyan-200 bg-cyan-50 shadow-[0_1px_0_0_rgba(165,243,252,1)] hover:bg-cyan-50">
-                      <TableCell className="sticky left-0 z-30 min-w-[240px] border-r border-cyan-200 bg-cyan-50">
+                    <TableRow className="sticky top-32 z-30 border-b-2 border-cyan-200 bg-cyan-50 shadow-[0_1px_0_0_rgba(165,243,252,1)] hover:bg-cyan-50">
+                      <TableCell className="sticky left-0 z-40 min-w-[240px] border-r border-cyan-200 bg-cyan-50">
                         <div className="text-[11px] font-semibold uppercase tracking-wide text-cyan-800">
                           {selectedMonthLabel} {isPastSelectedPeriod ? "Closed Revenue" : "CSM Forecast"}
                         </div>
@@ -1031,6 +1038,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                 )}
               </TableBody>
             </Table>
+          </div>
           </div>
 
           <div className="flex justify-end pt-2">

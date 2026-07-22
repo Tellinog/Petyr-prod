@@ -38,6 +38,15 @@ Correct flow:
 Redash -> redash-ingestor -> PostgreSQL -> Petyr
 ```
 
+The shared Forecasting header exposes `Refresh data` to CSM forecast writers
+and admins. The confirmation explains the expected 2-5 minute duration. The
+browser calls `POST /api/petyr/data-refresh`; Petyr authorizes the session and
+uses `REDASH_INGESTOR_INTERNAL_URL` plus the shared `APP_INTERNAL_SECRET` for a
+server-to-server command. Only Redash Ingestor executes the three approved
+Redash queries, stores snapshots and rebuilds the latest PostgreSQL tables.
+CSMs do not receive the technical Redash Ingestor permissions or arbitrary
+source selection.
+
 ## Local app commands
 
 ```bash
@@ -276,7 +285,11 @@ portfolio. Monthly saves use a floating bottom-right `Save`
 button that remains visible while scrolling and turns green for five seconds
 after an effective save. Pressing Enter inside an editable Monthly forecast
 numeric cell triggers the same save flow and floating confirmation as the Save
-button. Monthly data is loaded on the initial page render
+button. Clearing an editable Monthly or Annual Forecast Ongoing Business Unit
+field saves a `0` value rather than failing validation. The successful save
+response reloads the scoped portfolio without the local read cache, so the
+persisted values and the Annual Forecast Ongoing total remain current after a
+page reload. Monthly data is loaded on the initial page render
 through a portfolio-scoped batch read model. Changing the CSM dropdown reloads immediately; changing Month or Year updates the controls only until the user presses `Load`. Company lists use all Company
 Ownership company-CSM workspace associations whose `workspace_updated_on` is
 within the last 6 months, so one company can appear under multiple CSMs when
@@ -299,7 +312,7 @@ The annual section is a separate tab inside `/forecasting/entry`. It exposes a C
 
 The Annual table uses its own vertical scroll area so only the full-width legend row and table header stay visible while users scroll down the portfolio; the section title, filters and Forecast Initial window notice scroll away above it. It keeps Company and Confidence visible during horizontal scroll, marks editable/manual-entry columns with a subtle background, displays the official `Experience` Business Unit as `UX` in Forecast Entry headers, sizes numeric cells for values up to eight digits plus separators, renders those numeric monetary values as integers without decimal cents, mutes zero/empty cells in a softer grey, uses compact vertical padding and top-aligns table body cell content. Saved/AI-confirmed labels and related AI Forecast references render on separate lines, with the AI Forecast reference using the AI legend color. Annual company rows show only the linked company name in the first column, without a company-level Forecast Ongoing total label or CSM label beneath it.
 
-The annual table includes a legend-row button to collapse or show all Business Unit columns. Collapsed mode keeps only Active through Confidence plus Closed Revenue YTD through Logs visible. Annual headers can sort the visible rows by Company, Forecast Initial, Forecast Ongoing, Confidence and each visible Business Unit. Business Unit sorting orders rows from highest to lowest Forecast Ongoing value for that Business Unit, using saved or locally edited Forecast Ongoing values when present and AI placeholder values when no CSM value is saved. During the automatic January Forecast Initial entry window, each visible Business Unit has adjacent Forecast Ongoing and Initial Forecast columns. During the automatic December 10-31 preparation window or any manual Petyr Admin unlock outside January, each Business Unit starts with its Initial Forecast column collapsed behind the matching Forecast Ongoing column. The Forecast Ongoing header keeps the Business Unit name, Forecast Ongoing label and sort state together in the sortable control, with a separate per-Business Unit show/hide button immediately to its right; that column may widen slightly while the button is visible. When Forecast Initial is locked and no admin unlock is active, the per-Business Unit Initial Forecast columns and show/hide buttons are hidden while saved values remain available to Management. The Active column can filter the table to all, active only or inactive only without changing persisted status. It stores company + year Forecast Initial and Forecast Ongoing Confidence in
+The Annual tab is the default `/forecasting/entry` view. The annual table includes a legend-row button to collapse or show all Business Unit columns. Collapsed mode keeps only Active through Confidence plus Closed Revenue YTD through Logs visible. The company-level Forecast Initial column starts collapsed so Forecast Ongoing remains prominent; the Annual header show/hide control reveals the existing Initial column and collapses it again, without sorting. Annual headers can sort the visible rows by Company, Forecast Ongoing, Confidence and each visible Business Unit. Business Unit sorting orders rows from highest to lowest Forecast Ongoing value for that Business Unit, using saved or locally edited Forecast Ongoing values when present and AI placeholder values when no CSM value is saved. During the automatic January Forecast Initial entry window, each visible Business Unit has adjacent Forecast Ongoing and Initial Forecast columns. During the automatic December 10-31 preparation window or any manual Petyr Admin unlock outside January, each Business Unit starts with its Initial Forecast column collapsed behind the matching Forecast Ongoing column. The Forecast Ongoing header keeps the Business Unit name, Forecast Ongoing label and sort state together in the sortable control, with a separate per-Business Unit show/hide button immediately to its right; that column may widen slightly while the button is visible. When Forecast Initial is locked and no admin unlock is active, the per-Business Unit Initial Forecast columns and show/hide buttons are hidden while saved values remain available to Management. The Active column can filter the table to all, active only or inactive only without changing persisted status. It stores company + year Forecast Initial and Forecast Ongoing Confidence in
 `forecast_annual_entry`, stores annual BU Forecast Ongoing values in `forecast_annual`, stores explicit BU Initial Forecast values in `forecast_annual.initial_forecast`, requires Confidence only when Forecast Ongoing BU values change without an existing confidence value, and
 audits effective changes through `forecast_save_session` /
 `forecast_change_log` with source `Annual Forecast Entry`. Annual saves use the same floating bottom-right `Save` button pattern and do not show separate top or bottom inline save buttons. Pressing Enter inside an editable Annual Forecast Initial, Forecast Ongoing Business Unit or Confidence field triggers the same save flow and floating confirmation as the Save button. Its read endpoint uses a portfolio-scoped PostgreSQL read model for the selected CSM/year instead of loading full Company Detail for each customer. After schema changes,

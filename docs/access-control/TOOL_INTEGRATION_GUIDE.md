@@ -24,6 +24,12 @@ petyr:management:write
 petyr:admin
 ```
 
+`POST /api/petyr/data-refresh` is a constrained Petyr product action available
+to `petyr:forecast:write` and `petyr:admin`. It does not grant access to the
+Redash Ingestor dashboard or arbitrary sync endpoints. Petyr re-authorizes the
+browser session server-side and uses `APP_INTERNAL_SECRET` only on the internal
+service-to-service request.
+
 Redash Ingestor permissions:
 
 ```txt

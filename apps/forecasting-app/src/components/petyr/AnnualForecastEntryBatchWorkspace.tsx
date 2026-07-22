@@ -24,7 +24,7 @@ type Notice = {
 };
 
 type SourceState = "accepted_ai" | "manual_edit";
-type AnnualSortKey = "company" | "initial" | "ongoing" | "confidence" | "business_unit";
+type AnnualSortKey = "company" | "ongoing" | "confidence" | "business_unit";
 type AnnualSortDirection = "asc" | "desc";
 type ActiveVisibilityFilter = "all" | "active" | "inactive";
 type AnnualSortState = {
@@ -214,6 +214,31 @@ function confidenceSortRank(value: string) {
   return 3;
 }
 
+function confidenceSignalStyle(value: string, isTouched: boolean) {
+  if (value === "01 High") {
+    return "border-emerald-300 bg-emerald-50 text-emerald-950 focus:border-emerald-500 focus:ring-emerald-200";
+  }
+
+  if (value === "02 Mid") {
+    return "border-amber-300 bg-amber-50 text-amber-950 focus:border-amber-500 focus:ring-amber-200";
+  }
+
+  if (value === "03 Low") {
+    return "border-red-300 bg-red-50 text-red-950 focus:border-red-500 focus:ring-red-200";
+  }
+
+  return isTouched
+    ? "border-emerald-300 bg-emerald-50 text-slate-900"
+    : "border-amber-200 bg-amber-50 text-slate-900";
+}
+
+function confidenceSignalDotStyle(value: string) {
+  if (value === "01 High") return "bg-emerald-500";
+  if (value === "02 Mid") return "bg-amber-400";
+  if (value === "03 Low") return "bg-red-500";
+  return "bg-slate-300";
+}
+
 function initialExpandedStateFromBatch(batch: AnnualForecastEntryBatchDataResult) {
   return Object.fromEntries(
     batch.data.businessUnits.map((businessUnit) => [businessUnit, batch.data.initialMode.showInitialBusinessUnitsByDefault])
@@ -233,8 +258,8 @@ const REVENUE_RATIO_COLUMN_WIDTH = 170;
 const PLANNED_RATIO_COLUMN_WIDTH = 170;
 const UNCOVERED_RATIO_COLUMN_WIDTH = 180;
 const LOGS_COLUMN_WIDTH = 220;
-const COMPANY_STICKY_CLASS = "sticky left-0 min-w-[220px]";
-const CONFIDENCE_STICKY_CLASS = "sticky left-[220px] min-w-[150px] shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]";
+const ACTIVE_STICKY_CLASS = "sticky left-0 min-w-[150px]";
+const COMPANY_STICKY_CLASS = "sticky left-[150px] min-w-[220px] shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]";
 const PINNED_BODY_STICKY_CLASS = "z-20";
 const PINNED_HEADER_STICKY_CLASS = "z-[60]";
 const HEADER_STICKY_CLASS = "sticky top-16 z-40 shadow-[0_1px_0_0_rgba(226,232,240,1)]";
@@ -270,11 +295,13 @@ export default function AnnualForecastEntryBatchWorkspace({
   const [showSavedState, setShowSavedState] = useState(false);
   const [savedSummary, setSavedSummary] = useState("");
   const [showBusinessUnits, setShowBusinessUnits] = useState(true);
+  const [showInitialForecast, setShowInitialForecast] = useState(false);
   const [expandedInitialBusinessUnits, setExpandedInitialBusinessUnits] = useState<Record<string, boolean>>(() => initialExpandedStateFromBatch(initialBatch));
   const [isCsmDropdownOpen, setIsCsmDropdownOpen] = useState(false);
   const [annualSort, setAnnualSort] = useState<AnnualSortState>({ key: null, direction: "asc" });
   const [activeVisibilityFilter, setActiveVisibilityFilter] = useState<ActiveVisibilityFilter>("all");
   const savedStateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveInFlightRef = useRef(false);
   const annualTableRef = useRef<HTMLTableElement | null>(null);
   const csmDropdownRef = useRef<HTMLDivElement | null>(null);
 
@@ -423,7 +450,7 @@ export default function AnnualForecastEntryBatchWorkspace({
     const key = cellKey(company.companyName, cell.businessUnit);
     const parsed = parseMoneyInput(values[key] ?? "");
 
-    if (sourceStates[key] && parsed !== null) return parsed;
+    if (sourceStates[key]) return parsed ?? 0;
     if (cell.savedForecast.hasSavedValue) return cell.savedForecast.value ?? 0;
 
     return null;
@@ -479,8 +506,6 @@ export default function AnnualForecastEntryBatchWorkspace({
 
       if (annualSort.key === "company") {
         result = left.companyName.localeCompare(right.companyName);
-      } else if (annualSort.key === "initial") {
-        result = currentInitialForecast(left) - currentInitialForecast(right);
       } else if (annualSort.key === "ongoing") {
         result = currentFcOngoing(left) - currentFcOngoing(right);
       } else if (annualSort.key === "business_unit" && annualSort.businessUnit) {
@@ -553,7 +578,7 @@ export default function AnnualForecastEntryBatchWorkspace({
       return [
         {
           businessUnit: cell.businessUnit,
-          value: values[key] ?? "",
+          value: values[key]?.trim() ? values[key] : "0",
           sourceState
         }
       ];
@@ -570,7 +595,7 @@ export default function AnnualForecastEntryBatchWorkspace({
       return [
         {
           businessUnit: cell.businessUnit,
-          value: businessUnitInitialValues[key] ?? ""
+          value: businessUnitInitialValues[key]?.trim() ? businessUnitInitialValues[key] : "0"
         }
       ];
     });
@@ -608,6 +633,8 @@ export default function AnnualForecastEntryBatchWorkspace({
   }
 
   async function saveBatch() {
+    if (saveInFlightRef.current) return;
+
     let updates: ReturnType<typeof buildUpdates>;
 
     try {
@@ -622,6 +649,7 @@ export default function AnnualForecastEntryBatchWorkspace({
       return;
     }
 
+    saveInFlightRef.current = true;
     setIsSaving(true);
     setNotice(null);
 
@@ -668,12 +696,13 @@ export default function AnnualForecastEntryBatchWorkspace({
         text: error instanceof Error ? error.message : "Unable to save Annual Forecast Entry."
       });
     } finally {
+      saveInFlightRef.current = false;
       setIsSaving(false);
     }
   }
 
   function handleSaveKeyDown(event: KeyboardEvent<HTMLInputElement | HTMLSelectElement>) {
-    if (event.key !== "Enter" || isSaving) return;
+    if (event.key !== "Enter" || isSaving || saveInFlightRef.current) return;
 
     event.preventDefault();
     void saveBatch();
@@ -696,7 +725,7 @@ export default function AnnualForecastEntryBatchWorkspace({
   const annualTableMinWidth =
     COMPANY_COLUMN_WIDTH +
     ACTIVE_COLUMN_WIDTH +
-    INITIAL_COLUMN_WIDTH +
+    (showInitialForecast ? INITIAL_COLUMN_WIDTH : 0) +
     ONGOING_COLUMN_WIDTH +
     CONFIDENCE_COLUMN_WIDTH +
     visibleBusinessUnitWidth +
@@ -729,7 +758,7 @@ export default function AnnualForecastEntryBatchWorkspace({
       observer.disconnect();
       window.removeEventListener("resize", updateLegendWidth);
     };
-  }, [annualTableMinWidth, batch.data.companies.length, showBusinessUnits]);
+  }, [annualTableMinWidth, batch.data.companies.length, showBusinessUnits, showInitialForecast]);
 
   function toggleBusinessUnitInitialForecast(businessUnit: string) {
     setExpandedInitialBusinessUnits((current) => ({
@@ -867,20 +896,7 @@ export default function AnnualForecastEntryBatchWorkspace({
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead
-                  className={`${COMPANY_STICKY_CLASS} bg-white ${HEADER_STICKY_CLASS} ${PINNED_HEADER_STICKY_CLASS}`}
-                  aria-sort={annualSort.key === "company" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
-                >
-                  <button
-                    type="button"
-                    className={`${SORT_BUTTON_BASE_CLASS} border-slate-200 hover:border-slate-300 hover:bg-slate-50`}
-                    onClick={() => setAnnualSort((current) => nextAnnualSort(current, "company"))}
-                  >
-                    <span>Company</span>
-                    <span className="text-[11px] font-semibold text-slate-500">{annualSortLabel(annualSort, "company")}</span>
-                  </button>
-                </TableHead>
-                <TableHead
-                  className={`${HEADER_STICKY_CLASS} min-w-[150px] ${MANUAL_HEADER_CLASS}`}
+                  className={`${ACTIVE_STICKY_CLASS} ${HEADER_STICKY_CLASS} ${PINNED_HEADER_STICKY_CLASS} ${MANUAL_HEADER_CLASS}`}
                 >
                   <div className="flex min-h-9 items-center gap-2 rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-semibold text-slate-800 shadow-sm">
                     <span className="shrink-0">Active</span>
@@ -898,33 +914,62 @@ export default function AnnualForecastEntryBatchWorkspace({
                   </div>
                 </TableHead>
                 <TableHead
-                  className={`${HEADER_STICKY_CLASS} w-[128px] min-w-[128px] ${MANUAL_HEADER_CLASS}`}
-                  aria-sort={annualSort.key === "initial" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
-                >
-                  <button
-                    type="button"
-                    className={`${SORT_BUTTON_BASE_CLASS} border-amber-200 hover:border-amber-300 hover:bg-amber-50`}
-                    onClick={() => setAnnualSort((current) => nextAnnualSort(current, "initial"))}
-                  >
-                    <span>Forecast Initial</span>
-                    <span className="text-[11px] font-semibold text-slate-500">{annualSortLabel(annualSort, "initial")}</span>
-                  </button>
-                </TableHead>
-                <TableHead
-                  className={`${HEADER_STICKY_CLASS} min-w-[150px] bg-white`}
-                  aria-sort={annualSort.key === "ongoing" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
+                  className={`${COMPANY_STICKY_CLASS} bg-white ${HEADER_STICKY_CLASS} ${PINNED_HEADER_STICKY_CLASS}`}
+                  aria-sort={annualSort.key === "company" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
                 >
                   <button
                     type="button"
                     className={`${SORT_BUTTON_BASE_CLASS} border-slate-200 hover:border-slate-300 hover:bg-slate-50`}
-                    onClick={() => setAnnualSort((current) => nextAnnualSort(current, "ongoing"))}
+                    onClick={() => setAnnualSort((current) => nextAnnualSort(current, "company"))}
                   >
-                    <span>Forecast Ongoing</span>
-                    <span className="text-[11px] font-semibold text-slate-500">{annualSortLabel(annualSort, "ongoing")}</span>
+                    <span>Company</span>
+                    <span className="text-[11px] font-semibold text-slate-500">{annualSortLabel(annualSort, "company")}</span>
                   </button>
                 </TableHead>
+                {showInitialForecast ? (
+                  <TableHead className={`${HEADER_STICKY_CLASS} w-[128px] min-w-[128px] ${MANUAL_HEADER_CLASS}`}>
+                    <div className="flex min-h-9 items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-2 text-xs font-semibold text-slate-800 shadow-sm">
+                      <span>Forecast Initial</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-7 rounded-md border-amber-200 px-2 text-[11px]"
+                        onClick={() => setShowInitialForecast(false)}
+                        aria-expanded="true"
+                      >
+                        Hide
+                      </Button>
+                    </div>
+                  </TableHead>
+                ) : null}
                 <TableHead
-                  className={`${CONFIDENCE_STICKY_CLASS} bg-amber-50 ${HEADER_STICKY_CLASS} ${PINNED_HEADER_STICKY_CLASS}`}
+                  className={`${HEADER_STICKY_CLASS} min-w-[150px] bg-white`}
+                  aria-sort={annualSort.key === "ongoing" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
+                >
+                  <div className="flex min-h-9 items-stretch gap-2">
+                    <button
+                      type="button"
+                      className={`${SORT_BUTTON_BASE_CLASS} min-w-0 flex-1 border-slate-200 hover:border-slate-300 hover:bg-slate-50`}
+                      onClick={() => setAnnualSort((current) => nextAnnualSort(current, "ongoing"))}
+                    >
+                      <span>Forecast Ongoing</span>
+                      <span className="text-[11px] font-semibold text-slate-500">{annualSortLabel(annualSort, "ongoing")}</span>
+                    </button>
+                    {!showInitialForecast ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-auto shrink-0 rounded-lg border-amber-200 px-2 text-[11px] leading-tight"
+                        onClick={() => setShowInitialForecast(true)}
+                        aria-expanded="false"
+                      >
+                        Show Initial
+                      </Button>
+                    ) : null}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className={`min-w-[150px] bg-amber-50 ${HEADER_STICKY_CLASS}`}
                   aria-sort={annualSort.key === "confidence" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
                 >
                   <button
@@ -988,21 +1033,23 @@ export default function AnnualForecastEntryBatchWorkspace({
             <TableBody>
               {displayedAnnualCompanies.length > 0 ? (
                 <TableRow className={`${TOTAL_ROW_STICKY_CLASS} border-b-2 border-cyan-200 bg-cyan-50 shadow-[0_1px_0_0_rgba(165,243,252,1)] hover:bg-cyan-50`}>
+                  <TableCell className={`${ACTIVE_STICKY_CLASS} z-50 border-r border-cyan-200 bg-cyan-50`} aria-label="No active status for total row" />
                   <TableCell className={`${COMPANY_STICKY_CLASS} z-50 border-r border-cyan-200 bg-cyan-50`}>
                     <div className="text-[11px] font-semibold uppercase tracking-wide text-cyan-800">
                       {batch.data.selectedYear} CSM Forecast
                     </div>
                     <div className="mt-1 text-xs font-medium text-cyan-700">Portfolio total</div>
                   </TableCell>
-                  <TableCell className="min-w-[150px] bg-cyan-50" aria-label="No active status for total row" />
-                  <TableCell className={`w-[128px] min-w-[128px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(annualSummary.initialTotal))}`}>
-                    {formatPetyrIntegerCurrencyValue(annualSummary.initialTotal)}
-                  </TableCell>
+                  {showInitialForecast ? (
+                    <TableCell className={`w-[128px] min-w-[128px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(annualSummary.initialTotal))}`}>
+                      {formatPetyrIntegerCurrencyValue(annualSummary.initialTotal)}
+                    </TableCell>
+                  ) : null}
                   <TableCell className={`min-w-[150px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(annualSummary.total))}`}>
                     {formatPetyrIntegerCurrencyValue(annualSummary.total)}
                   </TableCell>
                   <TableCell
-                    className={`${CONFIDENCE_STICKY_CLASS} z-50 bg-cyan-50`}
+                    className="min-w-[150px] bg-cyan-50"
                     aria-label="No confidence value for total row"
                   />
                   {showBusinessUnits
@@ -1057,15 +1104,7 @@ export default function AnnualForecastEntryBatchWorkspace({
 
                   return (
                     <TableRow key={company.companyName} className={inactiveClass}>
-                      <TableCell className={`${COMPANY_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} ${company.isForecastActive ? "bg-white" : "bg-slate-50"}`}>
-                        <Link
-                          href={buildCompanyDetailPageUrl(company.companyName, batch.data.selectedYear, company.csmName)}
-                          className="font-semibold text-slate-900 underline-offset-4 hover:underline"
-                        >
-                          {company.companyName}
-                        </Link>
-                      </TableCell>
-                      <TableCell className={MANUAL_CELL_CLASS}>
+                      <TableCell className={`${ACTIVE_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} ${company.isForecastActive ? MANUAL_CELL_CLASS : "bg-slate-50"}`}>
                         <label className="inline-flex items-center gap-2 text-sm">
                           <input
                             type="checkbox"
@@ -1076,44 +1115,63 @@ export default function AnnualForecastEntryBatchWorkspace({
                           {activeValues[company.companyName] ? "ON" : "OFF"}
                         </label>
                       </TableCell>
-                      <TableCell className={batch.data.initialMode.editable ? MANUAL_CELL_CLASS : "bg-slate-50"}>
-                        <Input
-                          inputMode="numeric"
-                          disabled={!batch.data.initialMode.editable || isSaving}
-                          readOnly={!batch.data.initialMode.editable}
-                          value={initialValues[company.companyName] ?? ""}
-                          onChange={(event) => updateInitial(company.companyName, event.target.value)}
-                          onKeyDown={handleSaveKeyDown}
-                          placeholder="n/a"
-                          className={`h-8 min-w-[112px] rounded-xl text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(initialValues[company.companyName] ?? ""))} ${
-                            touchedInitial.has(company.companyName)
-                              ? "border-emerald-300 bg-emerald-50"
-                              : batch.data.initialMode.editable
-                                ? "border-amber-200 bg-amber-50"
-                                : "bg-white"
-                          }`}
-                        />
+                      <TableCell className={`${COMPANY_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} ${company.isForecastActive ? "bg-white" : "bg-slate-50"}`}>
+                        <Link
+                          href={buildCompanyDetailPageUrl(company.companyName, batch.data.selectedYear, company.csmName)}
+                          className="font-semibold text-slate-900 underline-offset-4 hover:underline"
+                        >
+                          {company.companyName}
+                        </Link>
                       </TableCell>
+                      {showInitialForecast ? (
+                        <TableCell className={batch.data.initialMode.editable ? MANUAL_CELL_CLASS : "bg-slate-50"}>
+                          <Input
+                            inputMode="numeric"
+                            disabled={!batch.data.initialMode.editable || isSaving}
+                            readOnly={!batch.data.initialMode.editable}
+                            value={initialValues[company.companyName] ?? ""}
+                            onChange={(event) => updateInitial(company.companyName, event.target.value)}
+                            onKeyDown={handleSaveKeyDown}
+                            placeholder="n/a"
+                            className={`h-8 min-w-[112px] rounded-xl text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(initialValues[company.companyName] ?? ""))} ${
+                              touchedInitial.has(company.companyName)
+                                ? "border-emerald-300 bg-emerald-50"
+                                : batch.data.initialMode.editable
+                                  ? "border-amber-200 bg-amber-50"
+                                  : "bg-white"
+                            }`}
+                          />
+                        </TableCell>
+                      ) : null}
                       <TableCell className={`text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(fcOngoing))}`}>
                         {formatPetyrIntegerCurrencyValue(fcOngoing)}
                       </TableCell>
-                      <TableCell className={`${CONFIDENCE_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} ${company.isForecastActive ? "bg-amber-50" : "bg-slate-50"}`}>
-                        <select
-                          value={confidenceValues[company.companyName] ?? ""}
-                          disabled={isSaving}
-                          onChange={(event) => updateConfidence(company.companyName, event.target.value)}
-                          onKeyDown={handleSaveKeyDown}
-                          className={`h-8 min-w-[130px] rounded-xl border px-3 text-sm ${
-                            touchedConfidence.has(company.companyName) ? "border-emerald-300 bg-emerald-50" : "border-amber-200 bg-amber-50"
-                          }`}
-                        >
-                          <option value="">Select...</option>
-                          {batch.data.confidenceOptions.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
+                      <TableCell className={company.isForecastActive ? "bg-amber-50" : "bg-slate-50"}>
+                        <div className="relative min-w-[130px]">
+                          <span
+                            aria-hidden="true"
+                            className={`pointer-events-none absolute left-3 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${confidenceSignalDotStyle(
+                              confidenceValues[company.companyName] ?? ""
+                            )}`}
+                          />
+                          <select
+                            value={confidenceValues[company.companyName] ?? ""}
+                            disabled={isSaving}
+                            onChange={(event) => updateConfidence(company.companyName, event.target.value)}
+                            onKeyDown={handleSaveKeyDown}
+                            className={`h-8 w-full rounded-xl border py-1 pl-7 pr-3 text-sm font-medium ${confidenceSignalStyle(
+                              confidenceValues[company.companyName] ?? "",
+                              touchedConfidence.has(company.companyName)
+                            )}`}
+                          >
+                            <option value="">Select...</option>
+                            {batch.data.confidenceOptions.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </TableCell>
                       {showBusinessUnits ? company.businessUnits.map((cell) => {
                         const key = cellKey(company.companyName, cell.businessUnit);

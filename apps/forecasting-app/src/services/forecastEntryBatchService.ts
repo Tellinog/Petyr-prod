@@ -223,6 +223,14 @@ function parseMoney(value: unknown) {
   return new Prisma.Decimal(normalized);
 }
 
+function parseMoneyOrZero(value: unknown) {
+  if (typeof value === "string" && !value.trim()) {
+    return new Prisma.Decimal(0);
+  }
+
+  return parseMoney(value);
+}
+
 function hasDecimalChanged(existingValue: Prisma.Decimal | null | undefined, nextValue: Prisma.Decimal) {
   return !existingValue || !existingValue.equals(nextValue);
 }
@@ -369,7 +377,7 @@ export async function getForecastEntryBatch(input: ForecastEntryBatchQuery = {})
           scopedRowsCount: 0
         }
       };
-    });
+    }, { ttlMs: 0 });
 
     finishPerformance({
       status: "success",
@@ -428,17 +436,10 @@ function validateBatchValues(values: unknown) {
       throw new ForecastEntryBatchError(`Forecast Entry batch save contains duplicate values for ${businessUnit}.`, 400);
     }
 
-    if (typeof row.value === "string" && !row.value.trim()) {
-      throw new ForecastEntryBatchError(
-        `Forecast Entry value for ${businessUnit} is empty. Enter a non-negative number, or enter 0 to save zero.`,
-        400
-      );
-    }
-
-    const value = parseMoney(row.value);
+    const value = parseMoneyOrZero(row.value);
     if (!value) {
       throw new ForecastEntryBatchError(
-        `Forecast Entry value for ${businessUnit} must be a non-negative numeric value. Use digits only, or enter 0 to save zero.`,
+        `Forecast Entry value for ${businessUnit} must be a non-negative numeric value. Blank Business Unit fields are saved as 0.`,
         400
       );
     }

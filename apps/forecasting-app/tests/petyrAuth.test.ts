@@ -6,6 +6,7 @@ import {
   PETYR_PERMISSIONS,
   createAuthState,
   canManagePetyrFeedback,
+  canRefreshPetyrSourceData,
   getPetyrDefaultLandingPath,
   getLocalDevelopmentIdentity,
   getPetyrPublicRedirectUrl,
@@ -176,6 +177,25 @@ test("admin retains feedback management access", () => {
   };
 
   assert.equal(canManagePetyrFeedback(identity), true);
+});
+
+test("CSM forecast writers and admins can refresh Petyr source data", () => {
+  const csm = {
+    ...getLocalDevelopmentIdentity(),
+    permissions: [PETYR_PERMISSIONS.read, PETYR_PERMISSIONS.forecastWrite]
+  };
+  const readOnly = {
+    ...getLocalDevelopmentIdentity(),
+    permissions: [PETYR_PERMISSIONS.read]
+  };
+  const admin = {
+    ...getLocalDevelopmentIdentity(),
+    permissions: [PETYR_PERMISSIONS.admin]
+  };
+
+  assert.equal(canRefreshPetyrSourceData(csm), true);
+  assert.equal(canRefreshPetyrSourceData(readOnly), false);
+  assert.equal(canRefreshPetyrSourceData(admin), true);
 });
 
 test("CSM identity matching resolves exact names case-insensitively", () => {

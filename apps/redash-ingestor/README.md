@@ -29,12 +29,20 @@ docker compose up --build
 Il worker Docker esegue il sync automatico ogni giorno alle `01:30` con timezone `Europe/Rome`.
 La dashboard espone anche un pannello di sync manuale. Nel Compose root e raggiungibile dal gateway su `/redash-ingestor`.
 
+Il flusso CSM di Petyr usa invece il solo endpoint interno
+`POST /redash-ingestor/api/redash/petyr-refresh`, protetto da
+`APP_INTERNAL_SECRET`. L'endpoint non accetta una sorgente arbitraria: forza il
+refresh Redash (`max_age=0`) di `master_campaigns`, `master_agreements` e
+`company_ownership`, attende i risultati e poi esegue snapshot e
+materializzazione PostgreSQL con lo stesso lock globale del worker notturno.
+
 ## Endpoint utili
 
 ```txt
 GET  /redash-ingestor/api/health
 GET  /redash-ingestor/api/sources
 POST /redash-ingestor/api/redash/sync
+POST /redash-ingestor/api/redash/petyr-refresh  # internal service-to-service only
 GET  /redash-ingestor/api/redash/latest?source=master_campaigns
 GET  /redash-ingestor/api/redash/preview?source=master_campaigns&limit=50
 GET  /redash-ingestor/api/redash/db-table-preview?source=master_campaigns&limit=25

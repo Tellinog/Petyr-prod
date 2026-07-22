@@ -113,6 +113,7 @@ export function PetyrForecastingDataHydrator({
         canViewAdminTools={canViewAdminTools}
         canViewCsmOverview={canViewAdminTools}
         canManageObjectives={canManageObjectives}
+        canRefreshSourceData={canWriteForecast || canViewAdminTools}
         renderingState={loadState}
         onRetryRenderingData={() => setAttempt((value) => value + 1)}
       />

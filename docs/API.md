@@ -1,5 +1,28 @@
 # API
 
+## Petyr source-data refresh
+
+### POST /api/petyr/data-refresh
+
+Purpose: let a CSM forecast writer or Petyr admin request fresh Redash-derived
+Petyr data without access to the technical Redash Ingestor surface.
+
+Permissions: `petyr:forecast:write` or `petyr:admin`.
+
+Body: empty JSON object. Source/query selection is not accepted.
+
+The request is synchronous and normally takes 2-5 minutes. Petyr sends a
+server-to-server request to the internal Ingestor endpoint and returns a
+sanitized summary. `409` means the global Redash sync lock is already held.
+
+### POST /redash-ingestor/api/redash/petyr-refresh
+
+Purpose: internal fixed-source command used only by Petyr. Requires the shared
+`x-app-secret: APP_INTERNAL_SECRET`; it does not accept browser Access Layer
+sessions or arbitrary source selection. It forces fresh executions of
+`master_campaigns`, `master_agreements` and `company_ownership`, then stores raw
+snapshots and materializes their PostgreSQL latest tables.
+
 ## Admin Petyr Intelligence Endpoints
 
 These endpoints are implemented in the first MVP.

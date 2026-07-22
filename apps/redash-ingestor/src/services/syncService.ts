@@ -15,7 +15,15 @@ function asRecord(value: Prisma.JsonValue | null): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-export async function syncSource(source: RedashSource, triggeredBy = "worker") {
+type SyncSourceOptions = {
+  forceRefresh?: boolean;
+};
+
+export async function syncSource(
+  source: RedashSource,
+  triggeredBy = "worker",
+  options: SyncSourceOptions = {}
+) {
   const run = await prisma.redashSyncRun.create({
     data: {
       sourceId: source.id,
@@ -42,7 +50,7 @@ export async function syncSource(source: RedashSource, triggeredBy = "worker") {
     const result = await executeRedashQuery({
       queryId: source.redashQueryId,
       parameters: asRecord(source.parameters),
-      maxAgeSeconds: source.maxAgeSeconds,
+      maxAgeSeconds: options.forceRefresh ? 0 : source.maxAgeSeconds,
       apiKey: source.apiKey
     });
 
@@ -114,7 +122,11 @@ export async function syncSource(source: RedashSource, triggeredBy = "worker") {
   }
 }
 
-export async function syncSourceByKey(sourceKey: string, triggeredBy = "api") {
+export async function syncSourceByKey(
+  sourceKey: string,
+  triggeredBy = "api",
+  options: SyncSourceOptions = {}
+) {
   const source = await prisma.redashSource.findUnique({
     where: { key: sourceKey }
   });
@@ -127,7 +139,7 @@ export async function syncSourceByKey(sourceKey: string, triggeredBy = "api") {
     throw new Error(`Source is disabled: ${sourceKey}`);
   }
 
-  return syncSource(source, triggeredBy);
+  return syncSource(source, triggeredBy, options);
 }
 
 export async function syncAllEnabledSources(triggeredBy = "worker") {

@@ -19,6 +19,7 @@ import { parseAnnualForecastImportRows } from "../src/lib/petyr/annualForecastIm
 import { getMissingAnnualForecastImportCustomers } from "../src/lib/petyr/annualForecastImportMissingCustomers";
 import { buildInactiveCompaniesAnnualForecastRows } from "../src/lib/petyr/inactiveCompaniesAnnualExportRows";
 import { PETYR_FORECAST_ENTRY_BUSINESS_UNITS } from "../src/lib/petyr/constants";
+import { getPetyrCachedRead } from "../src/services/forecastEntryReadCache";
 
 function dateFor(year: number, month: number, day: number) {
   return new Date(year, month - 1, day, 12, 0, 0);
@@ -126,6 +127,18 @@ test("Forecast Initial window override parser rejects unsupported years", () => 
 
 test("FC Ongoing sums only saved or confirmed values passed to the calculator", () => {
   assert.equal(calculateAnnualForecastOngoing([100, null, undefined, 250.5]), 350.5);
+});
+
+test("interactive Forecast Entry reads bypass the local cache when configured with zero TTL", async () => {
+  let sourceValue = 100;
+  const first = await getPetyrCachedRead("forecast-entry-fresh-read-test", async () => sourceValue, { ttlMs: 0 });
+  sourceValue = 250;
+  const second = await getPetyrCachedRead("forecast-entry-fresh-read-test", async () => sourceValue, { ttlMs: 0 });
+
+  assert.equal(first.cacheHit, false);
+  assert.equal(first.value, 100);
+  assert.equal(second.cacheHit, false);
+  assert.equal(second.value, 250);
 });
 
 test("Annual Forecast Entry confidence values are closed", () => {

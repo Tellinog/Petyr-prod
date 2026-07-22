@@ -98,6 +98,16 @@ Petyr must not manually edit these values.
 
 Petyr must not call Redash directly from the UI. It must read from PostgreSQL tables materialized by the Redash Ingestor.
 
+CSM users with `petyr:forecast:write` and users with `petyr:admin` may request a
+fixed source-data refresh from the shared Petyr workspace header. The UI must
+warn before confirmation that Redash query refresh plus Petyr collection
+normally takes 2-5 minutes. The browser calls Petyr only; Petyr re-authorizes the
+session and sends a protected server-to-server command to Redash Ingestor. The
+Ingestor forces fresh results for `master_campaigns`, `master_agreements` and
+`company_ownership`, then performs the same audited snapshot and latest-table
+materialization used by the nightly sync. CSMs cannot select arbitrary Redash
+queries or access the technical Ingestor surface through this action.
+
 Expected materialized Redash tables include, at minimum:
 
 - `redash_raw_master_campaigns_latest`;
@@ -555,7 +565,7 @@ Table rules:
   filter, including all selected CSMs when multiple CSMs are selected;
 - default sorting is active companies first, inactive companies with Revenue or
   Planned second, inactive companies without Revenue or Planned last;
-- the Company, Forecast Initial, Forecast Ongoing and Confidence
+- the Company, Forecast Ongoing and Confidence
   headers can sort the currently visible Annual rows without changing
   persistence or the selected CSM/year filters;
 - each visible Annual Business Unit header can sort the currently visible rows
@@ -569,6 +579,8 @@ Table rules:
 - company names link to Company Detail;
 - Annual company rows show only the linked company name in the first column,
   without a company-level Forecast Ongoing total label or CSM label beneath it;
+- Annual Forecast Entry is the default tab when opening `/forecasting/entry`; Monthly Forecast Entry remains selectable.
+- The company-level Forecast Initial column starts collapsed to keep Forecast Ongoing prominent. An annual-header show/hide control reveals the existing Initial values and inputs on demand and collapses the column again; Forecast Initial is not sortable.
 - Logs opens Company Detail at the company logs anchor in a new tab and each
   row action is labelled `See latest logs`;
 - the Company and Confidence columns remain visible during horizontal scroll,
@@ -1214,6 +1226,12 @@ Agreement rows and agreement evidence should be ordered by operational expiry pr
 Forecast Entry is the only area where monthly forecasts can be edited.
 
 Forecast Entry uses the shared Petyr workspace shell with the same descriptive header card and section navigation as Management View, CSM Overview and Company Detail. It remains the only route that may expose the manual AI Forecast apply action, but the Support tools area and floating Data diagnostics menu are visible only to users with `petyr:admin`. The Monthly forecast tab may expose a CSM-facing Forecast Intelligence section for users with `petyr:forecast:write`; that section renders validated consultative JSON and has no apply controls or OpenRouter prompt/debug output. The normal Monthly and Annual Forecast Entry sections must use one floating bottom-right `Save` button that remains visible while scrolling, replaces inline top/bottom save buttons and turns green for five seconds after an effective save. The existing monthly and annual forecast logic must be preserved unless a later task explicitly selects a bug fix.
+
+When a user clears an editable Monthly or Annual Forecast Ongoing Business Unit
+field, Save and Enter persist `0` instead of returning an empty-value error.
+After each successful save, Forecast Entry reads the portfolio afresh so the
+persisted Business Unit values and the Annual Forecast Ongoing total are shown
+immediately and after a page reload.
 
 Forecast Entry Monthly and Annual cards expose read-only `Export Excel`
 controls. Monthly export creates one worksheet per month from January through

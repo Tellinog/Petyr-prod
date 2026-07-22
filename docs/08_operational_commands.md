@@ -84,6 +84,23 @@ curl -X POST http://localhost:8080/redash-ingestor/api/redash/sync \
   -d '{"sourceKey":"company_ownership"}'
 ```
 
+Run the CSM-safe fixed Petyr source refresh through the product endpoint (an
+authenticated Petyr session with `petyr:forecast:write` or `petyr:admin` is
+required):
+
+```bash
+curl -X POST http://localhost:8080/api/petyr/data-refresh \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+This synchronous request normally takes 2-5 minutes. Petyr sends a protected
+server-to-server command to Redash Ingestor, which forces fresh Redash executions
+for the three approved sources before snapshot persistence and materialization.
+`APP_INTERNAL_SECRET` must be non-empty and shared by both services;
+`REDASH_INGESTOR_INTERNAL_URL` defaults to
+`http://redash-ingestor:3000/redash-ingestor` in root Compose.
+
 ## Forecasting app
 
 ```bash

@@ -13,6 +13,16 @@ Each decision should include:
 
 ---
 
+## 2026-07-22 - Allow CSM-triggered Petyr source refresh through a constrained command path
+
+- **Status:** Accepted.
+- **Context:** CSMs sometimes need current Redash-derived data before the normal 01:30 ingestion. The existing manual sync is part of the separate Redash Ingestor operator tool and is not suitable as a CSM product workflow.
+- **Decision:** Petyr users with `petyr:forecast:write`, plus `petyr:admin`, may trigger one fixed source refresh from the shared Forecasting header. Petyr authorizes the user and sends a server-to-server command protected by `APP_INTERNAL_SECRET` to Redash Ingestor. The Ingestor alone calls Redash, forces fresh executions with `max_age=0` for `master_campaigns`, `master_agreements` and `company_ownership`, waits for each result, then stores snapshots and rebuilds the PostgreSQL latest tables under the existing global sync lock. The browser is told before confirmation that the process normally lasts 2–5 minutes.
+- **Alternatives discarded:** Giving CSMs access to the full Redash Ingestor operator dashboard; calling Redash directly from Forecasting; duplicating ingestion/materialization logic in Petyr; allowing arbitrary source/query selection from the CSM UI.
+- **Reason:** This provides a CSM-safe freshness action while preserving service ownership, least privilege, auditability and the canonical Redash -> Ingestor -> PostgreSQL -> Petyr flow.
+- **Consequences:** `POST /api/petyr/data-refresh` is a synchronous product command and requires `petyr:forecast:write` or `petyr:admin`. It calls the internal Ingestor endpoint configured by `REDASH_INGESTOR_INTERNAL_URL`; both services must share a non-empty `APP_INTERNAL_SECRET`. Concurrent manual/nightly refreshes return a conflict through the existing global lock. The technical Redash Ingestor routes and permissions remain unchanged.
+- **Related docs:** `docs/01_architecture.md`, `docs/03_redash_sources.md`, `docs/05_forecasting_product_spec.md`, `docs/08_operational_commands.md`, `docs/access-control/TOOL_INTEGRATION_GUIDE.md`, `apps/redash-ingestor/README.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+
 ## 2026-07-16 - Separate Petyr feedback management from administrator access
 
 - **Status:** Accepted.

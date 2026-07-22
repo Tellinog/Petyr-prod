@@ -123,8 +123,8 @@ Rules:
   selected-month read-only `Closed Revenue` value instead of a forecast input;
   expanded closed-revenue columns use the label `Closed Revenue` for past
   months and `Closed Revenue YTD` otherwise.
-- Annual Forecast Entry can sort visible rows by Company, Forecast Initial,
-  Forecast Ongoing, Confidence and each visible Business Unit. Business Unit
+- Annual Forecast Entry can sort visible rows by Company, Forecast Ongoing,
+  Confidence and each visible Business Unit. Business Unit
   sorting orders rows from highest to lowest value, using saved/local values and
   AI placeholders when no CSM value is saved.
 - Annual Forecast Entry shows all active and inactive rows by default, and the
@@ -133,7 +133,10 @@ Rules:
   reflects the visible rows when this filter is applied.
 - Annual company rows show only the linked company name in the first column,
   without a company-level Forecast Ongoing total label or CSM label beneath it.
+- Annual Forecast Entry is the default tab when opening `/forecasting/entry`; Monthly remains selectable.
+- The company-level Forecast Initial column starts collapsed behind an annual-header show/hide control, is revealed with its existing values and inputs on demand, and is not sortable.
 - Annual Entry table headers stay fixed during vertical scroll, the legend row spans the full horizontal table width, and Company plus Confidence stay visible during horizontal scroll.
+- Annual Entry Confidence uses a semaphore treatment: `01 High` is green, `02 Mid` is yellow and `03 Low` is red.
 - Annual Entry shows the selected CSM filter annual summary as a highlighted total row directly under the table headers and above the first company row. The total row is not a company row: Active, Confidence and Logs remain empty, while Forecast Initial, Forecast Ongoing, visible Business Unit totals, Closed Revenue YTD, Planned This Year and ratio values align under their respective columns. The row stays visible below the sticky headers while users scroll down the Annual portfolio.
 - Forecast Entry headers may display the official `Experience` Business Unit as `UX` while preserving `Experience` as the stored Business Unit value.
 - Monthly and Annual Forecast Entry display Business Unit columns in this CSM
@@ -151,6 +154,10 @@ Rules:
   enough for values up to eight digits plus separators.
 - Zero or empty Forecast Entry numeric cells use a softer grey treatment so
   populated values stand out.
+- When a CSM clears a Monthly or Annual Forecast Ongoing Business Unit field,
+  the next save persists `0` for that Business Unit rather than rejecting the
+  save. The Annual Forecast Ongoing total is recalculated from the saved
+  Business Unit values immediately after a successful save.
 - Monthly and Annual Forecast Entry table body rows use compact vertical
   padding and top-align cell content. Saved/Saved CSM forecast labels and
   related AI Forecast references render on separate lines, with the AI Forecast

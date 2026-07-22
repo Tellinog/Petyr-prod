@@ -1,6 +1,7 @@
 import type { AnchorHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PetyrSourceDataRefreshControl } from "@/components/petyr/PetyrSourceDataRefreshControl";
 import { cn } from "@/lib/utils";
 
 type PetyrTone = "neutral" | "info" | "success" | "warning" | "danger";
@@ -34,6 +35,7 @@ type PetyrWorkspaceShellProps = Omit<PetyrPageShellProps, "children"> & {
   companyDetailHref?: string | null;
   forecastEntryHref?: string | null;
   canViewCsmOverview?: boolean;
+  canRefreshSourceData?: boolean;
   children: ReactNode;
 };
 
@@ -125,6 +127,7 @@ export function PetyrWorkspaceShell({
   companyDetailHref = null,
   forecastEntryHref = null,
   canViewCsmOverview = false,
+  canRefreshSourceData = false,
   children,
   ...props
 }: PetyrWorkspaceShellProps) {
@@ -141,7 +144,7 @@ export function PetyrWorkspaceShell({
   return (
     <PetyrPageShell {...props}>
       <div className="relative rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-        <div className={cn(helpHref ? "pr-24" : undefined)}>
+        <div className={cn(canRefreshSourceData ? "md:pr-[440px]" : helpHref ? "md:pr-24" : undefined)}>
           <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-600">
             UNGUESS · Petyr
           </div>
@@ -150,17 +153,22 @@ export function PetyrWorkspaceShell({
             {headerCopy.description}
           </p>
         </div>
-        {helpHref ? (
-          <a
-            aria-label="Open Forecast Entry FAQ"
-            className="absolute right-6 top-6 inline-flex h-10 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 md:right-8 md:top-8"
-            href={helpHref}
-            title="Forecast Entry FAQ"
-          >
-            <span className="text-base leading-none">?</span>
-            <span>FAQ</span>
-          </a>
-        ) : null}
+        <div className="mt-5 flex flex-col items-end gap-2 md:absolute md:right-8 md:top-8 md:mt-0">
+          <div className="flex flex-wrap justify-end gap-2">
+            {canRefreshSourceData ? <PetyrSourceDataRefreshControl /> : null}
+            {helpHref ? (
+              <a
+                aria-label="Open Forecast Entry FAQ"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                href={helpHref}
+                title="Forecast Entry FAQ"
+              >
+                <span className="text-base leading-none">?</span>
+                <span>FAQ</span>
+              </a>
+            ) : null}
+          </div>
+        </div>
       </div>
 
       <nav

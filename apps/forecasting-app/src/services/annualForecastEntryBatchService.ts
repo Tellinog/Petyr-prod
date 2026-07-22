@@ -248,6 +248,14 @@ function parseMoney(value: unknown) {
   return new Prisma.Decimal(normalized);
 }
 
+function parseMoneyOrZero(value: unknown) {
+  if (typeof value === "string" && !value.trim()) {
+    return new Prisma.Decimal(0);
+  }
+
+  return parseMoney(value);
+}
+
 function normalizeBusinessUnit(value: unknown): PetyrBusinessUnit | null {
   const normalized = asString(value);
   return PETYR_BUSINESS_UNITS.find((businessUnit) => normalizeKey(businessUnit) === normalizeKey(normalized)) ?? null;
@@ -639,7 +647,7 @@ export async function getAnnualForecastEntryBatch(
           entryRows: entryRows.length
         }
       };
-    });
+    }, { ttlMs: 0 });
 
     finishPerformance({
       status: "success",
@@ -674,17 +682,10 @@ function validateAnnualValues(values: unknown) {
       throw new AnnualForecastEntryBatchError(`Annual Forecast Entry save contains duplicate values for ${businessUnit}.`, 400);
     }
 
-    if (typeof row.value === "string" && !row.value.trim()) {
-      throw new AnnualForecastEntryBatchError(
-        `Annual forecast value for ${businessUnit} is empty. Enter a non-negative number, or enter 0 to save zero.`,
-        400
-      );
-    }
-
-    const value = parseMoney(row.value);
+    const value = parseMoneyOrZero(row.value);
     if (!value) {
       throw new AnnualForecastEntryBatchError(
-        `Annual forecast value for ${businessUnit} must be numeric and greater than or equal to 0. Use digits only, or enter 0 to save zero.`,
+        `Annual forecast value for ${businessUnit} must be numeric and greater than or equal to 0. Blank Business Unit fields are saved as 0.`,
         400
       );
     }
@@ -720,17 +721,10 @@ function validateAnnualInitialBusinessUnitValues(values: unknown) {
       throw new AnnualForecastEntryBatchError(`Annual Forecast Entry BU Initial save contains duplicate values for ${businessUnit}.`, 400);
     }
 
-    if (typeof row.value === "string" && !row.value.trim()) {
-      throw new AnnualForecastEntryBatchError(
-        `Business Unit Initial Forecast for ${businessUnit} is empty. Enter a non-negative number, or enter 0 to save zero.`,
-        400
-      );
-    }
-
-    const value = parseMoney(row.value);
+    const value = parseMoneyOrZero(row.value);
     if (!value) {
       throw new AnnualForecastEntryBatchError(
-        `Business Unit Initial Forecast for ${businessUnit} must be numeric and greater than or equal to 0. Use digits only, or enter 0 to save zero.`,
+        `Business Unit Initial Forecast for ${businessUnit} must be numeric and greater than or equal to 0. Blank Business Unit fields are saved as 0.`,
         400
       );
     }

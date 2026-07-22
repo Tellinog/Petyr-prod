@@ -28,6 +28,14 @@ The ingestion service may contain configuration for several sources, but forecas
 - current CSM owner: `csm_name`;
 - company branch: `company_branch`.
 
+## CSM-triggered Petyr refresh
+
+The Petyr frontend may trigger a fixed refresh of all three required sources.
+For this flow Redash Ingestor must execute each query with `max_age=0`, wait for
+the fresh query-result job, save the raw snapshot and rebuild the corresponding
+`redash_raw_*_latest` table. The action must not expose arbitrary source or query
+selection to CSMs and must use the same global lock as the nightly sync.
+
 ## First cleanup task
 
 Disable unused sources instead of deleting them.

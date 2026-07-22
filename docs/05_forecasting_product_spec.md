@@ -61,6 +61,18 @@ users with `petyr:admin`.
 
 `/forecasting` may render a lightweight shell immediately after page permission checks and then refresh PostgreSQL-backed rendering data through protected API route `GET /api/petyr/forecasting/rendering-data`. The endpoint accepts optional `view=management|csm|csm-scoped|all` and `year=YYYY`: on normal app open the browser must request Management first, mark the workspace usable when Management data arrives, then start Forecast Entry Monthly/Annual warmup for users with `petyr:forecast:write`; admin users also start scoped CSM Overview preload for the authenticated/preferred CSM. It must not hydrate `view=all` as the immediate second step after Management. During the Management refresh, Petyr must show only the shared workspace header, section navigator and an in-page loader labelled `Updating data ongoing`, so users know Branch, CSM and Business Unit Management data is updating before the dashboard appears. Forecast Entry Monthly/Annual warmup is best-effort and available for users with `petyr:forecast:write`. The shell and partial view payloads are only temporary rendering states: final Management and CSM data must still come from PostgreSQL-backed Petyr services, diagnostics must remain visible to admins, and Forecasting must not call Redash directly. Company Detail remains on-demand and should load only the selected company/year rather than preloading every company from `/forecasting`.
 
+The shared Forecasting header exposes `Refresh data` to users with
+`petyr:forecast:write` and `petyr:admin`. Before starting, the UI must explain
+that Redash will refresh its queries and Petyr will then collect the new results,
+normally taking 2-5 minutes. Confirmation calls `POST /api/petyr/data-refresh`.
+The endpoint accepts no source/query selection, authorizes server-side, and
+commands Redash Ingestor through its protected internal endpoint. The Ingestor
+forces fresh executions only for `master_campaigns`, `master_agreements` and
+`company_ownership`, then saves snapshots and materializes PostgreSQL. On
+success the current Petyr page reloads. A concurrent nightly/manual sync returns
+a non-destructive already-running response. This command does not make
+Forecasting a Redash data client and does not trigger AI Forecast generation.
+
 The Petyr workspace shell must be shared across Management View, CSM Overview, Company Detail and Forecast Entry: one descriptive header card, one section navigator and route-aware links. The header card title and supporting copy must describe what the active view offers, so users can understand the page immediately. CSM Overview is temporarily in development and must be visible/accessible only to users with `petyr:admin`; non-admin users must not see its navigator item, must stay on Management when requesting `?view=csm`, and must not receive CSM Overview rendering payloads. For admins, the top-level workspace switches Management/CSM through `?view=management|csm`; Company Detail and Forecast Entry use dedicated routes with query parameters when context is available.
 
 All authenticated Petyr users with `petyr:read` or `petyr:feedback:manage` must have access to a fixed bottom-left
@@ -345,6 +357,11 @@ Normal batch table rules:
   values up to eight digits plus separators;
 - zero or empty Monthly Forecast Entry numeric cells use a softer grey treatment
   so populated cells stand out;
+- clearing an editable Monthly or Annual Forecast Ongoing Business Unit field
+  saves it as `0`, rather than returning an empty-value validation error;
+- successful Forecast Entry saves return a freshly read portfolio so a reload
+  shows the persisted values, and Annual Forecast Ongoing is recalculated from
+  the saved Business Unit values;
 - Monthly table body rows use compact vertical padding and top-align cell
   content. Saved CSM forecast labels and related AI Forecast references render
   on separate lines, with the AI Forecast reference using the AI legend color;
@@ -387,7 +404,7 @@ Annual Forecast Entry rules:
   exist;
 - default ordering is active companies first, then inactive companies with
   Revenue or Planned, then inactive companies without Revenue or Planned;
-- the Company, Forecast Initial, Forecast Ongoing and Confidence
+- the Company, Forecast Ongoing and Confidence
   headers can sort the currently visible Annual Forecast Entry rows without
   changing persistence or the selected CSM/year filters;
 - each visible Annual Business Unit header can sort the currently visible rows
@@ -416,6 +433,8 @@ Annual Forecast Entry rules:
   portfolio;
 - Forecast Entry headers may display the official `Experience` Business Unit as
   `UX` while preserving `Experience` as the stored Business Unit value;
+- Annual Forecast Entry opens by default when users enter `/forecasting/entry`; Monthly Forecast Entry remains available as the other selectable tab.
+- The company-level Forecast Initial column starts collapsed so Forecast Ongoing remains prominent. A show/hide control in the annual header reveals the existing Forecast Initial column on demand and collapses it again; Forecast Initial is not sortable.
 - Business Unit columns use the same CSM check order as Monthly Forecast Entry:
   QA, UX/Experience, Accessibility, Security, FTE, TA, AI, OTHER/Other, Express,
   Community;
@@ -453,6 +472,8 @@ Annual Forecast Entry rules:
   `forecast_annual_entry.ongoing_confidence`, accepts only `01 High`, `02 Mid`
   and `03 Low`, and is required only when Forecast Ongoing Business Unit values
   are modified without an existing confidence value;
+- Annual Forecast Entry presents Confidence with a semaphore treatment: `01 High`
+  is green, `02 Mid` is yellow and `03 Low` is red;
 - Business Unit values use all official Petyr Business Units and are stored in
   `forecast_annual` with `value_source=manual` or `value_source=ai_confirmed`;
 - while the Forecast Initial window is open or admin-unlocked, Annual Forecast
