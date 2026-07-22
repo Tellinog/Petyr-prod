@@ -20,6 +20,13 @@ Each entry must include:
 
 ## 2026-07-22
 
+- **Area:** Petyr / Forecast Entry annual header
+- **Change:** Reduced the collapsed Forecast Initial show control to a compact, labelled `+` action beside Forecast Ongoing and tightened its header spacing.
+- **Reason:** Prevent the Initial control from overlapping the Forecast Ongoing header while keeping the reveal action available.
+- **Impact:** Visual/accessibility adjustment only; Annual Forecast Entry data, visibility state, sorting and save behavior are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `DEVLOG.md`.
+- **Follow-up:** None.
+
 - **Area:** Petyr / CSM source-data refresh
 - **Change:** Added `Refresh data` to the shared Forecasting header for `petyr:forecast:write` and `petyr:admin` users, with an explicit 2-5 minute confirmation/status flow. Added protected `POST /api/petyr/data-refresh` and a server-to-server Redash Ingestor command that forces fresh execution of the three approved Petyr queries before snapshot persistence and PostgreSQL latest-table materialization under the existing global sync lock.
 - **Reason:** CSMs need to refresh Redash-derived Petyr data on demand instead of waiting for the normal 01:30 nightly ingestion.

@@ -960,7 +960,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                   className={`${HEADER_STICKY_CLASS} min-w-[150px] bg-white`}
                   aria-sort={annualSort.key === "ongoing" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
                 >
-                  <div className="flex min-h-9 items-stretch gap-2">
+                  <div className="flex min-h-9 items-stretch gap-1">
                     <button
                       type="button"
                       className={`${SORT_BUTTON_BASE_CLASS} min-w-0 flex-1 border-slate-200 hover:border-slate-300 hover:bg-slate-50`}
@@ -973,11 +973,13 @@ export default function AnnualForecastEntryBatchWorkspace({
                       <Button
                         type="button"
                         variant="outline"
-                        className="h-auto shrink-0 rounded-lg border-amber-200 px-2 text-[11px] leading-tight"
+                        className="h-auto w-7 shrink-0 rounded-lg border-amber-200 p-0 text-sm font-bold leading-none"
                         onClick={() => setShowInitialForecast(true)}
                         aria-expanded="false"
+                        aria-label="Show Forecast Initial"
+                        title="Show Forecast Initial"
                       >
-                        Show Initial
+                        +
                       </Button>
                     ) : null}
                   </div>
