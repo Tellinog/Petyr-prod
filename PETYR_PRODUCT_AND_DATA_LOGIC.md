@@ -395,9 +395,10 @@ Monthly Forecast Entry table rules:
 - the Company header can sort the loaded monthly portfolio by company name
   ascending or descending;
 - each Monthly Business Unit header can sort the currently visible rows from
-  highest to lowest value for that Business Unit. Sorting uses the saved or
-  locally edited active forecast value when present, and the AI placeholder
-  value when no CSM value is saved;
+  highest to lowest value for that Business Unit. Sorting uses the saved active
+  forecast value when present, and the AI placeholder value when no CSM value
+  is saved. Local edits keep their row in place; sorting and Active visibility
+  are reapplied only after a successful save;
 - each Monthly company row shows the company-level total of the currently
   active Business Unit forecast values directly under the company name,
   replacing the previous company-status label in that position;
@@ -570,8 +571,9 @@ Table rules:
   persistence or the selected CSM/year filters;
 - each visible Annual Business Unit header can sort the currently visible rows
   from highest to lowest Forecast Ongoing value for that Business Unit. Sorting
-  uses saved or locally edited Forecast Ongoing values when present, and the AI
-  placeholder value when no CSM value is saved;
+  uses saved Forecast Ongoing values when present, and the AI placeholder value
+  when no CSM value is saved. Local edits keep their row in place; sorting and
+  Active visibility are reapplied only after a successful save;
 - inactive companies remain visible with muted styling by default;
 - the Active column can filter the visible Annual rows to all companies, active
   companies only or inactive companies only; this is a client-side table view

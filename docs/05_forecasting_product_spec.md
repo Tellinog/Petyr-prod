@@ -299,8 +299,9 @@ Normal batch table rules:
 - the Company header can sort the loaded Monthly Forecast Entry rows by company
   name ascending or descending;
 - each Monthly Business Unit header can sort the visible rows from highest to
-  lowest value for that Business Unit, considering saved/local forecast values
-  and AI placeholder values when no CSM value is saved;
+  lowest value for that Business Unit, considering saved forecast values and
+  AI placeholder values when no CSM value is saved. Local edits keep their row
+  in place; sorting and Active visibility are reapplied only after a successful save;
 - Monthly Forecast Entry includes an `Active` column immediately after Company,
   before the Business Unit groups. The header uses the same all/active/inactive
   visibility filter as Annual Forecast Entry. The row checkbox persists
@@ -408,8 +409,10 @@ Annual Forecast Entry rules:
   headers can sort the currently visible Annual Forecast Entry rows without
   changing persistence or the selected CSM/year filters;
 - each visible Annual Business Unit header can sort the currently visible rows
-  from highest to lowest value for that Business Unit, considering saved/local
-  Forecast Ongoing values and AI placeholder values when no CSM value is saved;
+  from highest to lowest value for that Business Unit, considering saved
+  Forecast Ongoing values and AI placeholder values when no CSM value is saved.
+  Local edits keep their row in place; sorting and Active visibility are
+  reapplied only after a successful save;
 - inactive rows remain visible with muted styling by default;
 - the Active column can filter visible Annual rows to all companies, active
   companies only or inactive companies only. This is a client-side table view

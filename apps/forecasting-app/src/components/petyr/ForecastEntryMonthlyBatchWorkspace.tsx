@@ -465,10 +465,6 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     if (isPastSelectedPeriod) return cell.closedRevenue ?? 0;
 
     const forecastType = (editableForecastType ?? "previous_month") as MonthlyForecastType;
-    const key = cellKey(company.companyName, cell.businessUnit);
-    const parsed = parseMoneyInput(values[key] ?? "");
-    if (sourceStates[key]) return parsed ?? 0;
-
     const forecast = forecastForType(cell, forecastType);
     if (forecast?.hasSavedCsmValue) return forecast.value ?? 0;
 
@@ -575,7 +571,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
   const periodSelectionChanged = draftMonth !== String(batch.data.month) || draftYear !== String(batch.data.year);
   const monthlyCompanies = useMemo(() => {
     return batch.data.companies.filter((company) => {
-      const isActive = activeValues[company.companyName] ?? company.isForecastActive;
+      const isActive = company.isForecastActive;
       if (activeVisibilityFilter === "active") return isActive;
       if (activeVisibilityFilter === "inactive") return !isActive;
       return true;
@@ -589,7 +585,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
       const result = left.companyName.localeCompare(right.companyName);
       return monthlySort.direction === "asc" ? result : -result;
     });
-  }, [activeValues, activeVisibilityFilter, batch.data.companies, editableForecastType, isPastSelectedPeriod, monthlySort, sourceStates, values]);
+  }, [activeVisibilityFilter, batch.data.companies, editableForecastType, isPastSelectedPeriod, monthlySort]);
 
   const monthlySummary = useMemo(() => {
     const byBusinessUnit = Object.fromEntries(

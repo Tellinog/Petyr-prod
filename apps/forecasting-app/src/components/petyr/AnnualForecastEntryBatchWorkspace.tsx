@@ -469,7 +469,14 @@ export default function AnnualForecastEntryBatchWorkspace({
   function annualBusinessUnitSortValue(company: AnnualForecastEntryBatchCompany, businessUnit: string) {
     const cell = company.businessUnits.find((item) => item.businessUnit === businessUnit);
     if (!cell) return 0;
-    return currentBuValue(company, cell) ?? cell.aiForecast.value ?? 0;
+    return cell.savedForecast.hasSavedValue ? cell.savedForecast.value ?? 0 : cell.aiForecast.value ?? 0;
+  }
+
+  function savedFcOngoing(company: AnnualForecastEntryBatchCompany) {
+    return company.businessUnits.reduce(
+      (sum, cell) => sum + (cell.savedForecast.hasSavedValue ? cell.savedForecast.value ?? 0 : 0),
+      0
+    );
   }
 
   function currentFcOngoing(company: AnnualForecastEntryBatchCompany) {
@@ -494,7 +501,7 @@ export default function AnnualForecastEntryBatchWorkspace({
 
   const displayedAnnualCompanies = useMemo(() => {
     const filteredCompanies = batch.data.companies.filter((company) => {
-      const isActive = activeValues[company.companyName] ?? company.isForecastActive;
+      const isActive = company.isForecastActive;
       if (activeVisibilityFilter === "active") return isActive;
       if (activeVisibilityFilter === "inactive") return !isActive;
       return true;
@@ -508,12 +515,12 @@ export default function AnnualForecastEntryBatchWorkspace({
       if (annualSort.key === "company") {
         result = left.companyName.localeCompare(right.companyName);
       } else if (annualSort.key === "ongoing") {
-        result = currentFcOngoing(left) - currentFcOngoing(right);
+        result = savedFcOngoing(left) - savedFcOngoing(right);
       } else if (annualSort.key === "business_unit" && annualSort.businessUnit) {
         result = annualBusinessUnitSortValue(left, annualSort.businessUnit) - annualBusinessUnitSortValue(right, annualSort.businessUnit);
       } else if (annualSort.key === "confidence") {
-        const leftRank = confidenceSortRank(confidenceValues[left.companyName] ?? "");
-        const rightRank = confidenceSortRank(confidenceValues[right.companyName] ?? "");
+        const leftRank = confidenceSortRank(left.ongoingConfidence ?? "");
+        const rightRank = confidenceSortRank(right.ongoingConfidence ?? "");
         const leftMissing = leftRank === 3;
         const rightMissing = rightRank === 3;
 
@@ -530,7 +537,7 @@ export default function AnnualForecastEntryBatchWorkspace({
 
       return left.companyName.localeCompare(right.companyName);
     });
-  }, [activeValues, activeVisibilityFilter, annualSort, batch.data.companies, confidenceValues, initialValues, sourceStates, values]);
+  }, [activeVisibilityFilter, annualSort, batch.data.companies]);
 
   const annualSummary = useMemo(() => {
     const byBusinessUnit = Object.fromEntries(batch.data.businessUnits.map((businessUnit) => [businessUnit, 0])) as Record<string, number>;

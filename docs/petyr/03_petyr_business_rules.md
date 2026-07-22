@@ -91,8 +91,9 @@ Rules:
   `01 High`, `02 Mid` and `03 Low`.
 - Monthly Forecast Entry can sort the visible company portfolio by Company.
 - Monthly Forecast Entry can sort the visible company portfolio by each
-  Business Unit from highest to lowest value, using saved/local values and AI
-  placeholders when no CSM value is saved.
+  Business Unit from highest to lowest value, using saved values and AI
+  placeholders when no CSM value is saved. Local edits keep their row in place;
+  sorting and Active visibility are reapplied only after a successful save.
 - Monthly Forecast Entry uses Ongoing Forecast as the active compact/editable
   field from the 15th of the month before the selected month onward. Future
   selected months before that cutoff use Previous Month Forecast. Past months
@@ -125,8 +126,9 @@ Rules:
   months and `Closed Revenue YTD` otherwise.
 - Annual Forecast Entry can sort visible rows by Company, Forecast Ongoing,
   Confidence and each visible Business Unit. Business Unit
-  sorting orders rows from highest to lowest value, using saved/local values and
-  AI placeholders when no CSM value is saved.
+  sorting orders rows from highest to lowest value, using saved values and AI
+  placeholders when no CSM value is saved. Local edits keep their row in place;
+  sorting and Active visibility are reapplied only after a successful save.
 - Annual Forecast Entry shows all active and inactive rows by default, and the
   Active column can filter the visible table to all, active only or inactive
   only without changing persisted company status. The Annual portfolio total row

@@ -20,6 +20,13 @@ Each entry must include:
 
 ## 2026-07-22
 
+- **Area:** Petyr / Forecast Entry table stability
+- **Change:** Monthly and Annual Forecast Entry now keep sorting and the Active visibility result based on the last saved batch while a row is being edited. After a successful save, the refreshed batch reapplies the selected ordering and visibility filter.
+- **Reason:** Editing a value could immediately reorder or hide the row, causing users to lose their position in the portfolio.
+- **Impact:** Draft inputs and live portfolio totals remain visible while editing; no persistence, API, permission, calculation or audit behavior changed.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
 - **Area:** Petyr / Forecast Entry annual header
 - **Change:** Reduced the collapsed Forecast Initial show control to a compact, labelled `+` action beside Forecast Ongoing and tightened its header spacing.
 - **Reason:** Prevent the Initial control from overlapping the Forecast Ongoing header while keeping the reveal action available.
