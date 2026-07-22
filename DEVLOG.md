@@ -56,7 +56,7 @@ Each entry must include:
 - **Follow-up:** None.
 
 - **Area:** Petyr / Annual Forecast Entry table navigation
-- **Change:** Moved the Active column before Customer in Annual Forecast Entry and pinned both columns during horizontal scrolling. Removed the non-contiguous Confidence pin to prevent overlap with intervening forecast columns.
+- **Change:** Moved the Active column before Customer in Annual Forecast Entry and pinned Active, Customer and Confidence during horizontal scrolling. Confidence is now positioned directly after Customer so all three pinned columns remain contiguous and do not overlap forecast values.
 - **Reason:** Product requested that the active state be immediately visible before the customer name and remain available while reviewing the wide annual grid.
 - **Impact:** UI layout/navigation only. Active status editing, filtering, saving, audit logging and annual forecast calculations are unchanged.
 - **Files/documents involved:** `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `DEVLOG.md`.

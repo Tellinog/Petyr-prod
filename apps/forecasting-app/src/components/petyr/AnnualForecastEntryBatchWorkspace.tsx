@@ -260,6 +260,7 @@ const UNCOVERED_RATIO_COLUMN_WIDTH = 180;
 const LOGS_COLUMN_WIDTH = 220;
 const ACTIVE_STICKY_CLASS = "sticky left-0 min-w-[150px]";
 const COMPANY_STICKY_CLASS = "sticky left-[150px] min-w-[220px] shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]";
+const CONFIDENCE_STICKY_CLASS = "sticky left-[370px] min-w-[150px] shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]";
 const PINNED_BODY_STICKY_CLASS = "z-20";
 const PINNED_HEADER_STICKY_CLASS = "z-[60]";
 const HEADER_STICKY_CLASS = "sticky top-16 z-40 shadow-[0_1px_0_0_rgba(226,232,240,1)]";
@@ -926,6 +927,19 @@ export default function AnnualForecastEntryBatchWorkspace({
                     <span className="text-[11px] font-semibold text-slate-500">{annualSortLabel(annualSort, "company")}</span>
                   </button>
                 </TableHead>
+                <TableHead
+                  className={`${CONFIDENCE_STICKY_CLASS} bg-amber-50 ${HEADER_STICKY_CLASS} ${PINNED_HEADER_STICKY_CLASS}`}
+                  aria-sort={annualSort.key === "confidence" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
+                >
+                  <button
+                    type="button"
+                    className={`${SORT_BUTTON_BASE_CLASS} border-amber-200 hover:border-amber-300 hover:bg-amber-50`}
+                    onClick={() => setAnnualSort((current) => nextAnnualSort(current, "confidence"))}
+                  >
+                    <span>Confidence</span>
+                    <span className="text-[11px] font-semibold text-slate-500">{annualSortLabel(annualSort, "confidence")}</span>
+                  </button>
+                </TableHead>
                 {showInitialForecast ? (
                   <TableHead className={`${HEADER_STICKY_CLASS} w-[128px] min-w-[128px] ${MANUAL_HEADER_CLASS}`}>
                     <div className="flex min-h-9 items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-2 text-xs font-semibold text-slate-800 shadow-sm">
@@ -967,19 +981,6 @@ export default function AnnualForecastEntryBatchWorkspace({
                       </Button>
                     ) : null}
                   </div>
-                </TableHead>
-                <TableHead
-                  className={`min-w-[150px] bg-amber-50 ${HEADER_STICKY_CLASS}`}
-                  aria-sort={annualSort.key === "confidence" ? (annualSort.direction === "asc" ? "ascending" : "descending") : "none"}
-                >
-                  <button
-                    type="button"
-                    className={`${SORT_BUTTON_BASE_CLASS} border-amber-200 hover:border-amber-300 hover:bg-amber-50`}
-                    onClick={() => setAnnualSort((current) => nextAnnualSort(current, "confidence"))}
-                  >
-                    <span>Confidence</span>
-                    <span className="text-[11px] font-semibold text-slate-500">{annualSortLabel(annualSort, "confidence")}</span>
-                  </button>
                 </TableHead>
                 {showBusinessUnits
                   ? batch.data.businessUnits.map((businessUnit) => (
@@ -1040,6 +1041,10 @@ export default function AnnualForecastEntryBatchWorkspace({
                     </div>
                     <div className="mt-1 text-xs font-medium text-cyan-700">Portfolio total</div>
                   </TableCell>
+                  <TableCell
+                    className={`${CONFIDENCE_STICKY_CLASS} z-50 bg-cyan-50`}
+                    aria-label="No confidence value for total row"
+                  />
                   {showInitialForecast ? (
                     <TableCell className={`w-[128px] min-w-[128px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(annualSummary.initialTotal))}`}>
                       {formatPetyrIntegerCurrencyValue(annualSummary.initialTotal)}
@@ -1048,10 +1053,6 @@ export default function AnnualForecastEntryBatchWorkspace({
                   <TableCell className={`min-w-[150px] bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(annualSummary.total))}`}>
                     {formatPetyrIntegerCurrencyValue(annualSummary.total)}
                   </TableCell>
-                  <TableCell
-                    className="min-w-[150px] bg-cyan-50"
-                    aria-label="No confidence value for total row"
-                  />
                   {showBusinessUnits
                     ? annualSummary.byBusinessUnit.map((item, index) => {
                         const initialItem = annualSummary.initialByBusinessUnit[index];
@@ -1123,30 +1124,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                           {company.companyName}
                         </Link>
                       </TableCell>
-                      {showInitialForecast ? (
-                        <TableCell className={batch.data.initialMode.editable ? MANUAL_CELL_CLASS : "bg-slate-50"}>
-                          <Input
-                            inputMode="numeric"
-                            disabled={!batch.data.initialMode.editable || isSaving}
-                            readOnly={!batch.data.initialMode.editable}
-                            value={initialValues[company.companyName] ?? ""}
-                            onChange={(event) => updateInitial(company.companyName, event.target.value)}
-                            onKeyDown={handleSaveKeyDown}
-                            placeholder="n/a"
-                            className={`h-8 min-w-[112px] rounded-xl text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(initialValues[company.companyName] ?? ""))} ${
-                              touchedInitial.has(company.companyName)
-                                ? "border-emerald-300 bg-emerald-50"
-                                : batch.data.initialMode.editable
-                                  ? "border-amber-200 bg-amber-50"
-                                  : "bg-white"
-                            }`}
-                          />
-                        </TableCell>
-                      ) : null}
-                      <TableCell className={`text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(fcOngoing))}`}>
-                        {formatPetyrIntegerCurrencyValue(fcOngoing)}
-                      </TableCell>
-                      <TableCell className={company.isForecastActive ? "bg-amber-50" : "bg-slate-50"}>
+                      <TableCell className={`${CONFIDENCE_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} ${company.isForecastActive ? "bg-amber-50" : "bg-slate-50"}`}>
                         <div className="relative min-w-[130px]">
                           <span
                             aria-hidden="true"
@@ -1172,6 +1150,29 @@ export default function AnnualForecastEntryBatchWorkspace({
                             ))}
                           </select>
                         </div>
+                      </TableCell>
+                      {showInitialForecast ? (
+                        <TableCell className={batch.data.initialMode.editable ? MANUAL_CELL_CLASS : "bg-slate-50"}>
+                          <Input
+                            inputMode="numeric"
+                            disabled={!batch.data.initialMode.editable || isSaving}
+                            readOnly={!batch.data.initialMode.editable}
+                            value={initialValues[company.companyName] ?? ""}
+                            onChange={(event) => updateInitial(company.companyName, event.target.value)}
+                            onKeyDown={handleSaveKeyDown}
+                            placeholder="n/a"
+                            className={`h-8 min-w-[112px] rounded-xl text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(initialValues[company.companyName] ?? ""))} ${
+                              touchedInitial.has(company.companyName)
+                                ? "border-emerald-300 bg-emerald-50"
+                                : batch.data.initialMode.editable
+                                  ? "border-amber-200 bg-amber-50"
+                                  : "bg-white"
+                            }`}
+                          />
+                        </TableCell>
+                      ) : null}
+                      <TableCell className={`text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(fcOngoing))}`}>
+                        {formatPetyrIntegerCurrencyValue(fcOngoing)}
                       </TableCell>
                       {showBusinessUnits ? company.businessUnits.map((cell) => {
                         const key = cellKey(company.companyName, cell.businessUnit);
