@@ -20,6 +20,13 @@ Each entry must include:
 
 ## 2026-07-22
 
+- **Area:** Petyr / Browser identity
+- **Change:** Added a dedicated Petyr SVG favicon: a high-contrast geometric `P` with a small upward trend marker, exposed through the App Router icon convention.
+- **Reason:** Provide a recognizable browser-tab icon for the Petyr forecasting tool.
+- **Impact:** Browser-visible identity only; no workspace layout, product logic, API, data or permission behavior changed.
+- **Files/documents involved:** `apps/forecasting-app/src/app/icon.svg`, `DEVLOG.md`.
+- **Follow-up:** None.
+
 - **Area:** Petyr / Monthly Forecast Entry total visibility
 - **Change:** Moved each company's Monthly Forecast Entry total out of the secondary line under the company name into a highlighted `Monthly Total` column between Company and the Business Unit columns, matching the annual-entry table hierarchy. The highlighted portfolio total now aligns in that same column.
 - **Reason:** The total was visually easy to miss when presented as supporting text below the company name.
