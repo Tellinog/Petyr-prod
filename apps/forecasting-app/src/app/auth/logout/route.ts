@@ -2,38 +2,37 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
   PETYR_AUTH_SESSION_COOKIE,
+  PETYR_AUTH_STATE_COOKIE,
   readPetyrAuthConfig,
-  verifyPetyrSession,
-  joinAccessLayerUrl,
   getPetyrPublicRedirectUrl
 } from "@/lib/petyr/authCore";
+import { logoutPetyrAuthSession } from "@/lib/petyr/authSessionService";
+import { prismaPetyrAuthSessionStore } from "@/lib/petyr/authSessionStore";
 
 async function logout(request: Request) {
-  const config = readPetyrAuthConfig();
   const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get(PETYR_AUTH_SESSION_COOKIE)?.value;
-  const identity =
-    config.mode === "access-layer" && config.sessionSecret
-      ? verifyPetyrSession(sessionCookie, config.sessionSecret)
-      : null;
+  const localSessionId = cookieStore.get(PETYR_AUTH_SESSION_COOKIE)?.value;
 
   cookieStore.delete(PETYR_AUTH_SESSION_COOKIE);
+  cookieStore.delete(PETYR_AUTH_STATE_COOKIE);
 
-  if (config.mode === "access-layer" && identity) {
-    try {
-      await fetch(joinAccessLayerUrl(config.internalBaseUrl ?? "", "/v1/auth/logout"), {
-        method: "POST",
-        headers: {
-          authorization: `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}`,
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({ session_id: identity.accessSessionId }),
-        cache: "no-store"
-      });
-    } catch {
-      // Local Petyr logout still succeeds if central logout is temporarily unavailable.
+  let config;
+  try {
+    config = readPetyrAuthConfig();
+  } catch {
+    if (localSessionId) {
+      try {
+        await prismaPetyrAuthSessionStore.delete(localSessionId);
+      } catch {
+        // The browser cookie is still removed even if the backing store is unavailable.
+      }
     }
+    return NextResponse.redirect(new URL("/forecasting", request.url));
   }
+
+  await logoutPetyrAuthSession(localSessionId, config, {
+    store: prismaPetyrAuthSessionStore
+  });
 
   return NextResponse.redirect(getPetyrPublicRedirectUrl("/forecasting", request.url, config));
 }

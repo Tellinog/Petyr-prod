@@ -2,11 +2,14 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
   createAuthState,
+  getAccessLayerStartUrl,
   getPetyrPublicRedirectUrl,
-  joinAccessLayerUrl,
+  PETYR_AUTH_SESSION_COOKIE,
   PETYR_AUTH_STATE_COOKIE,
   readPetyrAuthConfig
 } from "@/lib/petyr/authCore";
+import { logoutPetyrAuthSession } from "@/lib/petyr/authSessionService";
+import { prismaPetyrAuthSessionStore } from "@/lib/petyr/authSessionStore";
 
 export async function GET(request: Request) {
   const config = readPetyrAuthConfig();
@@ -15,8 +18,16 @@ export async function GET(request: Request) {
     return NextResponse.redirect(getPetyrPublicRedirectUrl("/forecasting", request.url, config));
   }
 
-  const state = createAuthState();
   const cookieStore = await cookies();
+  const existingLocalSessionId = cookieStore.get(PETYR_AUTH_SESSION_COOKIE)?.value;
+  if (existingLocalSessionId) {
+    await logoutPetyrAuthSession(existingLocalSessionId, config, {
+      store: prismaPetyrAuthSessionStore
+    });
+  }
+  cookieStore.delete(PETYR_AUTH_SESSION_COOKIE);
+
+  const state = createAuthState();
   cookieStore.set(PETYR_AUTH_STATE_COOKIE, state, {
     httpOnly: true,
     maxAge: 5 * 60,
@@ -25,10 +36,5 @@ export async function GET(request: Request) {
     secure: process.env.NODE_ENV === "production"
   });
 
-  const startUrl = new URL(joinAccessLayerUrl(config.publicBaseUrl ?? "", "/v1/auth/start"));
-  startUrl.searchParams.set("tool_slug", config.toolSlug);
-  startUrl.searchParams.set("return_url", config.callbackUrl ?? "");
-  startUrl.searchParams.set("state", state);
-
-  return NextResponse.redirect(startUrl);
+  return NextResponse.redirect(getAccessLayerStartUrl(config, state));
 }

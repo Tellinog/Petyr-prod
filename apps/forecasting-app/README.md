@@ -520,4 +520,41 @@ ACCESS_LAYER_CLIENT_SECRET=replace_with_petyr_tool_client_secret
 PETYR_SESSION_SECRET=replace_with_long_random_session_secret
 ```
 
-Petyr implements only the tool-side flow: `/auth/login`, `/auth/callback` and `/auth/logout`. The Access Layer service remains external and must register the `petyr` tool with the callback URL above. If a company-domain user completes Access Layer authentication but the returned grant does not include `petyr:read`, Petyr clears the local auth state and session cookies, then shows an Italian pending-access fallback telling the user that the administrator has been notified and to refer to Lorenzo Brandi for access timing. After the grant is released, the user should return through `/auth/login` and receive a fresh clean session.
+Petyr implements only the tool-side flow: `/auth/login`, `/auth/callback` and
+`/auth/logout`. The Access Layer service remains external and must register the
+`petyr` tool with the callback URL above.
+
+In Access Layer mode the browser cookie contains only a random opaque local
+session ID. Petyr stores the current Access Layer access token, single-use
+refresh token, access-token expiry, Access Layer session ID/expiry, identity and
+permissions in PostgreSQL table `petyr_auth_session`; access and refresh tokens
+are encrypted with a key derived from `PETYR_SESSION_SECRET`. Apply the Petyr
+Prisma schema/migration before enabling this mode in a deployed environment.
+Changing `PETYR_SESSION_SECRET` invalidates existing local Petyr sessions.
+
+Every protected page, Server Action and API guard resolves this server-side
+session before the protected operation. If the access token has more than 60
+seconds remaining, the request continues without contacting Access Layer. At 60
+seconds or less, Petyr calls
+`{ACCESS_LAYER_INTERNAL_BASE_URL}/v1/auth/refresh` server-to-server. Refreshes
+for one local session are serialized with a PostgreSQL advisory transaction
+lock, so concurrent requests wait and reuse the single atomically rotated
+result. A successful refresh replaces tokens, expiries, identity and
+permissions together. An invalid, failed or malformed refresh deletes the
+server-side session without retrying the submitted refresh token; browser
+navigation returns through `/auth/login`, while APIs return the normal generic
+unauthenticated response. There are no background refresh timers, cron jobs or
+heartbeats.
+
+Logout sends both the latest Access Layer `session_id` and `refresh_token` when
+available, using the internal base URL and Basic Auth. Petyr deletes the local
+database session and browser cookie even if remote logout fails. The public
+Access Layer base URL is used only for the browser login redirect. URL joining
+preserves configured base paths such as `/access-control`.
+
+If a company-domain user completes Access Layer authentication but the returned
+grant does not include `petyr:read`, Petyr clears the local auth state and
+session cookies, then shows an Italian pending-access fallback telling the user
+that the administrator has been notified and to refer to Lorenzo Brandi for
+access timing. After the grant is released, the user should return through
+`/auth/login` and receive a fresh clean session.

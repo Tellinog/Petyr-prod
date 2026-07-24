@@ -380,6 +380,28 @@ model AppSetting {
   @@map("app_setting")
 }
 
+model PetyrAuthSession {
+  idHash                      String   @id @map("id_hash") @db.VarChar(64)
+  accessTokenCiphertext       String   @map("access_token_ciphertext") @db.Text
+  refreshTokenCiphertext      String   @map("refresh_token_ciphertext") @db.Text
+  accessTokenExpiresAt        DateTime @map("access_token_expires_at")
+  accessLayerSessionId        String   @map("access_layer_session_id")
+  accessLayerSessionIssuedAt  DateTime @map("access_layer_session_issued_at")
+  accessLayerSessionExpiresAt DateTime @map("access_layer_session_expires_at")
+  googleSub                   String   @map("google_sub")
+  email                       String
+  displayName                 String?  @map("display_name")
+  role                        String
+  permissions                 Json
+  correlationId               String   @map("correlation_id")
+  createdAt                   DateTime @default(now()) @map("created_at")
+  updatedAt                   DateTime @updatedAt @map("updated_at")
+
+  @@index([accessLayerSessionExpiresAt], map: "petyr_auth_session_expires_idx")
+  @@index([accessLayerSessionId], map: "petyr_auth_session_access_session_idx")
+  @@map("petyr_auth_session")
+}
+
 model PetyrPerformanceMeasurement {
   id         String   @id @default(cuid())
   service    String

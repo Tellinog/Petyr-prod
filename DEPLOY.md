@@ -93,6 +93,16 @@ PETYR_SESSION_SECRET=replace_with_long_random_session_secret
 
 Root Docker Compose maps the `PETYR_ACCESS_LAYER_*` values into the generic `ACCESS_LAYER_*` names inside the `forecasting-app` container. Standalone app deployment may set the generic variables directly.
 
+Before enabling `PETYR_AUTH_MODE=access-layer`, apply the Petyr Prisma superset
+schema so `petyr_auth_session` exists. The browser cookie contains only an
+opaque session ID; Access Layer tokens and refreshed identity/permissions are
+stored in that PostgreSQL table, with token ciphertext protected by
+`PETYR_SESSION_SECRET`. Rotating `PETYR_SESSION_SECRET` intentionally
+invalidates existing Petyr sessions. The database and
+`ACCESS_LAYER_INTERNAL_BASE_URL` must be reachable from every Forecasting app
+instance so concurrent activity-driven refreshes can serialize through the
+shared PostgreSQL lock.
+
 The Access Layer Admin UI must register a `petyr` tool with the callback URL above and these Petyr permission keys:
 
 ```txt

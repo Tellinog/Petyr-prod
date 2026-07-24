@@ -12,7 +12,9 @@
     "tsBuildInfoFile": ".tmp/auth-test/tsconfig.tsbuildinfo"
   },
   "include": [
+    "src/lib/petyr/accessLayerClient.ts",
     "src/lib/petyr/authCore.ts",
+    "src/lib/petyr/authSessionService.ts",
     "src/lib/petyr/csmIdentity.ts",
     "tests/petyrAuth.test.ts"
   ]

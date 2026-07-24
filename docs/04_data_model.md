@@ -110,6 +110,7 @@ forecast_change_log
 company_forecast_status
 company_revenue_lifecycle
 app_setting
+petyr_auth_session
 petyr_performance_measurement
 user_feedback_ticket
 ai_forecast_cache
@@ -399,6 +400,32 @@ petyr.openrouter.model
 ```
 
 If this setting does not exist, Petyr uses `OPENROUTER_DEFAULT_MODEL` from the environment.
+
+### petyr_auth_session
+
+Purpose:
+- store Access Layer authentication state exclusively server-side;
+- keep the browser cookie limited to an opaque random local session ID;
+- support activity-driven access-token refresh and single-use refresh-token rotation;
+- serialize concurrent refreshes across Petyr instances through a PostgreSQL
+  advisory transaction lock.
+
+Important fields:
+- `id_hash`, the SHA-256 hash of the opaque local session ID;
+- encrypted access-token and refresh-token ciphertext;
+- access-token expiry;
+- Access Layer session ID, issued-at and expires-at;
+- Google subject, email and display name;
+- current role and permissions JSON;
+- correlation ID and local created/updated timestamps.
+
+The access and refresh token ciphertext uses a key derived from
+`PETYR_SESSION_SECRET`; rotating that environment secret invalidates existing
+local Petyr sessions. A successful refresh replaces the token pair, expiries,
+identity and permissions in one database update while holding the per-session
+advisory lock. Invalid, failed or malformed refresh deletes the row. The table
+must never be exposed through browser APIs, feedback context, logs, exports or
+admin diagnostics.
 
 ### user_feedback_ticket
 

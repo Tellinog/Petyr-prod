@@ -219,6 +219,31 @@ Temporary Petyr settings are stored here. The selected OpenRouter model uses
 `setting_key=petyr.openrouter.model` and falls back to `OPENROUTER_DEFAULT_MODEL`
 when no row exists.
 
+## petyr_auth_session
+
+Petyr stores Access Layer sessions in `petyr_auth_session`; the browser keeps
+only a random opaque local session ID whose SHA-256 hash is the table key.
+
+Required fields:
+
+- encrypted access token and rotating refresh token;
+- access-token expiry;
+- Access Layer session ID, issued-at and inactivity expiry;
+- Google subject, email, optional display name, role and permissions;
+- Access Layer correlation ID;
+- created/updated timestamps.
+
+Rules:
+
+- token ciphertext is protected with a key derived from `PETYR_SESSION_SECRET`;
+- access token, refresh token, identity and permissions must never be serialized
+  into the browser cookie;
+- a refresh updates tokens, expiries, identity and permissions atomically;
+- concurrent refreshes for one row use one PostgreSQL advisory transaction lock;
+- invalid, failed or malformed refresh deletes the row and does not reuse the
+  submitted refresh token;
+- no background job extends these sessions.
+
 ## user_feedback_ticket
 
 Petyr stores user-submitted feedback tickets in `user_feedback_ticket`.

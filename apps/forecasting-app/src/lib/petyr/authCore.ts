@@ -1,7 +1,13 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes
+} from "node:crypto";
 
 export const PETYR_AUTH_SESSION_COOKIE = "petyr_auth_session";
 export const PETYR_AUTH_STATE_COOKIE = "petyr_auth_state";
+export const PETYR_AUTH_REFRESH_THRESHOLD_MS = 60_000;
 
 export const PETYR_PERMISSIONS = {
   read: "petyr:read",
@@ -42,26 +48,42 @@ export type PetyrAuthIdentity = {
   correlationId: string;
 };
 
-export type AccessLayerExchangeResponse = {
-  access_token?: string;
-  token_type?: string;
-  expires_in?: number;
-  refresh_token?: string;
+export type AccessLayerAuthResponse = {
+  access_token: string;
+  token_type: "Bearer";
+  expires_in: number;
+  refresh_token: string;
   session: {
     id: string;
-    issued_at?: string;
-    expires_at?: string;
+    issued_at: string;
+    expires_at: string;
   };
   user: {
+    id?: string;
     google_sub: string;
     email: string;
+    email_verified?: boolean;
+    hd?: string;
     display_name?: string | null;
+  };
+  tool: {
+    slug: string;
+    display_name?: string;
   };
   grant: {
     role: string;
     permissions: string[];
   };
   correlation_id: string;
+};
+
+export type PetyrServerAuthSession = {
+  identity: PetyrAuthIdentity;
+  accessToken: string;
+  refreshToken: string;
+  accessTokenExpiresAt: Date;
+  accessLayerSessionIssuedAt: Date;
+  accessLayerSessionExpiresAt: Date;
 };
 
 const DEV_IDENTITY: PetyrAuthIdentity = {
@@ -80,6 +102,20 @@ const DEV_IDENTITY: PetyrAuthIdentity = {
 function clean(value: string | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function parseRequiredDate(value: unknown) {
+  if (!isNonEmptyString(value)) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 export function readPetyrAuthConfig(env: NodeJS.ProcessEnv = process.env): PetyrAuthConfig {
@@ -170,11 +206,68 @@ export function createAuthState() {
   return randomBytes(24).toString("base64url");
 }
 
+export function createPetyrLocalSessionId() {
+  return `pts_${randomBytes(32).toString("base64url")}`;
+}
+
+export function hashPetyrLocalSessionId(localSessionId: string) {
+  return createHash("sha256").update(localSessionId, "utf8").digest("hex");
+}
+
 export function isValidAuthCallbackState(actual: string | null, expected: string | undefined) {
   return Boolean(actual && expected && actual === expected);
 }
 
-export function toAccessLayerIdentity(payload: AccessLayerExchangeResponse): PetyrAuthIdentity {
+export function parseAccessLayerAuthResponse(
+  value: unknown,
+  expectedToolSlug: string
+): AccessLayerAuthResponse {
+  if (!isRecord(value)) {
+    throw new Error("Malformed Access Layer authentication response.");
+  }
+
+  const session = value.session;
+  const user = value.user;
+  const tool = value.tool;
+  const grant = value.grant;
+  const permissions = isRecord(grant) ? grant.permissions : null;
+  const issuedAt = isRecord(session) ? parseRequiredDate(session.issued_at) : null;
+  const sessionExpiresAt = isRecord(session) ? parseRequiredDate(session.expires_at) : null;
+
+  if (
+    !isNonEmptyString(value.access_token) ||
+    value.token_type !== "Bearer" ||
+    typeof value.expires_in !== "number" ||
+    !Number.isFinite(value.expires_in) ||
+    !Number.isInteger(value.expires_in) ||
+    value.expires_in <= 0 ||
+    !isNonEmptyString(value.refresh_token) ||
+    !isRecord(session) ||
+    !isNonEmptyString(session.id) ||
+    !issuedAt ||
+    !sessionExpiresAt ||
+    sessionExpiresAt.getTime() <= issuedAt.getTime() ||
+    !isRecord(user) ||
+    !isNonEmptyString(user.google_sub) ||
+    !isNonEmptyString(user.email) ||
+    (user.display_name !== undefined &&
+      user.display_name !== null &&
+      typeof user.display_name !== "string") ||
+    !isRecord(tool) ||
+    tool.slug !== expectedToolSlug ||
+    !isRecord(grant) ||
+    !isNonEmptyString(grant.role) ||
+    !Array.isArray(permissions) ||
+    !permissions.every(isNonEmptyString) ||
+    !isNonEmptyString(value.correlation_id)
+  ) {
+    throw new Error("Malformed Access Layer authentication response.");
+  }
+
+  return value as AccessLayerAuthResponse;
+}
+
+export function toAccessLayerIdentity(payload: AccessLayerAuthResponse): PetyrAuthIdentity {
   return {
     user: {
       email: payload.user.email,
@@ -182,17 +275,54 @@ export function toAccessLayerIdentity(payload: AccessLayerExchangeResponse): Pet
     },
     googleSub: payload.user.google_sub,
     email: payload.user.email,
-    permissions: payload.grant.permissions,
+    permissions: [...payload.grant.permissions],
     role: payload.grant.role,
     accessSessionId: payload.session.id,
     correlationId: payload.correlation_id
   };
 }
 
+export function toPetyrServerAuthSession(
+  payload: AccessLayerAuthResponse,
+  nowMs = Date.now()
+): PetyrServerAuthSession {
+  return {
+    identity: toAccessLayerIdentity(payload),
+    accessToken: payload.access_token,
+    refreshToken: payload.refresh_token,
+    accessTokenExpiresAt: new Date(nowMs + payload.expires_in * 1000),
+    accessLayerSessionIssuedAt: new Date(payload.session.issued_at),
+    accessLayerSessionExpiresAt: new Date(payload.session.expires_at)
+  };
+}
+
+export function shouldRefreshPetyrAccessToken(
+  accessTokenExpiresAt: Date,
+  nowMs = Date.now(),
+  thresholdMs = PETYR_AUTH_REFRESH_THRESHOLD_MS
+) {
+  return accessTokenExpiresAt.getTime() <= nowMs + thresholdMs;
+}
+
+export function isPetyrServerSessionExpired(sessionExpiresAt: Date, nowMs = Date.now()) {
+  return sessionExpiresAt.getTime() <= nowMs;
+}
+
 export function joinAccessLayerUrl(baseUrl: string, path: string) {
   const base = baseUrl.replace(/\/+$/, "");
   const suffix = path.startsWith("/") ? path : `/${path}`;
   return `${base}${suffix}`;
+}
+
+export function getAccessLayerStartUrl(
+  config: Pick<PetyrAuthConfig, "publicBaseUrl" | "callbackUrl" | "toolSlug">,
+  state: string
+) {
+  const startUrl = new URL(joinAccessLayerUrl(config.publicBaseUrl ?? "", "/v1/auth/start"));
+  startUrl.searchParams.set("tool_slug", config.toolSlug);
+  startUrl.searchParams.set("return_url", config.callbackUrl ?? "");
+  startUrl.searchParams.set("state", state);
+  return startUrl;
 }
 
 export function getPetyrPublicRedirectUrl(
@@ -203,40 +333,35 @@ export function getPetyrPublicRedirectUrl(
   return new URL(path, config.callbackUrl ?? requestUrl);
 }
 
-export function signPetyrSession(identity: PetyrAuthIdentity, secret: string) {
-  const payload = Buffer.from(JSON.stringify(identity), "utf8").toString("base64url");
-  const signature = createHmac("sha256", secret).update(payload).digest("base64url");
-  return `${payload}.${signature}`;
+function derivePetyrTokenEncryptionKey(secret: string) {
+  return createHash("sha256")
+    .update("petyr-auth-token-encryption-v1", "utf8")
+    .update("\0", "utf8")
+    .update(secret, "utf8")
+    .digest();
 }
 
-export function verifyPetyrSession(value: string | undefined, secret: string): PetyrAuthIdentity | null {
-  if (!value) return null;
+export function sealPetyrAuthToken(value: string, secret: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", derivePetyrTokenEncryptionKey(secret), iv);
+  const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `v1.${iv.toString("base64url")}.${tag.toString("base64url")}.${ciphertext.toString("base64url")}`;
+}
 
-  const [payload, signature] = value.split(".");
-  if (!payload || !signature) return null;
-
-  const expected = createHmac("sha256", secret).update(payload).digest("base64url");
-  const actualBuffer = Buffer.from(signature);
-  const expectedBuffer = Buffer.from(expected);
-
-  if (actualBuffer.length !== expectedBuffer.length || !timingSafeEqual(actualBuffer, expectedBuffer)) {
-    return null;
-  }
-
+export function openPetyrAuthToken(value: string, secret: string) {
   try {
-    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as PetyrAuthIdentity;
-    if (
-      !parsed ||
-      typeof parsed.email !== "string" ||
-      typeof parsed.googleSub !== "string" ||
-      !Array.isArray(parsed.permissions) ||
-      typeof parsed.role !== "string" ||
-      typeof parsed.accessSessionId !== "string" ||
-      typeof parsed.correlationId !== "string"
-    ) {
-      return null;
-    }
-    return parsed;
+    const [version, ivValue, tagValue, ciphertextValue] = value.split(".");
+    if (version !== "v1" || !ivValue || !tagValue || !ciphertextValue) return null;
+
+    const iv = Buffer.from(ivValue, "base64url");
+    const tag = Buffer.from(tagValue, "base64url");
+    const ciphertext = Buffer.from(ciphertextValue, "base64url");
+    if (iv.length !== 12 || tag.length !== 16 || ciphertext.length === 0) return null;
+
+    const decipher = createDecipheriv("aes-256-gcm", derivePetyrTokenEncryptionKey(secret), iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
   } catch {
     return null;
   }

@@ -52,6 +52,7 @@ Stores:
 - raw Redash snapshots;
 - latest materialized raw Redash tables for MVP source previews;
 - sync runs;
+- encrypted Petyr tool-side Access Layer sessions behind opaque browser cookies;
 - future normalized campaign/agreement facts;
 - future forecast entries;
 - future revision logs and notes.
@@ -114,9 +115,19 @@ Responsible for:
 - read-only AI forecast cache generation and display.
 - protected PostgreSQL database backup export/import for server migration and
   controlled recovery.
+- tool-side Access Layer login/callback/logout and activity-driven session
+  refresh for protected Petyr requests.
 
 Forecasting app must not call Redash. It reads PostgreSQL-backed Redash-derived
 data, or future stable internal data APIs, but not Redash APIs directly.
+
+In Access Layer mode, Forecasting stores token and identity state in
+`petyr_auth_session`; the browser receives only an opaque local session ID.
+Protected page/API guards refresh server-to-server at the 60-second access-token
+threshold, serialize concurrent refreshes with a PostgreSQL advisory transaction
+lock and never renew sessions through a background timer. Public Access Layer
+URLs are used only for the browser login redirect; exchange, refresh,
+introspection when used, and logout use the internal base URL.
 
 The CSM-facing manual data refresh is a constrained command exception, not a
 product-data read path. `forecasting-app` authorizes users with

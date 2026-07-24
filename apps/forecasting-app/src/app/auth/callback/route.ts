@@ -1,18 +1,24 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
-  joinAccessLayerUrl,
   PETYR_AUTH_SESSION_COOKIE,
   PETYR_AUTH_STATE_COOKIE,
   readPetyrAuthConfig,
   isValidAuthCallbackState,
   getPetyrPublicRedirectUrl,
   toAccessLayerIdentity,
-  type AccessLayerExchangeResponse,
   hasUsablePetyrGrant,
   getPetyrDefaultLandingPath
 } from "@/lib/petyr/authCore";
-import { createPetyrSessionCookie } from "@/lib/petyr/auth";
+import {
+  exchangeAccessLayerCode,
+  logoutAccessLayerSession
+} from "@/lib/petyr/accessLayerClient";
+import {
+  createPetyrAuthSessionFromExchange,
+  logoutPetyrAuthSession
+} from "@/lib/petyr/authSessionService";
+import { prismaPetyrAuthSessionStore } from "@/lib/petyr/authSessionStore";
 
 function clearPetyrAuthCookies(cookieStore: Awaited<ReturnType<typeof cookies>>) {
   cookieStore.delete(PETYR_AUTH_STATE_COOKIE);
@@ -70,46 +76,62 @@ export async function GET(request: Request) {
   const state = url.searchParams.get("state");
   const cookieStore = await cookies();
   const expectedState = cookieStore.get(PETYR_AUTH_STATE_COOKIE)?.value;
+  const existingLocalSessionId = cookieStore.get(PETYR_AUTH_SESSION_COOKIE)?.value;
 
   if (!code || !isValidAuthCallbackState(state, expectedState)) {
+    if (existingLocalSessionId) {
+      await logoutPetyrAuthSession(existingLocalSessionId, config, {
+        store: prismaPetyrAuthSessionStore
+      });
+    }
     clearPetyrAuthCookies(cookieStore);
     return NextResponse.redirect(getPetyrPublicRedirectUrl("/forecasting/error?code=400", request.url, config));
   }
 
+  if (existingLocalSessionId) {
+    await logoutPetyrAuthSession(existingLocalSessionId, config, {
+      store: prismaPetyrAuthSessionStore
+    });
+  }
   clearPetyrAuthCookies(cookieStore);
 
-  const response = await fetch(joinAccessLayerUrl(config.internalBaseUrl ?? "", "/v1/auth/exchange"), {
-    method: "POST",
-    headers: {
-      authorization: `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}`,
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({
-      code,
-      redirect_uri: config.callbackUrl
-    }),
-    cache: "no-store"
-  });
-
-  if (!response.ok) {
+  let exchanged;
+  try {
+    exchanged = await exchangeAccessLayerCode(config, code);
+  } catch {
     return NextResponse.json({ error: "Access Layer exchange failed." }, { status: 401 });
   }
 
-  const exchanged = (await response.json()) as AccessLayerExchangeResponse;
   const identity = toAccessLayerIdentity(exchanged);
 
   if (!hasUsablePetyrGrant(identity)) {
     clearPetyrAuthCookies(cookieStore);
+    try {
+      await logoutAccessLayerSession(config, exchanged.session.id, exchanged.refresh_token);
+    } catch {
+      // Pending access remains local-session-free if central cleanup is unavailable.
+    }
     return renderPendingGrantPage();
   }
 
-  cookieStore.set(PETYR_AUTH_SESSION_COOKIE, createPetyrSessionCookie(identity, config.sessionSecret ?? ""), {
+  let created;
+  try {
+    created = await createPetyrAuthSessionFromExchange(exchanged, config, {
+      store: prismaPetyrAuthSessionStore
+    });
+  } catch {
+    clearPetyrAuthCookies(cookieStore);
+    return NextResponse.json({ error: "Unable to create the Petyr session." }, { status: 503 });
+  }
+
+  cookieStore.set(PETYR_AUTH_SESSION_COOKIE, created.localSessionId, {
     httpOnly: true,
-    maxAge: 8 * 60 * 60,
     path: "/",
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production"
   });
 
-  return NextResponse.redirect(getPetyrPublicRedirectUrl(getPetyrDefaultLandingPath(identity), request.url, config));
+  return NextResponse.redirect(
+    getPetyrPublicRedirectUrl(getPetyrDefaultLandingPath(created.identity), request.url, config)
+  );
 }

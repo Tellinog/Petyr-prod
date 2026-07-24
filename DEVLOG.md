@@ -18,6 +18,16 @@ Each entry must include:
 
 ---
 
+## 2026-07-24
+
+- **Area:** Petyr / Access Layer / Activity-driven session refresh
+- **Change:** Replaced the signed browser-stored identity session with an opaque `HttpOnly` local session ID backed by new PostgreSQL table `petyr_auth_session`. Callback exchange now stores encrypted access/refresh tokens, access-token expiry, Access Layer session metadata, identity and permissions server-side. Every protected Petyr page/API guard refreshes at the 60-second threshold through the internal Access Layer URL, atomically rotates all auth state under a per-session PostgreSQL advisory transaction lock, and clears the local session without retry on invalid, failed or malformed refresh. Logout sends the latest session ID and refresh token while always clearing local cookie/state. Added focused auth coverage for callback storage, threshold behavior, rotation, concurrency, invalidation, no background renewal, logout, secret-safe errors and public/internal base-path routing.
+- **Reason:** Access Layer introduced single-use refresh-token rotation and an eight-hour inactivity window renewed only by authenticated user activity. Petyr needed a backend-only session store and cross-instance refresh serialization to adopt that contract without exposing credentials to the browser.
+- **Impact:** Active Petyr sessions can continue across access-token expiry while user requests remain active. Idle pages do not renew sessions. Deployments must apply migration `202607240001_add_petyr_auth_sessions` before enabling Access Layer mode; rotating `PETYR_SESSION_SECRET` invalidates existing local sessions. Permission keys, role mapping, UI, forecasting data flow and the separate Redash Ingestor tool are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/petyr/authCore.ts`, `apps/forecasting-app/src/lib/petyr/accessLayerClient.ts`, `apps/forecasting-app/src/lib/petyr/authSessionService.ts`, `apps/forecasting-app/src/lib/petyr/authSessionStore.ts`, `apps/forecasting-app/src/lib/petyr/auth.ts`, `apps/forecasting-app/src/app/auth/*`, `apps/forecasting-app/src/app/api/petyr/data-refresh/route.ts`, `apps/forecasting-app/prisma/schema.prisma`, `apps/forecasting-app/prisma/migrations/202607240001_add_petyr_auth_sessions/migration.sql`, `apps/forecasting-app/tests/petyrAuth.test.ts`, `apps/forecasting-app/tsconfig.auth-test.json`, `.env.example`, `apps/forecasting-app/.env.example`, `apps/forecasting-app/README.md`, `docs/01_architecture.md`, `docs/04_data_model.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/02_petyr_data_model_target.md`, `docs/access-control/TOOL_INTEGRATION_GUIDE.md`, `DEPLOY.md`, `DECISIONS.md`, `DEVLOG.md`.
+- **Validation:** Passed Prisma Client generation and `prisma validate`; passed focused auth compile/tests (30/30); passed optimized Next.js production build including compile, lint/type validity phase and static generation. Standalone `next lint` could not run because the repository has no ESLint configuration and Next.js opens the deprecated interactive setup prompt.
+- **Follow-up:** Apply the reviewed Petyr schema migration in the target environment, then run an end-to-end login/near-expiry concurrent refresh/logout smoke test against the deployed Access Layer and PostgreSQL.
+
 ## 2026-07-22
 
 - **Area:** Petyr / Browser identity

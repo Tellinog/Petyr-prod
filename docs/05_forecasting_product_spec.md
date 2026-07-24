@@ -92,6 +92,26 @@ structured 500 page. These pages must use the Petyr/UNGUESS visual language and
 offer a clear action back to `/forecasting`. API endpoints keep their JSON error
 contracts.
 
+In production Access Layer mode, Petyr authentication is activity-driven and
+server-side. The browser receives only an opaque local session cookie; access
+token, rotating refresh token, access-token expiry, Access Layer session
+ID/expiry, identity and permissions remain in the PostgreSQL-backed Petyr
+session. Before each protected operation, Petyr continues immediately when the
+access token has more than 60 seconds remaining and otherwise performs one
+server-to-server refresh through `ACCESS_LAYER_INTERNAL_BASE_URL`. Concurrent
+requests for the same local session must serialize that refresh and reread the
+atomically replaced token, expiry, identity and permission state. Petyr must not
+use a background timer, cron or heartbeat to renew inactive sessions.
+
+Invalid, failed or malformed refresh clears the local server-side session and
+must not retry the single-use refresh token. Browser navigation restarts the
+normal Access Layer login flow; APIs return Petyr's generic unauthenticated
+response without token or secret details. Logout always clears the local
+session/cookie and attempts Access Layer logout with the latest `session_id` and
+`refresh_token`. Exchange, refresh, introspection when used, and logout use the
+internal Access Layer base URL; only the browser login redirect uses the public
+base URL, and configured URL base paths must be preserved.
+
 The top-level `/forecasting` menu must send users directly to the complete
 operational routes for Forecast Entry and Company Detail. It must not render
 partial preview tabs that look like the complete editing/detail workspaces.

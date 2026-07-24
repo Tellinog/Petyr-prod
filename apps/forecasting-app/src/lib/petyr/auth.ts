@@ -7,25 +7,39 @@ import {
   type PetyrAuthIdentity,
   type PetyrPermission,
   readPetyrAuthConfig,
-  signPetyrSession,
-  verifyPetyrSession,
   hasPetyrPermission,
   hasAnyPetyrPermission
 } from "./authCore";
+import { resolvePetyrAuthSession } from "./authSessionService";
+import { prismaPetyrAuthSessionStore } from "./authSessionStore";
 
 export type PetyrAuthResult =
   | { ok: true; identity: PetyrAuthIdentity }
-  | { ok: false; status: 401 | 403 | 503; error: string };
+  | {
+      ok: false;
+      status: 401 | 503;
+      error: string;
+      clearSessionCookie: boolean;
+    };
+
+function createPetyrAuthFailureResponse(result: Extract<PetyrAuthResult, { ok: false }>) {
+  const response = NextResponse.json({ error: result.error }, { status: result.status });
+  if (result.clearSessionCookie) {
+    response.cookies.delete(PETYR_AUTH_SESSION_COOKIE);
+  }
+  return response;
+}
 
 export async function getPetyrAuthIdentity(): Promise<PetyrAuthResult> {
   let config;
   try {
     config = readPetyrAuthConfig();
-  } catch (error) {
+  } catch {
     return {
       ok: false,
       status: 503,
-      error: error instanceof Error ? error.message : "Petyr auth configuration is invalid."
+      error: "Petyr authentication is temporarily unavailable.",
+      clearSessionCookie: false
     };
   }
 
@@ -34,14 +48,24 @@ export async function getPetyrAuthIdentity(): Promise<PetyrAuthResult> {
   }
 
   const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get(PETYR_AUTH_SESSION_COOKIE)?.value;
-  const identity = verifyPetyrSession(sessionCookie, config.sessionSecret ?? "");
+  const localSessionId = cookieStore.get(PETYR_AUTH_SESSION_COOKIE)?.value;
+  const resolved = await resolvePetyrAuthSession(localSessionId, config, {
+    store: prismaPetyrAuthSessionStore
+  });
 
-  if (!identity) {
-    return { ok: false, status: 401, error: "Petyr authentication is required." };
+  if (!resolved.ok) {
+    const unavailable = resolved.reason === "store_unavailable";
+    return {
+      ok: false,
+      status: unavailable ? 503 : 401,
+      error: unavailable
+        ? "Petyr authentication is temporarily unavailable."
+        : "Petyr authentication is required.",
+      clearSessionCookie: resolved.clearSessionCookie
+    };
   }
 
-  return { ok: true, identity };
+  return { ok: true, identity: resolved.identity };
 }
 
 export async function requirePetyrPagePermission(permission: PetyrPermission) {
@@ -65,7 +89,7 @@ export async function requirePetyrApiPermission(permission: PetyrPermission) {
   const result = await getPetyrAuthIdentity();
 
   if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return createPetyrAuthFailureResponse(result);
   }
 
   if (!hasPetyrPermission(result.identity, permission)) {
@@ -94,7 +118,7 @@ export async function requirePetyrApiAnyPermission(permissions: PetyrPermission[
   const result = await getPetyrAuthIdentity();
 
   if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return createPetyrAuthFailureResponse(result);
   }
 
   if (!hasAnyPetyrPermission(result.identity, permissions)) {
@@ -102,8 +126,4 @@ export async function requirePetyrApiAnyPermission(permissions: PetyrPermission[
   }
 
   return result.identity;
-}
-
-export function createPetyrSessionCookie(identity: PetyrAuthIdentity, secret: string) {
-  return signPetyrSession(identity, secret);
 }

@@ -15,6 +15,18 @@ Use these files to create the two external Access Layer tools. Do not store gene
 
 `petyr` and `redash-ingestor` are separate tools. Redash Ingestor remains the technical/operator service that calls Redash and writes PostgreSQL; Petyr continues to read PostgreSQL-backed product data and must not call Redash or Redash Ingestor for product data.
 
+Petyr's tool-side implementation uses an opaque `HttpOnly` local session cookie
+and PostgreSQL table `petyr_auth_session`. The table contains encrypted Access
+Layer tokens plus current identity, permissions and expiry state. Every Petyr
+page/API permission guard resolves the row and performs a server-to-server
+refresh only when the access token has at most 60 seconds remaining. A
+PostgreSQL advisory transaction lock serializes refreshes for the same local
+session. Successful refresh replaces the single-use token pair and all derived
+auth state atomically; invalid, failed or malformed refresh deletes the local
+session and restarts login for browser navigation. Petyr has no background
+session-renewal timer. Petyr logout sends both the latest `session_id` and
+`refresh_token` when available and always deletes local state.
+
 Petyr permissions:
 
 ```txt

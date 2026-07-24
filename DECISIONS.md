@@ -13,6 +13,16 @@ Each decision should include:
 
 ---
 
+## 2026-07-24 - Store Petyr Access Layer sessions server-side and refresh on user activity
+
+- **Status:** Accepted.
+- **Context:** Access Layer now issues a 15-minute access token and a single-use rotating refresh token. Petyr previously stored only signed identity/permission data in a browser cookie and discarded token/expiry state, so it could neither implement activity-driven renewal nor keep refresh credentials exclusively server-side.
+- **Decision:** Petyr uses an opaque random `HttpOnly` cookie and PostgreSQL-backed `petyr_auth_session` rows. Access and refresh tokens are encrypted with a key derived from `PETYR_SESSION_SECRET`. Every protected page, Server Action and API guard reads the local row; it refreshes server-to-server only when the access token has at most 60 seconds remaining. A per-local-session PostgreSQL advisory transaction lock serializes concurrent refreshes, and the successful response replaces tokens, expiries, identity and permissions atomically. Any invalid, failed or malformed refresh deletes the local row without retry. Petyr performs no background session renewal. Logout always deletes local state and attempts remote revocation with the latest Access Layer session ID and refresh token.
+- **Alternatives discarded:** Storing refresh tokens in the signed browser cookie; using an in-memory-only session map that would not coordinate multiple app instances; background heartbeat/timer refresh; letting concurrent requests reuse the same single-use refresh token.
+- **Reason:** The design keeps client credentials and refresh tokens outside the browser, preserves Access Layer's eight-hour inactivity semantics, and coordinates token rotation across deployed Petyr instances through the shared database.
+- **Consequences:** Deployments must apply the Petyr schema/migration before enabling Access Layer mode. Rotating `PETYR_SESSION_SECRET` invalidates existing local Petyr sessions. Existing permission keys, role mapping, landing behavior and JWT handling remain unchanged. Redash Ingestor remains a separate Access Layer tool and is not changed by this decision.
+- **Related docs:** `apps/forecasting-app/README.md`, `docs/04_data_model.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/02_petyr_data_model_target.md`, `docs/access-control/TOOL_INTEGRATION_GUIDE.md`, `DEPLOY.md`, `DEVLOG.md`.
+
 ## 2026-07-22 - Preserve valid planned campaign value as the AI Forecast floor
 
 - **Status:** Accepted.
