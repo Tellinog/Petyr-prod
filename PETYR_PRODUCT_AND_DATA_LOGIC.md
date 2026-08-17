@@ -1246,7 +1246,7 @@ persisted Business Unit values and the Annual Forecast Ongoing total are shown
 immediately and after a page reload.
 
 Forecast Entry Monthly and Annual cards expose read-only `Export Excel`
-controls. Monthly export creates one worksheet per month from January through
+controls at the right side of their respective filter rows. Monthly export creates one worksheet per month from January through
 the current month for the current year, or all 12 months for other selected
 years. Annual export includes the selected Annual Entry portfolio and must
 include per-Business Unit Initial Forecast columns even when those columns are

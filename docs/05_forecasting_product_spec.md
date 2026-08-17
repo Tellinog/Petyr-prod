@@ -940,7 +940,9 @@ GET /api/petyr/forecast-entry/annual-export-xlsx?csmName=...&csmName=...&year=YY
 ```
 
 They require `petyr:read`, are read-only and use the same PostgreSQL-backed
-Forecast Entry read models as the UI. Monthly export creates one worksheet per
+Forecast Entry read models as the UI. The Monthly and Annual `Export Excel`
+controls sit at the right side of their respective filter rows for visibility.
+Monthly export creates one worksheet per
 month from January through the current month for the current year, or all 12
 months for other selected years. Each monthly worksheet exports all companies
 and Business Units for the selected CSM, including previous-month forecast,

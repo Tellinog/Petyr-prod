@@ -778,10 +778,10 @@ export default function ForecastEntryMonthlyBatchWorkspace({
               : `${activeLabel} is editable for ${selectedMonthLabel}. Other forecast fields and ${closedRevenueHeader} are read-only.`}
           </PetyrInlineNotice>
 
-          <div className="sticky top-4 z-40 flex h-[calc(100dvh-2rem)] min-h-0 flex-col gap-3">
+          <div className={`sticky top-4 ${isCsmDropdownOpen ? "z-[80]" : "z-40"} flex h-[calc(100dvh-2rem)] min-h-0 flex-col gap-3`}>
           <div className="shrink-0 space-y-2 border-b border-slate-200 bg-white/95 pb-2 pt-1 backdrop-blur">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_150px_120px_auto_minmax(0,1fr)] lg:items-end">
-              <div ref={csmDropdownRef} className="relative space-y-1 text-sm font-medium text-slate-700">
+              <div ref={csmDropdownRef} className={`relative space-y-1 text-sm font-medium text-slate-700 ${isCsmDropdownOpen ? "z-[80]" : ""}`}>
                 <span>CSM</span>
                 <Button type="button" variant="outline" disabled={isLoading || isSaving} onClick={() => setIsCsmDropdownOpen((current) => !current)} className="h-10 w-full justify-between rounded-xl bg-white px-3 text-left font-normal" aria-haspopup="listbox" aria-expanded={isCsmDropdownOpen}>
                   <span className="truncate">{selectedCsmsLabel(selectedCsms)}</span>
@@ -834,6 +834,19 @@ export default function ForecastEntryMonthlyBatchWorkspace({
               >
                 {isLoading ? "Loading" : "Load"}
               </Button>
+              <div className="flex items-end justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isLoading || isSaving}
+                  onClick={() => {
+                    window.location.href = buildMonthlyExportUrl(batch.data.selectedCsms ?? [batch.data.selectedCsm].filter(Boolean), batch.data.year);
+                  }}
+                  className="h-10 rounded-xl px-5"
+                >
+                  Export Excel
+                </Button>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-x-5 gap-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2">
@@ -1145,20 +1158,6 @@ export default function ForecastEntryMonthlyBatchWorkspace({
               </TableBody>
             </Table>
           </div>
-          </div>
-
-          <div className="flex justify-end pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isLoading || isSaving}
-              onClick={() => {
-                window.location.href = buildMonthlyExportUrl(batch.data.selectedCsms ?? [batch.data.selectedCsm].filter(Boolean), batch.data.year);
-              }}
-              className="rounded-xl"
-            >
-              Export Excel
-            </Button>
           </div>
 
         </CardContent>

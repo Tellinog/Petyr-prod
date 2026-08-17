@@ -833,8 +833,8 @@ export default function AnnualForecastEntryBatchWorkspace({
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_180px_auto_minmax(0,1fr)] lg:items-end">
-          <div ref={csmDropdownRef} className="relative space-y-1 text-sm font-medium text-slate-700">
+        <div className={`grid grid-cols-1 gap-4 lg:grid-cols-[320px_180px_auto_minmax(0,1fr)_auto] lg:items-end ${isCsmDropdownOpen ? "relative z-[80]" : ""}`}>
+          <div ref={csmDropdownRef} className={`relative space-y-1 text-sm font-medium text-slate-700 ${isCsmDropdownOpen ? "z-[80]" : ""}`}>
             <div>CSM</div>
             <Button
               type="button"
@@ -895,6 +895,19 @@ export default function AnnualForecastEntryBatchWorkspace({
           <PetyrInlineNotice tone={batch.data.initialMode.editable ? "success" : "warning"}>
             {batch.data.initialMode.reason}
           </PetyrInlineNotice>
+          <div className="flex items-end justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isLoading || isSaving}
+              onClick={() => {
+                window.location.href = buildAnnualExportUrl(batch.data.selectedCsms, batch.data.selectedYear);
+              }}
+              className="h-10 rounded-xl px-5"
+            >
+              Export Excel
+            </Button>
+          </div>
         </div>
 
         {notice ? <PetyrInlineNotice tone={notice.type === "success" ? "success" : "danger"}>{notice.text}</PetyrInlineNotice> : null}
@@ -1336,19 +1349,6 @@ export default function AnnualForecastEntryBatchWorkspace({
           </Table>
         </div>
 
-        <div className="flex justify-end pt-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isLoading || isSaving}
-            onClick={() => {
-              window.location.href = buildAnnualExportUrl(batch.data.selectedCsms, batch.data.selectedYear);
-            }}
-            className="rounded-xl"
-          >
-            Export Excel
-          </Button>
-        </div>
       </CardContent>
     </PetyrCard>
   );

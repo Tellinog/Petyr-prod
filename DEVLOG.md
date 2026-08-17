@@ -20,6 +20,20 @@ Each entry must include:
 
 ## 2026-08-17
 
+- **Area:** Petyr / Forecast Entry / CSM dropdown layering
+- **Change:** Elevated the Monthly and Annual Forecast Entry CSM filter stacking context only while its multi-select menu is open.
+- **Reason:** Sticky table headers and other workspace controls could overlap the CSM option list, making selections unavailable.
+- **Impact:** The CSM option list now renders above adjacent sticky elements; selection behavior, loading flow, APIs and forecast data are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecast Entry / Excel export visibility
+- **Change:** Moved the Monthly and Annual Forecast Entry `Export Excel` buttons from below their tables into the right side of the corresponding CSM/period filter rows.
+- **Reason:** Product requested the export action to remain visible alongside the active filters.
+- **Impact:** Export URLs, workbook contents, read-only behavior, permissions and forecast data are unchanged; only button placement changed.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
 - **Area:** Petyr / Shared workspace header / Source-data refresh permissions
 - **Change:** Made `Refresh data` visible and server-authorized for every authenticated Petyr user with at least one Petyr permission, instead of only forecast writers and admins.
 - **Reason:** Any user permitted to access Petyr must be able to refresh the available data from the top-right workspace header.
