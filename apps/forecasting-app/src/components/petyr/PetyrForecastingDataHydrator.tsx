@@ -13,9 +13,11 @@ type PetyrForecastingDataHydratorProps = {
   initialData: PetyrApprovedRenderingData;
   activeView: ForecastingView;
   userDisplayName: string | null;
+  authenticatedUserEmail: string;
   canViewAdminTools: boolean;
   canManageObjectives: boolean;
   canWriteForecast: boolean;
+  canRefreshSourceData: boolean;
 };
 
 function preferredCsm(data: PetyrApprovedRenderingData, userDisplayName: string | null) {
@@ -34,9 +36,11 @@ export function PetyrForecastingDataHydrator({
   initialData,
   activeView,
   userDisplayName,
+  authenticatedUserEmail,
   canViewAdminTools,
   canManageObjectives,
-  canWriteForecast
+  canWriteForecast,
+  canRefreshSourceData
 }: PetyrForecastingDataHydratorProps) {
   const [data, setData] = useState(initialData);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -110,10 +114,11 @@ export function PetyrForecastingDataHydrator({
         data={data}
         activeView={activeView}
         preferredCsmName={preferredCsmName}
+        authenticatedUserEmail={authenticatedUserEmail}
         canViewAdminTools={canViewAdminTools}
         canViewCsmOverview={canViewAdminTools}
         canManageObjectives={canManageObjectives}
-        canRefreshSourceData={canWriteForecast || canViewAdminTools}
+        canRefreshSourceData={canRefreshSourceData}
         renderingState={loadState}
         onRetryRenderingData={() => setAttempt((value) => value + 1)}
       />

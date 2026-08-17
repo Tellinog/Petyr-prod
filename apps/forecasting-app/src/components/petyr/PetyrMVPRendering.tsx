@@ -2181,6 +2181,7 @@ export default function PetyrMVPRendering({
   data,
   activeView = 'management',
   preferredCsmName = null,
+  authenticatedUserEmail = null,
   canViewAdminTools = false,
   canViewCsmOverview = false,
   canManageObjectives = false,
@@ -2191,6 +2192,7 @@ export default function PetyrMVPRendering({
   data: PetyrApprovedRenderingData;
   activeView?: 'management' | 'csm';
   preferredCsmName?: string | null;
+  authenticatedUserEmail?: string | null;
   canViewAdminTools?: boolean;
   canViewCsmOverview?: boolean;
   canManageObjectives?: boolean;
@@ -2216,6 +2218,7 @@ export default function PetyrMVPRendering({
           activeSection={visibleView}
           companyDetailHref={menuCompanyDetailHref}
           forecastEntryHref={menuForecastEntryHref}
+          authenticatedUserEmail={authenticatedUserEmail}
           canViewCsmOverview={canViewCsmOverview}
           canRefreshSourceData={canRefreshSourceData}
         >

@@ -1,7 +1,8 @@
 import { PetyrForecastingDataHydrator } from "@/components/petyr/PetyrForecastingDataHydrator";
 import { requirePetyrPagePermission } from "@/lib/petyr/auth";
-import { hasPetyrPermission, PETYR_PERMISSIONS } from "@/lib/petyr/authCore";
+import { canRefreshPetyrSourceData, hasPetyrPermission, PETYR_PERMISSIONS } from "@/lib/petyr/authCore";
 import { getPetyrApprovedRenderingShellData } from "@/services/petyrApprovedRenderingAdapter";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -21,22 +22,29 @@ function parseForecastingView(value: string | undefined): "management" | "csm" {
 
 export default async function ForecastingPage({ searchParams }: ForecastingPageProps) {
   const identity = await requirePetyrPagePermission(PETYR_PERMISSIONS.read);
+  const canWriteForecast = hasPetyrPermission(identity, PETYR_PERMISSIONS.forecastWrite);
+
+  if (canWriteForecast) {
+    redirect("/forecasting/entry");
+  }
+
   const resolvedSearchParams = (await searchParams) ?? {};
   const requestedView = parseForecastingView(firstParam(resolvedSearchParams.view)?.trim());
   const initialData = getPetyrApprovedRenderingShellData();
   const canViewAdminTools = hasPetyrPermission(identity, PETYR_PERMISSIONS.admin);
   const activeView = canViewAdminTools ? requestedView : "management";
   const canManageObjectives = hasPetyrPermission(identity, PETYR_PERMISSIONS.managementWrite);
-  const canWriteForecast = hasPetyrPermission(identity, PETYR_PERMISSIONS.forecastWrite);
 
   return (
     <PetyrForecastingDataHydrator
       initialData={initialData}
       activeView={activeView}
       userDisplayName={identity.user.displayName}
+      authenticatedUserEmail={identity.user.email}
       canViewAdminTools={canViewAdminTools}
       canManageObjectives={canManageObjectives}
       canWriteForecast={canWriteForecast}
+      canRefreshSourceData={canRefreshPetyrSourceData(identity)}
     />
   );
 }

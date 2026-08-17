@@ -16,7 +16,7 @@ import {
   PetyrSectionTitle,
   PetyrWorkspaceShell
 } from "@/components/petyr/PetyrLayoutPrimitives";
-import { PetyrSelectField } from "@/components/petyr/PetyrForecastNavigation";
+import { PetyrSelectChevron, PetyrSelectField } from "@/components/petyr/PetyrForecastNavigation";
 import AnnualForecastEntryBatchWorkspace from "@/components/petyr/AnnualForecastEntryBatchWorkspace";
 import { formatBusinessUnitDisplayName } from "@/lib/petyr/businessUnitDisplay";
 import { formatPetyrInteger, formatPetyrIntegerCurrencyValue, formatPetyrIntegerInputDraft } from "@/lib/petyr/formatters";
@@ -266,12 +266,14 @@ export default function ForecastEntryMonthlyBatchWorkspace({
   initialBatch,
   initialAnnualYear,
   initialAnnualBatch = null,
-  canViewCsmOverview = false
+  canViewCsmOverview = false,
+  authenticatedUserEmail
 }: {
   initialBatch: ForecastEntryBatchDataResult;
   initialAnnualYear?: string;
   initialAnnualBatch?: AnnualForecastEntryBatchDataResult | null;
   canViewCsmOverview?: boolean;
+  authenticatedUserEmail: string;
 }) {
   const [batch, setBatch] = useState(initialBatch);
   const [selectedCsms, setSelectedCsms] = useState<string[]>(() => initialBatch.data.selectedCsms ?? [initialBatch.data.selectedCsm].filter(Boolean));
@@ -288,7 +290,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
   const [savedSummary, setSavedSummary] = useState("");
   const savedStateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveInFlightRef = useRef(false);
-  const [activeEntryTab, setActiveEntryTab] = useState("annual");
+  const [activeEntryTab, setActiveEntryTab] = useState<"monthly" | "annual">("monthly");
   const [annualBatch, setAnnualBatch] = useState<AnnualForecastEntryBatchDataResult | null>(initialAnnualBatch);
   const [isAnnualLoading, setIsAnnualLoading] = useState(false);
   const [annualLoadAttempted, setAnnualLoadAttempted] = useState(Boolean(initialAnnualBatch));
@@ -323,12 +325,6 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     setIsCsmDropdownOpen(false);
     window.history.replaceState(null, "", buildEntryPageUrl(batch.data.selectedCsms ?? [batch.data.selectedCsm].filter(Boolean), batch.data.year, batch.data.month));
   }, [batch]);
-
-  useEffect(() => {
-    void loadAnnualBatchIfNeeded();
-    // Annual Forecast Entry is a background warmup for the initial CSM/year.
-    // Filter changes reload it through loadBatch/onBatchChange synchronization.
-  }, []);
 
   useEffect(() => {
     function closeCsmDropdownOnOutsideClick(event: MouseEvent) {
@@ -460,6 +456,15 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     if (!currentValue.trim() && placeholder.value !== null) {
       setValues((existing) => ({ ...existing, [key]: formatInputValue(placeholder.value) }));
       setSourceStates((existing) => ({ ...existing, [key]: "accepted_ai" }));
+    }
+  }
+
+  function handleEntryTabChange(value: string) {
+    const nextTab = value === "annual" ? "annual" : "monthly";
+    setActiveEntryTab(nextTab);
+
+    if (nextTab === "annual") {
+      void loadAnnualBatchIfNeeded();
     }
   }
 
@@ -724,6 +729,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
       activeSection="entry"
       companyDetailHref={companyDetailHref}
       forecastEntryHref={buildEntryPageUrl(batch.data.selectedCsms ?? [batch.data.selectedCsm].filter(Boolean), batch.data.year, batch.data.month)}
+      authenticatedUserEmail={authenticatedUserEmail}
       canViewCsmOverview={canViewCsmOverview}
       canRefreshSourceData
       contentClassName="max-w-[1800px]"
@@ -731,7 +737,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
       <section>
         <PetyrSectionTitle
           title="Forecast Entry"
-          description={`Review annual Forecast Ongoing by default, or switch to monthly forecast entry for ${selectedMonthLabel}.`}
+          description={`Review monthly forecast entry for ${selectedMonthLabel}, or switch to Annual Forecast Entry when needed.`}
           actions={
             <Badge variant={isLocked ? "outline" : "secondary"}>
               {isLocked ? batch.data.entryMode.label : activeLabel}
@@ -744,16 +750,16 @@ export default function ForecastEntryMonthlyBatchWorkspace({
       {notice ? <PetyrInlineNotice tone={notice.type === "success" ? "success" : "danger"}>{notice.text}</PetyrInlineNotice> : null}
 
       <Tabs
-        defaultValue="annual"
+        defaultValue="monthly"
         className="space-y-5"
-        onValueChange={setActiveEntryTab}
+        onValueChange={handleEntryTabChange}
       >
         <TabsList className="rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
-          <TabsTrigger value="annual" className="rounded-xl">
-            Annual Forecast Entry
-          </TabsTrigger>
           <TabsTrigger value="monthly" className="rounded-xl">
             Monthly Forecast Entry
+          </TabsTrigger>
+          <TabsTrigger value="annual" className="rounded-xl">
+            Annual Forecast Entry
           </TabsTrigger>
         </TabsList>
 
@@ -779,7 +785,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                 <span>CSM</span>
                 <Button type="button" variant="outline" disabled={isLoading || isSaving} onClick={() => setIsCsmDropdownOpen((current) => !current)} className="h-10 w-full justify-between rounded-xl bg-white px-3 text-left font-normal" aria-haspopup="listbox" aria-expanded={isCsmDropdownOpen}>
                   <span className="truncate">{selectedCsmsLabel(selectedCsms)}</span>
-                  <span className="ml-3 shrink-0 text-slate-400">v</span>
+                  <PetyrSelectChevron />
                 </Button>
                 {isCsmDropdownOpen ? (
                   <div role="listbox" aria-multiselectable="true" className="absolute left-0 top-full z-[70] mt-2 max-h-64 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10">
@@ -1183,7 +1189,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                       ? notice.text
                       : annualLoadAttempted
                         ? "Annual Forecast Entry data is unavailable."
-                        : "Annual Forecast Entry is loading in the background."}
+                        : "Select Annual Forecast Entry to load its data."}
                 </PetyrInlineNotice>
               </CardContent>
             </PetyrCard>

@@ -8,7 +8,7 @@ import { CardContent, CardDescription, CardHeader, CardTitle } from "@/component
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PetyrCard, PetyrInlineNotice } from "@/components/petyr/PetyrLayoutPrimitives";
-import { PetyrSelectField } from "@/components/petyr/PetyrForecastNavigation";
+import { PetyrSelectChevron, PetyrSelectField } from "@/components/petyr/PetyrForecastNavigation";
 import { formatBusinessUnitDisplayName } from "@/lib/petyr/businessUnitDisplay";
 import { formatPetyrInteger, formatPetyrIntegerCurrencyValue, formatPetyrIntegerInputDraft, formatPetyrPercent } from "@/lib/petyr/formatters";
 import { calculateAnnualForecastPercentages } from "@/lib/petyr/annualForecastEntryRules";
@@ -846,7 +846,7 @@ export default function AnnualForecastEntryBatchWorkspace({
               aria-expanded={isCsmDropdownOpen}
             >
               <span className="truncate">{selectedCsmsLabel(selectedCsms)}</span>
-              <span className="ml-3 shrink-0 text-slate-400">v</span>
+              <PetyrSelectChevron />
             </Button>
             {isCsmDropdownOpen ? (
               <div

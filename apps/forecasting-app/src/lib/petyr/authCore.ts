@@ -185,7 +185,7 @@ export function canManagePetyrFeedback(identity: PetyrAuthIdentity) {
 }
 
 export function canRefreshPetyrSourceData(identity: PetyrAuthIdentity) {
-  return hasAnyPetyrPermission(identity, [PETYR_PERMISSIONS.forecastWrite, PETYR_PERMISSIONS.admin]);
+  return identity.permissions.length > 0;
 }
 
 export function hasUsablePetyrGrant(identity: PetyrAuthIdentity) {

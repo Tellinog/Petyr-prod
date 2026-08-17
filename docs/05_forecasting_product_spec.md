@@ -59,10 +59,10 @@ grouped and counted in the menu, and the menu must link to `/petyr-admin` Data
 Health. The floating diagnostics menu and its operator links are visible only to
 users with `petyr:admin`.
 
-`/forecasting` may render a lightweight shell immediately after page permission checks and then refresh PostgreSQL-backed rendering data through protected API route `GET /api/petyr/forecasting/rendering-data`. The endpoint accepts optional `view=management|csm|csm-scoped|all` and `year=YYYY`: on normal app open the browser must request Management first, mark the workspace usable when Management data arrives, then start Forecast Entry Monthly/Annual warmup for users with `petyr:forecast:write`; admin users also start scoped CSM Overview preload for the authenticated/preferred CSM. It must not hydrate `view=all` as the immediate second step after Management. During the Management refresh, Petyr must show only the shared workspace header, section navigator and an in-page loader labelled `Updating data ongoing`, so users know Branch, CSM and Business Unit Management data is updating before the dashboard appears. Forecast Entry Monthly/Annual warmup is best-effort and available for users with `petyr:forecast:write`. The shell and partial view payloads are only temporary rendering states: final Management and CSM data must still come from PostgreSQL-backed Petyr services, diagnostics must remain visible to admins, and Forecasting must not call Redash directly. Company Detail remains on-demand and should load only the selected company/year rather than preloading every company from `/forecasting`.
+`/forecasting` checks Petyr read permission and redirects users with `petyr:forecast:write` to `/forecasting/entry`. That workspace opens on Monthly Forecast Entry; Annual Forecast Entry is loaded only when the user selects its tab. Users without forecast-write permission retain the existing read-only workspace behavior, which defaults to Management and may render a lightweight shell while refreshing PostgreSQL-backed data through protected API route `GET /api/petyr/forecasting/rendering-data?view=management`; CSM Overview remains admin-only. The Management shell is only a temporary rendering state: final Management and CSM data must come from PostgreSQL-backed Petyr services, diagnostics remain admin-visible, and Forecasting must not call Redash directly. Company Detail remains on-demand and loads only the selected company/year rather than preloading every company from `/forecasting`.
 
-The shared Forecasting header exposes `Refresh data` to users with
-`petyr:forecast:write` and `petyr:admin`. Before starting, the UI must explain
+The shared Forecasting header exposes `Refresh data` to every authenticated
+Petyr user with at least one Petyr permission. Before starting, the UI must explain
 that Redash will refresh its queries and Petyr will then collect the new results,
 normally taking 2-5 minutes. Confirmation calls `POST /api/petyr/data-refresh`.
 The endpoint accepts no source/query selection, authorizes server-side, and
@@ -72,6 +72,11 @@ forces fresh executions only for `master_campaigns`, `master_agreements` and
 success the current Petyr page reloads. A concurrent nightly/manual sync returns
 a non-destructive already-running response. This command does not make
 Forecasting a Redash data client and does not trigger AI Forecast generation.
+
+The top-right area of the first shared workspace card must show the authenticated
+user state (`Accesso effettuato`), the authenticated email address and an `Esci`
+button. `Esci` must use Petyr's existing logout route so the local session is
+cleared through the documented Access Layer logout flow.
 
 The Petyr workspace shell must be shared across Management View, CSM Overview, Company Detail and Forecast Entry: one descriptive header card, one section navigator and route-aware links. The header card title and supporting copy must describe what the active view offers, so users can understand the page immediately. CSM Overview is temporarily in development and must be visible/accessible only to users with `petyr:admin`; non-admin users must not see its navigator item, must stay on Management when requesting `?view=csm`, and must not receive CSM Overview rendering payloads. For admins, the top-level workspace switches Management/CSM through `?view=management|csm`; Company Detail and Forecast Entry use dedicated routes with query parameters when context is available.
 
@@ -704,10 +709,10 @@ Sections:
 - revenue by Business Unit, visible only to users with `petyr:admin`, including closed-revenue bars, gray Initial Forecast markers and Previous-month forecast markers colored green when above Initial Forecast, yellow when below it and neutral when aligned;
 - Business Unit current-year view, visible only to users with `petyr:admin`, showing Business Unit totals with Ongoing Forecast, AI Forecast and Closed Revenue YTD; admins can expand a Business Unit to show the individual selected-year months with closed revenue, previous-month forecast, ongoing forecast and AI Forecast;
 - relevant company insights, visible only to users with `petyr:admin`, showing only active rule-based insight categories and omitting zero-count categories;
-- company note form saving note-only company log entries without opening Forecast Entry or changing forecast values;
 - campaign detail table with campaign name, status, Business Unit, agreement, value, costs, GM% and campaign link; by default it shows the latest chronologically completed campaign plus running or planned campaigns, while all other campaigns are available behind an explicit expansion control;
 - agreement table showing only agreements whose expiry date is after the moment of viewing by default, while expired or undated agreements remain available behind an explicit expansion control;
 - Company logs grouped by save session or company note, placed directly below Agreements and residual evidence, showing the latest three logs by default with an explicit expansion control for previous logs;
+- company note form, placed after Company logs, saving note-only company log entries without opening Forecast Entry or changing forecast values;
 - company active status;
 - admin-only Support details area, including Company context and extra metrics, Revenue by Business Unit detail, Monthly forecast rows, Annual forecast rows and AI forecast cache support tables.
 

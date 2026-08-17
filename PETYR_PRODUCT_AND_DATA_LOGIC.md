@@ -98,14 +98,14 @@ Petyr must not manually edit these values.
 
 Petyr must not call Redash directly from the UI. It must read from PostgreSQL tables materialized by the Redash Ingestor.
 
-CSM users with `petyr:forecast:write` and users with `petyr:admin` may request a
+Any authenticated Petyr user with at least one Petyr permission may request a
 fixed source-data refresh from the shared Petyr workspace header. The UI must
 warn before confirmation that Redash query refresh plus Petyr collection
 normally takes 2-5 minutes. The browser calls Petyr only; Petyr re-authorizes the
 session and sends a protected server-to-server command to Redash Ingestor. The
 Ingestor forces fresh results for `master_campaigns`, `master_agreements` and
 `company_ownership`, then performs the same audited snapshot and latest-table
-materialization used by the nightly sync. CSMs cannot select arbitrary Redash
+materialization used by the nightly sync. Users cannot select arbitrary Redash
 queries or access the technical Ingestor surface through this action.
 
 Expected materialized Redash tables include, at minimum:
@@ -591,7 +591,7 @@ Table rules:
 - company names link to Company Detail;
 - Annual company rows show only the linked company name in the first column,
   without a company-level Forecast Ongoing total label or CSM label beneath it;
-- Annual Forecast Entry is the default tab when opening `/forecasting/entry`; Monthly Forecast Entry remains selectable.
+- Monthly Forecast Entry is the default tab when opening `/forecasting/entry`; Annual Forecast Entry loads only after the user selects its tab.
 - The company-level Forecast Initial column starts collapsed to keep Forecast Ongoing prominent. An annual-header show/hide control reveals the existing Initial values and inputs on demand and collapses the column again; Forecast Initial is not sortable.
 - Logs opens Company Detail at the company logs anchor in a new tab and each
   row action is labelled `See latest logs`;
@@ -1201,10 +1201,10 @@ It must show:
 - Business Unit summary with orange closed revenue, gray Initial Forecast and previous-month forecast markers colored green/yellow against Initial Forecast;
 - Business Unit current-year view, visible only to users with `petyr:admin`, showing Business Unit totals with Ongoing Forecast, AI Forecast and Closed Revenue YTD; admins can expand a Business Unit to show the individual selected-year months with closed revenue, previous-month forecast, ongoing forecast and AI Forecast;
 - relevant company insights, visible only to users with `petyr:admin` and showing only active rule-based categories;
-- company note form saving note-only company log entries without changing forecast values;
 - company campaigns showing the latest chronologically completed campaign plus running or planned campaigns by default, with all other campaigns behind an explicit expansion control;
 - agreements and residual evidence showing agreements whose expiry date is after the moment of viewing by default, with expired or undated agreements behind an explicit expansion control;
 - Company logs directly below agreement/residual evidence, containing notes and forecast changes, showing the latest three logs by default with an expansion control for previous logs;
+- company note form, placed after Company logs, saving note-only company log entries without changing forecast values;
 - company active status;
 - admin-only Support details area, including Company context and extra metrics, Revenue by Business Unit detail, Monthly forecast rows, Annual forecast rows and AI forecast cache support tables.
 

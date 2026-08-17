@@ -619,7 +619,7 @@ test("admin retains feedback management access", () => {
   assert.equal(canManagePetyrFeedback(identity), true);
 });
 
-test("CSM forecast writers and admins can refresh Petyr source data", () => {
+test("any Petyr permission can refresh Petyr source data", () => {
   const csm = {
     ...getLocalDevelopmentIdentity(),
     permissions: [PETYR_PERMISSIONS.read, PETYR_PERMISSIONS.forecastWrite]
@@ -632,10 +632,30 @@ test("CSM forecast writers and admins can refresh Petyr source data", () => {
     ...getLocalDevelopmentIdentity(),
     permissions: [PETYR_PERMISSIONS.admin]
   };
+  const feedbackManager = {
+    ...getLocalDevelopmentIdentity(),
+    permissions: [PETYR_PERMISSIONS.feedbackManage]
+  };
+  const managementWriter = {
+    ...getLocalDevelopmentIdentity(),
+    permissions: [PETYR_PERMISSIONS.managementWrite]
+  };
+  const redashOperator = {
+    ...getLocalDevelopmentIdentity(),
+    permissions: [PETYR_PERMISSIONS.redashOperator]
+  };
+  const noPermissions = {
+    ...getLocalDevelopmentIdentity(),
+    permissions: []
+  };
 
   assert.equal(canRefreshPetyrSourceData(csm), true);
-  assert.equal(canRefreshPetyrSourceData(readOnly), false);
+  assert.equal(canRefreshPetyrSourceData(readOnly), true);
   assert.equal(canRefreshPetyrSourceData(admin), true);
+  assert.equal(canRefreshPetyrSourceData(feedbackManager), true);
+  assert.equal(canRefreshPetyrSourceData(managementWriter), true);
+  assert.equal(canRefreshPetyrSourceData(redashOperator), true);
+  assert.equal(canRefreshPetyrSourceData(noPermissions), false);
 });
 
 test("refresh threshold remains exactly 60 seconds", () => {

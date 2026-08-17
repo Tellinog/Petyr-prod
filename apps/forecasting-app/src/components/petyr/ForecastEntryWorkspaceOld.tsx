@@ -228,10 +228,12 @@ function getChangedMonthlyForecastValues(entry: ForecastEntryDataResult, values:
 
 export default function ForecastEntryWorkspace({
   initialEntry,
-  canViewAdminTools = false
+  canViewAdminTools = false,
+  authenticatedUserEmail
 }: {
   initialEntry: ForecastEntryDataResult;
   canViewAdminTools?: boolean;
+  authenticatedUserEmail: string;
 }) {
   const [entry, setEntry] = useState(initialEntry);
   const [selection, setSelection] = useState<Selection>(() => selectionFromEntry(initialEntry));
@@ -593,6 +595,7 @@ export default function ForecastEntryWorkspace({
       activeSection="entry"
       companyDetailHref={companyDetailUrl}
       forecastEntryHref={forecastEntryHref}
+      authenticatedUserEmail={authenticatedUserEmail}
       canViewCsmOverview={canViewAdminTools}
     >
       <PetyrForecastNavigatorShell

@@ -4,10 +4,11 @@
 
 ### POST /api/petyr/data-refresh
 
-Purpose: let a CSM forecast writer or Petyr admin request fresh Redash-derived
-Petyr data without access to the technical Redash Ingestor surface.
+Purpose: let any authenticated Petyr user with at least one Petyr permission
+request fresh Redash-derived Petyr data without access to the technical Redash
+Ingestor surface.
 
-Permissions: `petyr:forecast:write` or `petyr:admin`.
+Permissions: any non-empty Petyr permission grant.
 
 Body: empty JSON object. Source/query selection is not accepted.
 

@@ -84,9 +84,8 @@ curl -X POST http://localhost:8080/redash-ingestor/api/redash/sync \
   -d '{"sourceKey":"company_ownership"}'
 ```
 
-Run the CSM-safe fixed Petyr source refresh through the product endpoint (an
-authenticated Petyr session with `petyr:forecast:write` or `petyr:admin` is
-required):
+Run the fixed Petyr source refresh through the product endpoint (an
+authenticated Petyr session with at least one Petyr permission is required):
 
 ```bash
 curl -X POST http://localhost:8080/api/petyr/data-refresh \

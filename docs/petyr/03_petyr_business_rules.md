@@ -143,7 +143,7 @@ Rules:
   and change-log audit.
 - Annual company rows show only the linked company name in the first column,
   without a company-level Forecast Ongoing total label or CSM label beneath it.
-- Annual Forecast Entry is the default tab when opening `/forecasting/entry`; Monthly remains selectable.
+- Monthly Forecast Entry is the default tab when opening `/forecasting/entry`. Annual Forecast Entry data loads only after the user selects its tab.
 - The company-level Forecast Initial column starts collapsed behind an annual-header show/hide control, is revealed with its existing values and inputs on demand, and is not sortable.
 - Annual Entry table headers stay fixed during vertical scroll, the legend row spans the full horizontal table width, and Company plus Confidence stay visible during horizontal scroll.
 - Annual Entry Confidence uses a semaphore treatment: `01 High` is green, `02 Mid` is yellow and `03 Low` is red.

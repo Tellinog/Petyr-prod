@@ -79,6 +79,7 @@ export default async function ForecastEntryFaqPage({ searchParams }: ForecastEnt
       activeSection="entry"
       companyDetailHref={buildCompanyDetailHref(query)}
       forecastEntryHref={buildForecastEntryHref(query)}
+      authenticatedUserEmail={identity.user.email}
       canViewCsmOverview={canViewCsmOverview}
     >
       <ForecastEntryFaq />

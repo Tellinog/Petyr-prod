@@ -36,6 +36,7 @@ type PetyrWorkspaceShellProps = Omit<PetyrPageShellProps, "children"> & {
   forecastEntryHref?: string | null;
   canViewCsmOverview?: boolean;
   canRefreshSourceData?: boolean;
+  authenticatedUserEmail?: string | null;
   children: ReactNode;
 };
 
@@ -128,6 +129,7 @@ export function PetyrWorkspaceShell({
   forecastEntryHref = null,
   canViewCsmOverview = false,
   canRefreshSourceData = false,
+  authenticatedUserEmail = null,
   children,
   ...props
 }: PetyrWorkspaceShellProps) {
@@ -144,7 +146,7 @@ export function PetyrWorkspaceShell({
   return (
     <PetyrPageShell {...props}>
       <div className="relative rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-        <div className={cn(canRefreshSourceData ? "md:pr-[440px]" : helpHref ? "md:pr-24" : undefined)}>
+        <div className={cn(authenticatedUserEmail || canRefreshSourceData ? "md:pr-[440px]" : helpHref ? "md:pr-24" : undefined)}>
           <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-600">
             UNGUESS · Petyr
           </div>
@@ -154,6 +156,27 @@ export function PetyrWorkspaceShell({
           </p>
         </div>
         <div className="mt-5 flex flex-col items-end gap-2 md:absolute md:right-8 md:top-8 md:mt-0">
+          {authenticatedUserEmail ? (
+            <div className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-right shadow-sm md:w-auto">
+              <div className="flex items-center justify-end gap-3">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Stato utente</div>
+                  <div className="text-sm font-semibold text-emerald-700">Accesso effettuato</div>
+                </div>
+                <form action="/auth/logout" method="post">
+                  <button
+                    className="inline-flex h-9 items-center justify-center rounded-full border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    type="submit"
+                  >
+                    Esci
+                  </button>
+                </form>
+              </div>
+              <div className="mt-1 max-w-[280px] truncate text-sm text-slate-600" title={authenticatedUserEmail}>
+                {authenticatedUserEmail}
+              </div>
+            </div>
+          ) : null}
           <div className="flex flex-wrap justify-end gap-2">
             {canRefreshSourceData ? <PetyrSourceDataRefreshControl /> : null}
             {helpHref ? (

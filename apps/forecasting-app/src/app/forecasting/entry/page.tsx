@@ -40,6 +40,7 @@ export default async function ForecastEntryPage({ searchParams }: ForecastEntryP
       initialBatch={initialBatch}
       initialAnnualYear={query.year}
       canViewCsmOverview={canViewCsmOverview}
+      authenticatedUserEmail={identity.user.email}
     />
   );
 

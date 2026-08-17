@@ -32,9 +32,9 @@ implemented/enabled, and stores validated generated values only in
 Future post-sync or global batch automation requires a separate documented
 decision.
 
-Petyr also exposes a constrained CSM/admin source-refresh command. The browser
-calls `POST /api/petyr/data-refresh`; Forecasting authorizes
-`petyr:forecast:write` or `petyr:admin` and sends a server-to-server request to
+Petyr also exposes a constrained source-refresh command. The browser calls
+`POST /api/petyr/data-refresh`; Forecasting authorizes any authenticated Petyr
+user with at least one Petyr permission and sends a server-to-server request to
 Redash Ingestor using `APP_INTERNAL_SECRET`. Redash Ingestor remains the only
 Redash client and refreshes only the three approved Petyr sources before
 snapshot persistence and PostgreSQL materialization. This command does not

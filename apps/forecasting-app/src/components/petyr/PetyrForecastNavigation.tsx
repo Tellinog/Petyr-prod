@@ -13,6 +13,19 @@ type PetyrSelectFieldProps = SelectHTMLAttributes<HTMLSelectElement> & {
   containerClassName?: string;
 };
 
+export function PetyrSelectChevron() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="pointer-events-none h-4 w-4 shrink-0 text-slate-400"
+      fill="none"
+      viewBox="0 0 20 20"
+    >
+      <path d="m6 8 4 4 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" />
+    </svg>
+  );
+}
+
 export function PetyrSelectField({
   label,
   badge,
@@ -27,15 +40,20 @@ export function PetyrSelectField({
         <span>{label}</span>
         {badge ? <Badge variant="outline">{badge}</Badge> : null}
       </span>
-      <select
-        className={cn(
-          "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50",
-          className
-        )}
-        {...props}
-      >
-        {children}
-      </select>
+      <div className="relative">
+        <select
+          className={cn(
+            "h-10 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50",
+            className
+          )}
+          {...props}
+        >
+          {children}
+        </select>
+        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+          <PetyrSelectChevron />
+        </span>
+      </div>
     </label>
   );
 }

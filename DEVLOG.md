@@ -18,6 +18,43 @@ Each entry must include:
 
 ---
 
+## 2026-08-17
+
+- **Area:** Petyr / Shared workspace header / Source-data refresh permissions
+- **Change:** Made `Refresh data` visible and server-authorized for every authenticated Petyr user with at least one Petyr permission, instead of only forecast writers and admins.
+- **Reason:** Any user permitted to access Petyr must be able to refresh the available data from the top-right workspace header.
+- **Impact:** The refresh remains constrained to `master_campaigns`, `master_agreements` and `company_ownership`, runs through the protected Petyr-to-Ingestor command and retains the global sync lock. It does not grant Redash Ingestor dashboard access, arbitrary query selection or direct Redash access.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/petyr/authCore.ts`, `apps/forecasting-app/src/lib/petyr/auth.ts`, `apps/forecasting-app/src/app/api/petyr/data-refresh/route.ts`, shared workspace route/component props, `apps/forecasting-app/tests/petyrAuth.test.ts`, Petyr/API/architecture/access-control docs, `DECISIONS.md`, `DEVLOG.md`.
+- **Follow-up:** Verify the refresh from a read-only or feedback-management Access Layer grant after deployment.
+
+- **Area:** Petyr / Company Detail / Section order
+- **Change:** Moved the Company campaigns and Agreements cards above the Company note form while preserving Company logs directly below Agreements.
+- **Reason:** Product requested campaign and agreement evidence before the company-note action.
+- **Impact:** This is a presentation-only change; note saving, logs, permissions and data reads are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/app/forecasting/company/[companyName]/page.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecast Entry / CSM dropdown visual consistency
+- **Change:** Replaced the literal `v` marker in the Monthly and Annual Forecast Entry CSM multi-select triggers with the shared select chevron used by the Month/Year controls. The shared `PetyrSelectField` now renders that same explicit chevron consistently across native select fields.
+- **Reason:** The CSM dropdown trigger arrow was visually different from the existing Month dropdown arrow and looked less polished.
+- **Impact:** Dropdown selection behavior, multi-select state, loading flow, APIs and forecast data are unchanged; only the control affordance is aligned.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/PetyrForecastNavigation.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Forecast Entry landing and tab selection
+- **Change:** `/forecasting` now redirects forecast writers to `/forecasting/entry`. The entry workspace opens on Monthly Forecast Entry, and Annual Forecast Entry data is requested only when the user selects the Annual tab.
+- **Reason:** Product requested Forecast Entry rather than Management as the initial working screen, with Monthly as the initial forecast period.
+- **Impact:** Read-only users retain their existing workspace behavior; no permissions, data model, API contract or forecast calculation changes. Removing the initial Annual request also avoids loading its data before it is needed.
+- **Files/documents involved:** `apps/forecasting-app/src/app/forecasting/page.tsx`, `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/README.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Shared workspace header / Authenticated user status
+- **Change:** Added the authenticated user state, email address and `Esci` button to the top-right area of the first shared workspace card across Management, CSM Overview, Company Detail and Forecast Entry.
+- **Reason:** Users need to see which account is active and be able to end the session from every workspace section.
+- **Impact:** The existing `/auth/logout` POST route is used; permissions, session storage, tokens and authorization behavior are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/PetyrLayoutPrimitives.tsx`, workspace route/component props, `docs/05_forecasting_product_spec.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
 ## 2026-07-24
 
 - **Area:** Petyr / Access Layer / Activity-driven session refresh

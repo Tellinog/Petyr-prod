@@ -7,7 +7,7 @@ import { CardContent, CardDescription, CardHeader, CardTitle } from "@/component
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { requirePetyrPagePermission } from "@/lib/petyr/auth";
-import { hasPetyrPermission, PETYR_PERMISSIONS } from "@/lib/petyr/authCore";
+import { canRefreshPetyrSourceData, hasPetyrPermission, PETYR_PERMISSIONS } from "@/lib/petyr/authCore";
 import { resolvePreferredCsmName } from "@/lib/petyr/csmIdentity";
 import { formatPetyrCurrencyValue, formatPetyrNumber, formatPetyrPercent } from "@/lib/petyr/formatters";
 import { saveCompanyLogNote } from "@/services/companyLogNoteService";
@@ -1002,8 +1002,9 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
       activeSection="company"
       companyDetailHref={companyDetailHref}
       forecastEntryHref={forecastEntryHref}
+      authenticatedUserEmail={identity.user.email}
       canViewCsmOverview={canViewAdminTools}
-      canRefreshSourceData={canAddCompanyNotes || canViewAdminTools}
+      canRefreshSourceData={canRefreshPetyrSourceData(identity)}
     >
       <PetyrSectionTitle
         title="Company Detail"
@@ -1058,17 +1059,6 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
         </>
       ) : null}
 
-{canAddCompanyNotes ? (
-        <SectionCard title="Company note" description="Add a note to this company log without opening Forecast Entry or changing forecast values.">
-        <CompanyNoteSection
-          companyName={displayCompanyName}
-          csmName={csmName}
-          selectedYear={selectedYear}
-          activeStatus={activeStatus ?? null}
-        />
-      </SectionCard>
-      ) : null}
-
       {canViewAdminTools ? (
         <SectionCard title="Relevant company insights" description="Only active rule-based insight evidence is shown for this company.">
           <AlertsSection rows={alertsResult.data} />
@@ -1086,6 +1076,17 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
       <SectionCard id="company-logs" title="Company logs" description="Contains all notes and forecast changes made for this company.">
         <ChangeHistorySection rows={data.changeHistory} />
       </SectionCard>
+
+      {canAddCompanyNotes ? (
+        <SectionCard title="Company note" description="Add a note to this company log without opening Forecast Entry or changing forecast values.">
+          <CompanyNoteSection
+            companyName={displayCompanyName}
+            csmName={csmName}
+            selectedYear={selectedYear}
+            activeStatus={activeStatus ?? null}
+          />
+        </SectionCard>
+      ) : null}
 
       {canViewAdminTools ? (
         <section className="space-y-4" aria-label="Company Detail support details">

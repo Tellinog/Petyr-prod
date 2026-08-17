@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
-import { requirePetyrApiAnyPermission } from "@/lib/petyr/auth";
-import { PETYR_PERMISSIONS } from "@/lib/petyr/authCore";
+import { requirePetyrApiToolAccess } from "@/lib/petyr/auth";
 import { refreshPetyrSourceData } from "@/services/petyrSourceDataRefreshService";
 
 export const maxDuration = 420;
 
 export async function POST() {
-  const auth = await requirePetyrApiAnyPermission([
-    PETYR_PERMISSIONS.forecastWrite,
-    PETYR_PERMISSIONS.admin
-  ]);
+  const auth = await requirePetyrApiToolAccess();
   if (auth instanceof NextResponse) return auth;
 
   try {

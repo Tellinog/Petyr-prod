@@ -32,5 +32,5 @@ export default async function ForecastEntryOldPage({ searchParams }: ForecastEnt
     preferredCsmName: identity.user.displayName
   });
 
-  return <ForecastEntryWorkspaceOld initialEntry={initialEntry} canViewAdminTools />;
+  return <ForecastEntryWorkspaceOld initialEntry={initialEntry} canViewAdminTools authenticatedUserEmail={identity.user.email} />;
 }

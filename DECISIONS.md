@@ -33,6 +33,16 @@ Each decision should include:
 - **Consequences:** A valid planned TA campaign of 20,000 EUR for Sorgenia in September produces a deterministic AI suggestion of at least 20,000 EUR when the row is otherwise eligible. Existing saved CSM forecasts are not changed, and existing AI cache rows refresh on their next manual or daily generation.
 - **Related docs:** `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `docs/petyr/AI_FORECASTING_DESIGN.md`, `BACKLOG.md`, `DEVLOG.md`.
 
+## 2026-08-17 - Allow every authorized Petyr user to refresh source data
+
+- **Status:** Accepted.
+- **Context:** The shared header previously limited source-data refresh to forecast writers and admins, even when another user already had a valid Petyr permission grant.
+- **Decision:** Every authenticated Petyr session with at least one Petyr permission may trigger the fixed `POST /api/petyr/data-refresh` command. The header and endpoint use the same rule. The fixed source set, protected server-to-server command, global sync lock and technical Redash Ingestor access boundaries remain unchanged.
+- **Alternatives discarded:** Expanding Redash Ingestor operator access; allowing arbitrary Redash source selection; trusting the browser to enforce visibility.
+- **Reason:** Access to Petyr with any valid permission must include the top-right data-refresh action.
+- **Consequences:** Read-only, feedback-management, management-write, forecast-write, admin and Redash-operator Petyr grants can run the refresh; an authenticated session with no permissions remains forbidden.
+- **Related docs:** `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/01_architecture.md`, `docs/03_redash_sources.md`, `docs/05_forecasting_product_spec.md`, `docs/08_operational_commands.md`, `docs/API.md`, `docs/petyr/01_petyr_architecture.md`, `docs/access-control/TOOL_INTEGRATION_GUIDE.md`, `apps/forecasting-app/README.md`, `DEVLOG.md`.
+
 ## 2026-07-22 - Allow CSM-triggered Petyr source refresh through a constrained command path
 
 - **Status:** Accepted.

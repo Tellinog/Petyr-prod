@@ -127,3 +127,17 @@ export async function requirePetyrApiAnyPermission(permissions: PetyrPermission[
 
   return result.identity;
 }
+
+export async function requirePetyrApiToolAccess() {
+  const result = await getPetyrAuthIdentity();
+
+  if (!result.ok) {
+    return createPetyrAuthFailureResponse(result);
+  }
+
+  if (result.identity.permissions.length === 0) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  return result.identity;
+}
