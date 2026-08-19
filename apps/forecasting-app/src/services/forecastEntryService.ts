@@ -215,7 +215,7 @@ function selectCompany(input: ForecastEntryQuery, companies: ForecastEntryCompan
 
   return {
     companyName: requestedCompany || selected?.companyName || "",
-    csmName: requestedCsm || selected?.csmName || preferredCsm || "Unassigned"
+    csmName: exactCompany?.csmName || requestedCsm || selected?.csmName || preferredCsm || "Unassigned"
   };
 }
 

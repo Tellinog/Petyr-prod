@@ -482,7 +482,7 @@ function MonthlyChart({ result }: { result: PetyrAiForecastManualActionResult })
 
   return (
     <div className="h-[320px] rounded-2xl border border-slate-200 bg-white p-3">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
         <LineChart data={chartRows}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="month" />
@@ -524,7 +524,7 @@ function BusinessUnitChart({ result }: { result: PetyrAiForecastManualActionResu
 
   return (
     <div className="h-[340px] rounded-2xl border border-slate-200 bg-white p-3">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
         <BarChart data={chartRows}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="businessUnit" interval={0} tick={{ fontSize: 11 }} />

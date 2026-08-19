@@ -114,7 +114,7 @@ export const prismaPetyrAuthSessionStore: PetyrAuthSessionStore = {
 
     return prisma.$transaction(
       async (transaction) => {
-        await transaction.$queryRaw`SELECT pg_advisory_xact_lock(${advisoryLockKey})`;
+        await transaction.$executeRaw`SELECT pg_advisory_xact_lock(${advisoryLockKey})`;
 
         const row = await transaction.petyrAuthSession.findUnique({ where: { idHash } });
         const session = row ? fromStoredSession(row, encryptionSecret) : null;

@@ -21,7 +21,7 @@ type PetyrPageShellProps = HTMLAttributes<HTMLElement> & {
 export function PetyrPageShell({ children, className, contentClassName, ...props }: PetyrPageShellProps) {
   return (
     <main className={cn("min-h-screen bg-slate-100 text-slate-900", className)} {...props}>
-      <div className={cn("mx-auto flex max-w-[1600px] flex-col gap-6 p-6 md:p-8", contentClassName)}>
+      <div className={cn("mx-auto flex max-w-[1600px] flex-col gap-4 px-4 pb-6 pt-0 md:gap-5 md:px-6 md:pb-8 md:pt-0", contentClassName)}>
         {children}
       </div>
     </main>
@@ -50,29 +50,6 @@ const workspaceNavItems: Array<{
   { key: "entry", label: "Forecast Entry" }
 ];
 
-const workspaceHeaderCopy: Record<PetyrWorkspaceSection, { title: string; description: string }> = {
-  management: {
-    title: "Management",
-    description:
-      "Track annual objectives, Initial vs Ongoing Forecast, Closed revenue YTD, planned revenue, branch, Business Unit and CSM performance, plus risk signals."
-  },
-  csm: {
-    title: "CSM Overview",
-    description:
-      "Review assigned company portfolios, monthly forecast comparisons, AI reference values and relevant insights. Open details or Forecast Entry when follow-up is needed."
-  },
-  company: {
-    title: "Company Details",
-    description:
-      "Inspect a selected company in read-only mode: agreements, campaigns, residuals, Business Unit revenue, AI cache suggestions and forecast change history."
-  },
-  entry: {
-    title: "Forecast Entry",
-    description:
-      "Enter and review CSM-owned monthly and annual forecasts by company and Business Unit, with editability rules, notes, status updates and AI Forecast support."
-  }
-};
-
 function PetyrWorkspaceNavLink({
   active,
   disabled,
@@ -84,7 +61,7 @@ function PetyrWorkspaceNavLink({
   disabled?: boolean;
 }) {
   const navClassName = cn(
-    "inline-flex items-center justify-center whitespace-nowrap rounded-xl px-3 py-3 text-sm font-medium transition-all",
+    "inline-flex items-center justify-center whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
     active ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50",
     disabled && "cursor-not-allowed text-slate-400 hover:bg-transparent",
     className
@@ -133,7 +110,6 @@ export function PetyrWorkspaceShell({
   children,
   ...props
 }: PetyrWorkspaceShellProps) {
-  const headerCopy = workspaceHeaderCopy[activeSection];
   const helpHref = buildForecastEntryFaqHref(forecastEntryHref);
   const hrefs: Record<PetyrWorkspaceSection, string | null> = {
     management: "/forecasting?view=management",
@@ -145,30 +121,26 @@ export function PetyrWorkspaceShell({
 
   return (
     <PetyrPageShell {...props}>
-      <div className="relative rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-        <div className={cn(authenticatedUserEmail || canRefreshSourceData ? "md:pr-[440px]" : helpHref ? "md:pr-24" : undefined)}>
-          <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-600">
-            UNGUESS · Petyr
-          </div>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight md:text-4xl">{headerCopy.title}</h1>
-          <p className="mt-2 max-w-3xl text-slate-500">
-            {headerCopy.description}
-          </p>
+      <div className="relative overflow-hidden rounded-b-[28px] border border-t-0 border-slate-200 bg-white shadow-sm">
+        <div className="relative p-5 md:p-6">
+          <h1 className={cn("text-2xl font-semibold tracking-tight md:text-3xl", authenticatedUserEmail || canRefreshSourceData ? "md:pr-[440px]" : helpHref ? "md:pr-24" : undefined)}>
+            Petyr Forecasting Tool
+          </h1>
         </div>
-        <div className="mt-5 flex flex-col items-end gap-2 md:absolute md:right-8 md:top-8 md:mt-0">
+        <div className="flex flex-col items-end gap-2 px-5 pb-4 md:absolute md:right-6 md:top-6 md:px-0 md:pb-0">
           {authenticatedUserEmail ? (
-            <div className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-right shadow-sm md:w-auto">
+            <div className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right shadow-sm md:w-auto">
               <div className="flex items-center justify-end gap-3">
                 <div className="min-w-0">
-                  <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Stato utente</div>
-                  <div className="text-sm font-semibold text-emerald-700">Accesso effettuato</div>
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">User status</div>
+                  <div className="text-sm font-semibold text-emerald-700">Signed in</div>
                 </div>
                 <form action="/auth/logout" method="post">
                   <button
                     className="inline-flex h-9 items-center justify-center rounded-full border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
                     type="submit"
                   >
-                    Esci
+                    Sign out
                   </button>
                 </form>
               </div>
@@ -192,26 +164,25 @@ export function PetyrWorkspaceShell({
             ) : null}
           </div>
         </div>
+        <nav
+          aria-label="Petyr forecasting sections"
+          className={cn(
+            "grid h-auto grid-cols-1 border-t border-slate-200 bg-slate-50/70 p-1",
+            visibleNavItems.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3"
+          )}
+        >
+          {visibleNavItems.map((item) => (
+            <PetyrWorkspaceNavLink
+              key={item.key}
+              active={activeSection === item.key}
+              disabled={!hrefs[item.key]}
+              href={hrefs[item.key] ?? undefined}
+            >
+              {item.label}
+            </PetyrWorkspaceNavLink>
+          ))}
+        </nav>
       </div>
-
-      <nav
-        aria-label="Petyr forecasting sections"
-        className={cn(
-          "grid h-auto grid-cols-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm",
-          visibleNavItems.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3"
-        )}
-      >
-        {visibleNavItems.map((item) => (
-          <PetyrWorkspaceNavLink
-            key={item.key}
-            active={activeSection === item.key}
-            disabled={!hrefs[item.key]}
-            href={hrefs[item.key] ?? undefined}
-          >
-            {item.label}
-          </PetyrWorkspaceNavLink>
-        ))}
-      </nav>
 
       {children}
     </PetyrPageShell>

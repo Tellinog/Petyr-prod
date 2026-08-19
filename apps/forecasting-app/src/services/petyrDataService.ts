@@ -73,7 +73,6 @@ const PLANNED_FUTURE_EXCLUDED_STATUSES = new Set([
   "archived"
 ]);
 const MAX_AI_FORECAST_CACHE_READ_ROWS = 50000;
-const RECENT_WORKSPACE_ASSOCIATION_MONTHS = 6;
 
 const CAMPAIGN_SOURCE = getRedashPetyrSourceMapping("master_campaigns");
 const AGREEMENT_SOURCE = getRedashPetyrSourceMapping("master_agreements");
@@ -209,7 +208,6 @@ type CompanyOwnership = {
 
 type CompanyOwnershipMaps = {
   byCompany: Map<string, CompanyOwnership>;
-  recentAssociations: CompanyOwnership[];
   hasRows: boolean;
 };
 
@@ -1108,20 +1106,8 @@ function compareOwnershipCandidate(candidate: CompanyOwnership, existing: Compan
   return candidate.csmName.localeCompare(existing.csmName);
 }
 
-function workspaceAssociationCutoff(today = new Date()) {
-  const cutoff = new Date(today);
-  cutoff.setMonth(cutoff.getMonth() - RECENT_WORKSPACE_ASSOCIATION_MONTHS);
-  return cutoff;
-}
-
-function isRecentWorkspaceAssociation(ownership: Pick<CompanyOwnership, "workspaceUpdatedOn">, today = new Date()) {
-  const updatedOn = ownership.workspaceUpdatedOn;
-  return Boolean(updatedOn && updatedOn.getTime() >= workspaceAssociationCutoff(today).getTime());
-}
-
 function buildCompanyOwnershipMaps(rows: MaterializedOwnershipRow[]): CompanyOwnershipMaps {
   const byCompany = new Map<string, CompanyOwnership>();
-  const byCompanyAndCsm = new Map<string, CompanyOwnership>();
 
   for (const row of rows) {
     const companyName = normalizeCellValue(row.company_name);
@@ -1141,52 +1127,16 @@ function buildCompanyOwnershipMaps(rows: MaterializedOwnershipRow[]): CompanyOwn
       byCompany.set(companyKey, candidate);
     }
 
-    const associationKey = [companyKey, normalizeKey(candidate.csmName)].join("\u0000");
-    const existingAssociation = byCompanyAndCsm.get(associationKey);
-    if (!existingAssociation || compareOwnershipCandidate(candidate, existingAssociation) > 0) {
-      byCompanyAndCsm.set(associationKey, candidate);
-    }
   }
-
-  const recentAssociations = [...byCompanyAndCsm.values()]
-    .filter((ownership) => isRecentWorkspaceAssociation(ownership))
-    .sort((left, right) => left.csmName.localeCompare(right.csmName) || left.companyName.localeCompare(right.companyName));
 
   return {
     byCompany,
-    recentAssociations,
     hasRows: byCompany.size > 0
   };
 }
 
 function companyOwnership(input: CompanyOwnershipMaps | undefined, companyName: string) {
   return input?.byCompany.get(normalizeKey(companyName)) ?? null;
-}
-
-function recentCompanyOwnershipAssociations(input: CompanyOwnershipMaps | undefined) {
-  return input?.recentAssociations ?? [];
-}
-
-function expandCompanyOverviewsForRecentOwnership(companies: PetyrCompanyOverview[], ownershipMaps: CompanyOwnershipMaps | undefined) {
-  const overviewByCompany = new Map(companies.map((company) => [normalizeKey(company.companyName), company]));
-  const expanded: PetyrCompanyOverview[] = [];
-  const expandedKeys = new Set<string>();
-
-  for (const ownership of recentCompanyOwnershipAssociations(ownershipMaps)) {
-    const overview = overviewByCompany.get(normalizeKey(ownership.companyName));
-    if (!overview) continue;
-
-    const key = [normalizeKey(ownership.companyName), normalizeKey(ownership.csmName || "Unassigned")].join("\u0000");
-    if (expandedKeys.has(key)) continue;
-    expandedKeys.add(key);
-    expanded.push({
-      ...overview,
-      companyName: ownership.companyName,
-      csmName: ownership.csmName || "Unassigned"
-    });
-  }
-
-  return expanded.length > 0 ? expanded : companies;
 }
 
 function decimalToNumber(value: Prisma.Decimal | null | undefined) {
@@ -3972,12 +3922,11 @@ export async function getCsmOverviewWorkspace(year?: number) {
       aiRows: inputs.aiRows,
       companyRevenueLifecycles: inputs.companyRevenueLifecycles
     });
-    const csmOverviewRows = expandCompanyOverviewsForRecentOwnership(overviewRows, inputs.ownershipMaps);
     const companies = buildCsmOverviewCompanies({
       year: resolvedYear,
       today,
       campaignDateColumnExists: Boolean(inputs.campaignContext.columns.endDate),
-      companies: csmOverviewRows,
+      companies: overviewRows,
       campaignRows: inputs.campaignRows,
       monthlyRows: inputs.monthlyRows,
       aiRows: inputs.aiRows
@@ -4063,7 +4012,7 @@ export async function getCsmOverview(csmName: string, year: number) {
       aiRows: inputs.aiRows,
       companyRevenueLifecycles: inputs.companyRevenueLifecycles
     });
-    const companies = expandCompanyOverviewsForRecentOwnership(overviewRows, inputs.ownershipMaps).filter(
+    const companies = overviewRows.filter(
       (company) => normalizeKey(company.csmName) === normalizedCsm
     );
     const keys = companyKeySet(companies);
@@ -4370,19 +4319,9 @@ export async function getCompanyDetailNavigationCompanies() {
     }
 
     if (ownershipMaps.hasRows) {
-      const recentAssociations = recentCompanyOwnershipAssociations(ownershipMaps);
-      const navigationOwnershipRows = recentAssociations.length > 0 ? recentAssociations : [...ownershipMaps.byCompany.values()];
-
-      if (recentAssociations.length === 0) {
-        diagnostics.push(
-          `No company_ownership workspace association has workspace_updated_on within the last ${RECENT_WORKSPACE_ASSOCIATION_MONTHS} months. Company Detail navigation uses the latest owner per company until fresh workspace associations are synced.`
-        );
-      }
-
-      for (const ownership of navigationOwnershipRows) {
+      for (const ownership of ownershipMaps.byCompany.values()) {
         const status = statusByKey.get(normalizeKey(ownership.companyName));
-        const navigationKey = [normalizeKey(ownership.companyName), normalizeKey(ownership.csmName || "Unassigned")].join("\u0000");
-        rowsByKey.set(navigationKey, {
+        rowsByKey.set(normalizeKey(ownership.companyName), {
           companyName: ownership.companyName,
           csmName: ownership.csmName || "Unassigned",
           isForecastActive: status?.isActive ?? null,
@@ -4507,14 +4446,7 @@ async function getScopedOwnershipSelection(input: {
     return null;
   }
 
-  const recentAssociations = recentCompanyOwnershipAssociations(ownershipMaps);
-  if (recentAssociations.length === 0) {
-    input.diagnostics.push(
-      `No company_ownership workspace association has workspace_updated_on within the last ${RECENT_WORKSPACE_ASSOCIATION_MONTHS} months. Forecast Entry scoped read uses the latest owner per company until fresh workspace associations are synced.`
-    );
-  }
-
-  const allCompanies = recentAssociations.length > 0 ? recentAssociations : [...ownershipMaps.byCompany.values()];
+  const allCompanies = [...ownershipMaps.byCompany.values()];
   const csmOptions = [...new Set(allCompanies.map((company) => company.csmName || "Unassigned"))].sort((left, right) =>
     left.localeCompare(right)
   );

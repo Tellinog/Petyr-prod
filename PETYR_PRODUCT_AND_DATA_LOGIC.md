@@ -214,13 +214,10 @@ Rules:
 
 - use company_ownership as the primary mapping Company → CSM;
 - avoid deriving the current CSM only from historical agreements or historical campaigns;
-- CSM portfolio/company lists must not assign each company only to the single
-  latest workspace owner when `company_ownership` exposes multiple workspaces;
-- for CSM Overview and Forecast Entry portfolio lists, include every
-  company-CSM association whose workspace was updated in the last 6 months,
-  using `workspace_updated_on` from `company_ownership`;
-- if no recent workspace associations are available, Petyr may fall back to the
-  latest owner per company with diagnostics instead of returning mock data;
+- CSM portfolio/company lists, Forecast Entry, Company Detail and forecast saves
+  must assign each company only to the canonical latest workspace owner from
+  `company_ownership`, determined by `workspace_updated_on` and then
+  `workspace_created_on` as a tie-breaker;
 - if ownership is missing, show diagnostic;
 - if company ownership is unavailable or incomplete but real PostgreSQL campaign, agreement or forecast rows exist, render those real rows with fallback CSM attribution and Branch `Unassigned Branch`;
 - if a fallback is used, make it explicit in diagnostics and do not fall back to mock customers.
@@ -1184,7 +1181,7 @@ It must not be the main editing area.
 
 Company Detail is analytical and read-only for forecast values.
 
-Company Detail uses the shared Petyr workspace shell with the same descriptive header card and section navigation as Management View, CSM Overview and Forecast Entry. It remains read-only for forecast data edits, but users must be able to change CSM filter, company, previous/next company and year through the Forecast Entry-style navigator backed by the Forecast Entry company ordering and the same recent Company Ownership workspace association rule used by Forecast Entry Monthly and Annual. The year/load control appears to the left of previous/next company navigation, and previous/next navigation must not repeat the CSM name.
+Company Detail uses the shared compact Petyr workspace shell and its integrated section navigation, as do Management View, CSM Overview and Forecast Entry. The shell has the fixed title `Petyr Forecasting Tool`, English authenticated-user status, FAQ and data-refresh controls; it does not repeat a view-specific title or description. Company Detail remains read-only for forecast data edits, but users must be able to change CSM filter, company, previous/next company and year through the Forecast Entry-style navigator backed by the Forecast Entry company ordering and the same canonical current Company Ownership rule used by Forecast Entry Monthly and Annual. The year/load control appears to the left of previous/next company navigation, and previous/next navigation must not repeat the CSM name.
 The explicitly labelled Forecast status in the Company Detail header is connected to `company_forecast_status`. Users with `petyr:forecast:write` can change it between Active and Inactive directly from Company Detail; the change autosaves, creates a save session/change log row, and when set to Inactive clears numeric AI Forecast cache rows for that company. This status control does not make monthly or annual forecast values editable in Company Detail.
 
 It must show:
@@ -1237,7 +1234,7 @@ Agreement rows and agreement evidence should be ordered by operational expiry pr
 
 Forecast Entry is the only area where monthly forecasts can be edited.
 
-Forecast Entry uses the shared Petyr workspace shell with the same descriptive header card and section navigation as Management View, CSM Overview and Company Detail. It remains the only route that may expose the manual AI Forecast apply action, but the Support tools area and floating Data diagnostics menu are visible only to users with `petyr:admin`. The Monthly forecast tab may expose a CSM-facing Forecast Intelligence section for users with `petyr:forecast:write`; that section renders validated consultative JSON and has no apply controls or OpenRouter prompt/debug output. The normal Monthly and Annual Forecast Entry sections must use one floating bottom-right `Save` button that remains visible while scrolling, replaces inline top/bottom save buttons and turns green for five seconds after an effective save. The existing monthly and annual forecast logic must be preserved unless a later task explicitly selects a bug fix.
+Forecast Entry uses the shared compact Petyr workspace shell and its integrated section navigation. The fixed shell title avoids a duplicated page heading; the Monthly and Annual switch uses the concise labels `Monthly` and `Annual`, and the editor starts directly with its controls and table. It remains the only route that may expose the manual AI Forecast apply action, but the Support tools area and floating Data diagnostics menu are visible only to users with `petyr:admin`. The Monthly forecast tab may expose a CSM-facing Forecast Intelligence section for users with `petyr:forecast:write`; that section renders validated consultative JSON and has no apply controls or OpenRouter prompt/debug output. The normal Monthly and Annual Forecast Entry sections must use one floating bottom-right `Save` button that remains visible while scrolling, replaces inline top/bottom save buttons and turns green for five seconds after an effective save. The existing monthly and annual forecast logic must be preserved unless a later task explicitly selects a bug fix.
 
 When a user clears an editable Monthly or Annual Forecast Ongoing Business Unit
 field, Save and Enter persist `0` instead of returning an empty-value error.

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PetyrCard, PetyrInlineNotice } from "@/components/petyr/PetyrLayoutPrimitives";
@@ -303,12 +304,14 @@ export default function AnnualForecastEntryBatchWorkspace({
   const [showInitialForecast, setShowInitialForecast] = useState(false);
   const [expandedInitialBusinessUnits, setExpandedInitialBusinessUnits] = useState<Record<string, boolean>>(() => initialExpandedStateFromBatch(initialBatch));
   const [isCsmDropdownOpen, setIsCsmDropdownOpen] = useState(false);
+  const [csmDropdownPosition, setCsmDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const [annualSort, setAnnualSort] = useState<AnnualSortState>({ key: null, direction: "asc" });
   const [activeVisibilityFilter, setActiveVisibilityFilter] = useState<ActiveVisibilityFilter>("all");
   const savedStateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveInFlightRef = useRef(false);
   const annualTableRef = useRef<HTMLTableElement | null>(null);
   const csmDropdownRef = useRef<HTMLDivElement | null>(null);
+  const csmDropdownMenuRef = useRef<HTMLDivElement | null>(null);
 
 
   const hasLocalChanges = useMemo(
@@ -340,7 +343,8 @@ export default function AnnualForecastEntryBatchWorkspace({
 
   useEffect(() => {
     function closeCsmDropdownOnOutsideClick(event: MouseEvent) {
-      if (!csmDropdownRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!csmDropdownRef.current?.contains(target) && !csmDropdownMenuRef.current?.contains(target)) {
         setIsCsmDropdownOpen(false);
       }
     }
@@ -348,6 +352,27 @@ export default function AnnualForecastEntryBatchWorkspace({
     document.addEventListener("mousedown", closeCsmDropdownOnOutsideClick);
     return () => document.removeEventListener("mousedown", closeCsmDropdownOnOutsideClick);
   }, []);
+
+  useEffect(() => {
+    if (!isCsmDropdownOpen) {
+      setCsmDropdownPosition(null);
+      return;
+    }
+
+    function updateCsmDropdownPosition() {
+      const bounds = csmDropdownRef.current?.getBoundingClientRect();
+      if (!bounds) return;
+      setCsmDropdownPosition({ top: bounds.bottom + 8, left: bounds.left, width: bounds.width });
+    }
+
+    updateCsmDropdownPosition();
+    window.addEventListener("resize", updateCsmDropdownPosition);
+    window.addEventListener("scroll", updateCsmDropdownPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateCsmDropdownPosition);
+      window.removeEventListener("scroll", updateCsmDropdownPosition, true);
+    };
+  }, [isCsmDropdownOpen]);
 
   function markSavedState(summary: string) {
     setSavedSummary(summary);
@@ -821,20 +846,9 @@ export default function AnnualForecastEntryBatchWorkspace({
 
   return (
     <PetyrCard>
-      <CardHeader>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <CardTitle>Annual Forecast Entry</CardTitle>
-            <CardDescription>
-              {selectedCsmsLabel(batch.data.selectedCsms)}: {batch.data.companies.length} compan{batch.data.companies.length === 1 ? "y" : "ies"} - {batch.data.selectedYear}
-            </CardDescription>
-          </div>
-          <Badge variant={batch.data.initialMode.editable ? "secondary" : "outline"}>{batch.data.initialMode.label}</Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <div className={`grid grid-cols-1 gap-4 lg:grid-cols-[320px_180px_auto_minmax(0,1fr)_auto] lg:items-end ${isCsmDropdownOpen ? "relative z-[80]" : ""}`}>
-          <div ref={csmDropdownRef} className={`relative space-y-1 text-sm font-medium text-slate-700 ${isCsmDropdownOpen ? "z-[80]" : ""}`}>
+      <CardContent className="space-y-4 p-5">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_180px_auto_minmax(0,1fr)_auto] lg:items-end">
+          <div ref={csmDropdownRef} className="space-y-1 text-sm font-medium text-slate-700">
             <div>CSM</div>
             <Button
               type="button"
@@ -848,28 +862,6 @@ export default function AnnualForecastEntryBatchWorkspace({
               <span className="truncate">{selectedCsmsLabel(selectedCsms)}</span>
               <PetyrSelectChevron />
             </Button>
-            {isCsmDropdownOpen ? (
-              <div
-                role="listbox"
-                aria-multiselectable="true"
-                className="absolute left-0 top-full z-[70] mt-2 max-h-64 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10"
-              >
-                {batch.data.csmOptions.map((csmName) => (
-                  <label
-                    key={csmName}
-                    className="flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedCsms.includes(csmName)}
-                      disabled={isLoading || isSaving}
-                      onChange={() => toggleCsmSelection(csmName)}
-                    />
-                    <span className="truncate">{csmName}</span>
-                  </label>
-                ))}
-              </div>
-            ) : null}
           </div>
           <PetyrSelectField
             label="Year"
@@ -1350,6 +1342,33 @@ export default function AnnualForecastEntryBatchWorkspace({
         </div>
 
       </CardContent>
+      {isCsmDropdownOpen && csmDropdownPosition
+        ? createPortal(
+            <div
+              ref={csmDropdownMenuRef}
+              role="listbox"
+              aria-multiselectable="true"
+              className="fixed z-[100] max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10"
+              style={csmDropdownPosition}
+            >
+              {batch.data.csmOptions.map((csmName) => (
+                <label
+                  key={csmName}
+                  className="flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCsms.includes(csmName)}
+                    disabled={isLoading || isSaving}
+                    onChange={() => toggleCsmSelection(csmName)}
+                  />
+                  <span className="truncate">{csmName}</span>
+                </label>
+              ))}
+            </div>,
+            document.body
+          )
+        : null}
     </PetyrCard>
   );
 }

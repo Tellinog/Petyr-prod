@@ -23,15 +23,17 @@ function parseForecastingView(value: string | undefined): "management" | "csm" {
 export default async function ForecastingPage({ searchParams }: ForecastingPageProps) {
   const identity = await requirePetyrPagePermission(PETYR_PERMISSIONS.read);
   const canWriteForecast = hasPetyrPermission(identity, PETYR_PERMISSIONS.forecastWrite);
+  const canViewAdminTools = hasPetyrPermission(identity, PETYR_PERMISSIONS.admin);
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const requestedViewValue = firstParam(resolvedSearchParams.view)?.trim();
+  const requestedView = parseForecastingView(requestedViewValue);
+  const hasExplicitWorkspaceView = requestedViewValue === "management" || (requestedViewValue === "csm" && canViewAdminTools);
 
-  if (canWriteForecast) {
+  if (canWriteForecast && !hasExplicitWorkspaceView) {
     redirect("/forecasting/entry");
   }
 
-  const resolvedSearchParams = (await searchParams) ?? {};
-  const requestedView = parseForecastingView(firstParam(resolvedSearchParams.view)?.trim());
   const initialData = getPetyrApprovedRenderingShellData();
-  const canViewAdminTools = hasPetyrPermission(identity, PETYR_PERMISSIONS.admin);
   const activeView = canViewAdminTools ? requestedView : "management";
   const canManageObjectives = hasPetyrPermission(identity, PETYR_PERMISSIONS.managementWrite);
 

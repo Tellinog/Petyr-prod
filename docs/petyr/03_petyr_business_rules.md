@@ -72,12 +72,10 @@ Rules:
   CSM plus the count of additional selected CSMs. Users can select one or more
   CSMs and Annual Forecast Entry shows the combined company portfolio for all
   selected CSMs.
-- Company lists for Monthly and Annual Forecast Entry include every
-  company-CSM association whose Company Ownership workspace has
-  `workspace_updated_on` within the last 6 months. A company may therefore
-  appear in more than one CSM portfolio when multiple recent associations exist.
-- If no recent workspace associations are available, Petyr may fall back to the
-  latest owner per company with diagnostics.
+- Company lists for Monthly and Annual Forecast Entry include each company once,
+  under its canonical current CSM from Company Ownership. Petyr selects the row
+  with the latest `workspace_updated_on`, then `workspace_created_on` as a
+  tie-breaker.
 - Year options start at 2026, include at least 2026 and 2027, and progressively
   expose the next year.
 - Default year is current year until December 9, next year from December 10

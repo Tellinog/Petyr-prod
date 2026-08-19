@@ -981,10 +981,7 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
   const navigationCompany = requestedCsmNavigationCompany ?? navigationCompanies.find(
     (company) => normalizeRouteKey(company.companyName) === normalizeRouteKey(displayCompanyName)
   );
-  const hasRequestedCsmInNavigation = requestedCsmName
-    ? navigationCompanies.some((company) => normalizeRouteKey(company.csmName) === normalizeRouteKey(requestedCsmName))
-    : false;
-  const csmName = requestedCsmNavigationCompany?.csmName || (hasRequestedCsmInNavigation ? requestedCsmName : "") || overview?.csmName || navigationCompany?.csmName || "Unassigned";
+  const csmName = overview?.csmName || requestedCsmNavigationCompany?.csmName || navigationCompany?.csmName || "Unassigned";
   const forecastEntryHref = buildForecastEntryHref(displayCompanyName, csmName, selectedYear);
   const companyDetailHref = buildCompanyDetailHref(displayCompanyName, selectedYear);
   const activeStatus = resolveCompanyForecastStatus(
@@ -1006,27 +1003,21 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
       canViewCsmOverview={canViewAdminTools}
       canRefreshSourceData={canRefreshPetyrSourceData(identity)}
     >
-      <PetyrSectionTitle
-        title="Company Detail"
-        description={`Analytical company sheet for ${displayCompanyName}: agreement, closed revenue, residual, AI and company logs context.`}
-        actions={
-          <>
-            <CompanyForecastStatusAutosave
-              companyName={displayCompanyName}
-              csmName={csmName}
-              year={selectedYear}
-              initialIsActive={activeStatus}
-              canEdit={canAddCompanyNotes}
-            />
-            <Link
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
-              href={forecastEntryHref}
-            >
-              Edit forecast
-            </Link>
-          </>
-        }
-      />
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <CompanyForecastStatusAutosave
+          companyName={displayCompanyName}
+          csmName={csmName}
+          year={selectedYear}
+          initialIsActive={activeStatus}
+          canEdit={canAddCompanyNotes}
+        />
+        <Link
+          className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+          href={forecastEntryHref}
+        >
+          Edit forecast
+        </Link>
+      </div>
 
       <CompanyDetailNavigator
         companies={navigationCompanies}

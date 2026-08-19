@@ -3,9 +3,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,7 +14,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   PetyrCard,
   PetyrInlineNotice,
-  PetyrSectionTitle,
   PetyrWorkspaceShell
 } from "@/components/petyr/PetyrLayoutPrimitives";
 import { PetyrSelectChevron, PetyrSelectField } from "@/components/petyr/PetyrForecastNavigation";
@@ -299,7 +299,9 @@ export default function ForecastEntryMonthlyBatchWorkspace({
   const [statusSavingCompanies, setStatusSavingCompanies] = useState<Set<string>>(() => new Set());
   const [activeVisibilityFilter, setActiveVisibilityFilter] = useState<ActiveVisibilityFilter>("all");
   const [isCsmDropdownOpen, setIsCsmDropdownOpen] = useState(false);
+  const [csmDropdownPosition, setCsmDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const csmDropdownRef = useRef<HTMLDivElement | null>(null);
+  const csmDropdownMenuRef = useRef<HTMLDivElement | null>(null);
 
   const editableForecastType = batch.data.entryMode.editableForecastType;
   const isLocked = batch.data.entryMode.locked || !editableForecastType;
@@ -328,12 +330,36 @@ export default function ForecastEntryMonthlyBatchWorkspace({
 
   useEffect(() => {
     function closeCsmDropdownOnOutsideClick(event: MouseEvent) {
-      if (!csmDropdownRef.current?.contains(event.target as Node)) setIsCsmDropdownOpen(false);
+      const target = event.target as Node;
+      if (!csmDropdownRef.current?.contains(target) && !csmDropdownMenuRef.current?.contains(target)) {
+        setIsCsmDropdownOpen(false);
+      }
     }
 
     document.addEventListener("mousedown", closeCsmDropdownOnOutsideClick);
     return () => document.removeEventListener("mousedown", closeCsmDropdownOnOutsideClick);
   }, []);
+
+  useEffect(() => {
+    if (!isCsmDropdownOpen) {
+      setCsmDropdownPosition(null);
+      return;
+    }
+
+    function updateCsmDropdownPosition() {
+      const bounds = csmDropdownRef.current?.getBoundingClientRect();
+      if (!bounds) return;
+      setCsmDropdownPosition({ top: bounds.bottom + 8, left: bounds.left, width: bounds.width });
+    }
+
+    updateCsmDropdownPosition();
+    window.addEventListener("resize", updateCsmDropdownPosition);
+    window.addEventListener("scroll", updateCsmDropdownPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateCsmDropdownPosition);
+      window.removeEventListener("scroll", updateCsmDropdownPosition, true);
+    };
+  }, [isCsmDropdownOpen]);
 
   useEffect(() => {
     return () => {
@@ -734,69 +760,34 @@ export default function ForecastEntryMonthlyBatchWorkspace({
       canRefreshSourceData
       contentClassName="max-w-[1800px]"
     >
-      <section>
-        <PetyrSectionTitle
-          title="Forecast Entry"
-          description={`Review monthly forecast entry for ${selectedMonthLabel}, or switch to Annual Forecast Entry when needed.`}
-          actions={
-            <Badge variant={isLocked ? "outline" : "secondary"}>
-              {isLocked ? batch.data.entryMode.label : activeLabel}
-            </Badge>
-          }
-        />
-
-      </section>
-
       {notice ? <PetyrInlineNotice tone={notice.type === "success" ? "success" : "danger"}>{notice.text}</PetyrInlineNotice> : null}
 
       <Tabs
         defaultValue="monthly"
-        className="space-y-5"
+        className="space-y-3"
         onValueChange={handleEntryTabChange}
       >
         <TabsList className="rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
           <TabsTrigger value="monthly" className="rounded-xl">
-            Monthly Forecast Entry
+            Monthly
           </TabsTrigger>
           <TabsTrigger value="annual" className="rounded-xl">
-            Annual Forecast Entry
+            Annual
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="monthly" className="space-y-5">
+        <TabsContent value="monthly" className="space-y-3">
           <PetyrCard>
-        <CardHeader>
-          <CardTitle>Monthly Forecast Batch</CardTitle>
-          <CardDescription>
-            {selectedCsmsLabel(batch.data.selectedCsms ?? [batch.data.selectedCsm].filter(Boolean))}: {batch.data.companies.length} compan{batch.data.companies.length === 1 ? "y" : "ies"} - {selectedMonthLabel}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <PetyrInlineNotice tone={isLocked ? "warning" : "success"}>
-            {isLocked
-              ? batch.data.entryMode.reason
-              : `${activeLabel} is editable for ${selectedMonthLabel}. Other forecast fields and ${closedRevenueHeader} are read-only.`}
-          </PetyrInlineNotice>
-
-          <div className={`sticky top-4 ${isCsmDropdownOpen ? "z-[80]" : "z-40"} flex h-[calc(100dvh-2rem)] min-h-0 flex-col gap-3`}>
+        <CardContent className="space-y-3 p-5">
+          <div className="sticky top-4 z-40 flex h-[calc(100dvh-2rem)] min-h-0 flex-col gap-3">
           <div className="shrink-0 space-y-2 border-b border-slate-200 bg-white/95 pb-2 pt-1 backdrop-blur">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_150px_120px_auto_minmax(0,1fr)] lg:items-end">
-              <div ref={csmDropdownRef} className={`relative space-y-1 text-sm font-medium text-slate-700 ${isCsmDropdownOpen ? "z-[80]" : ""}`}>
+              <div ref={csmDropdownRef} className="space-y-1 text-sm font-medium text-slate-700">
                 <span>CSM</span>
                 <Button type="button" variant="outline" disabled={isLoading || isSaving} onClick={() => setIsCsmDropdownOpen((current) => !current)} className="h-10 w-full justify-between rounded-xl bg-white px-3 text-left font-normal" aria-haspopup="listbox" aria-expanded={isCsmDropdownOpen}>
                   <span className="truncate">{selectedCsmsLabel(selectedCsms)}</span>
                   <PetyrSelectChevron />
                 </Button>
-                {isCsmDropdownOpen ? (
-                  <div role="listbox" aria-multiselectable="true" className="absolute left-0 top-full z-[70] mt-2 max-h-64 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10">
-                    {batch.data.csmOptions.map((csmName) => (
-                      <label key={csmName} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                        <input type="checkbox" checked={selectedCsms.includes(csmName)} disabled={isLoading || isSaving} onChange={() => toggleCsmSelection(csmName)} />
-                        <span className="truncate">{csmName}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : null}
               </div>
               <PetyrSelectField
                 label="Month"
@@ -1196,6 +1187,25 @@ export default function ForecastEntryMonthlyBatchWorkspace({
         </TabsContent>
 
       </Tabs>
+      {isCsmDropdownOpen && csmDropdownPosition
+        ? createPortal(
+            <div
+              ref={csmDropdownMenuRef}
+              role="listbox"
+              aria-multiselectable="true"
+              className="fixed z-[100] max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10"
+              style={csmDropdownPosition}
+            >
+              {batch.data.csmOptions.map((csmName) => (
+                <label key={csmName} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                  <input type="checkbox" checked={selectedCsms.includes(csmName)} disabled={isLoading || isSaving} onChange={() => toggleCsmSelection(csmName)} />
+                  <span className="truncate">{csmName}</span>
+                </label>
+              ))}
+            </div>,
+            document.body
+          )
+        : null}
       {activeEntryTab === "monthly" ? (
         <>
           <div className="fixed bottom-5 right-5 z-50 flex max-w-[360px] flex-col items-end gap-3">

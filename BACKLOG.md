@@ -23,6 +23,14 @@ Project-specific backlog items should be placed in the most specific backlog ava
 
 ---
 
+## Reconcile current Company Ownership with recent workspace portfolio associations
+
+- **Area:** Petyr / Forecast Entry / Company Detail / Company Ownership
+- **Problem/question:** Redash query 1685 and the admin import/export path resolve one canonical current CSM per company by the latest `workspace_updated_on`, while Forecast Entry, CSM Overview and Company Detail intentionally include every company-CSM workspace association updated in the last 6 months. Company Detail can also preserve a requested `csmName` URL context that is not the canonical current owner for the selected company. Product reports that the query/import assignments are correct and expects Forecast Entry and Company Detail to match them.
+- **Impact:** Companies can appear in former CSM portfolios, Company Detail can display or submit a non-canonical CSM context, and Forecast Entry saves can persist that historical CSM into forecast rows and audit sessions even though the canonical Company Ownership row points to a different current CSM.
+- **Status:** Resolved on 2026-08-19.
+- **Proposal / next action:** Product confirmed removal of the recent-six-month multi-association rule. Petyr portfolio, navigation and save paths now consume the canonical latest-owner mapping; validate representative reassigned companies after deployment.
+
 ## Reconcile Monthly Forecast Entry Active-column documentation
 
 - **Area:** Petyr / Monthly Forecast Entry / Table layout

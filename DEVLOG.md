@@ -18,12 +18,42 @@ Each entry must include:
 
 ---
 
+## 2026-08-19
+
+- **Area:** Petyr / Shared workspace shell / Forecast Entry density
+- **Change:** Reworked the shared workspace shell into a compact, top-aligned section with the fixed `Petyr Forecasting Tool` title and navigation integrated at its bottom. Removed section-specific header titles/descriptions, translated the signed-in status and sign-out action to English, retained FAQ and Refresh data controls, shortened the Forecast Entry tabs to `Monthly` and `Annual`, and removed redundant Monthly/Annual batch and Company Detail introductory copy.
+- **Reason:** Product requested a denser, consistent workspace with less vertical whitespace while preserving the existing actions and navigation.
+- **Impact:** UI copy and layout only. Routes, permissions, data refresh authorization, forecast editability, saves, tables and API/data behavior are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/PetyrLayoutPrimitives.tsx`, `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `apps/forecasting-app/src/app/forecasting/company/[companyName]/page.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `DEVLOG.md`.
+- **Follow-up:** Visually review the compact shell at desktop and mobile breakpoints after deployment.
+
+- **Area:** Petyr / Forecasting navigation
+- **Change:** Limited the Forecast Entry redirect to the bare `/forecasting` route. An explicit `?view=management` now opens Management for forecast writers, and `?view=csm` remains available to admins.
+- **Reason:** The initial redirect unintentionally intercepted the shared workspace navigator and made Management unreachable to users who could write forecasts.
+- **Impact:** Forecast writers still land on Monthly Forecast Entry by default; navigation to Management and eligible CSM Overview views works again. No permission, API, data or forecast-calculation behavior changed.
+- **Files/documents involved:** `apps/forecasting-app/src/app/forecasting/page.tsx`, `apps/forecasting-app/README.md`, `docs/05_forecasting_product_spec.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Company Ownership / Forecast Entry and Company Detail
+- **Change:** Replaced the six-month multi-workspace portfolio rule with one canonical current Company Ownership row per company across CSM Overview, Monthly/Annual Forecast Entry and Company Detail navigation. Petyr now selects the latest `workspace_updated_on`, then `workspace_created_on` and deterministic CSM-name order. Stale or mismatched `csmName` URL context can no longer override the selected company’s canonical owner, including in the legacy single-company Forecast Entry save context.
+- **Reason:** Query 1685 and import/export correctly identified the current CSM while product views could show former CSM associations and persist that historical context in forecast saves and logs.
+- **Impact:** Reassigned companies now appear only in their current CSM portfolio. New forecast saves, annual rows, save sessions and logs use the canonical current CSM; existing audit history is retained unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/services/petyrDataService.ts`, `apps/forecasting-app/src/services/forecastEntryService.ts`, `apps/forecasting-app/src/app/forecasting/company/[companyName]/page.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `apps/forecasting-app/README.md`, `DECISIONS.md`, `BACKLOG.md`, `DEVLOG.md`.
+- **Follow-up:** Validate representative reassigned companies in production after deployment; historical rows are deliberately not rewritten.
+
+- **Area:** Petyr / Runtime diagnostics / Session refresh and AI Forecast charts
+- **Change:** Acquired the PostgreSQL session-refresh advisory lock through Prisma's non-result raw execution path and added explicit minimum dimensions to the two AI Forecast responsive charts.
+- **Reason:** Prisma could not deserialize the `void` value returned by `pg_advisory_xact_lock`, while Recharts could initialize those responsive containers before measurable dimensions were available and warn that chart width/height must be positive.
+- **Impact:** Concurrent Access Layer session refresh remains transaction-serialized without repeated Prisma `void` deserialization errors. AI Forecast charts retain their existing layout and data while avoiding invalid initial size warnings. No schema, permissions, API contract or forecast calculation changed.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/petyr/authSessionStore.ts`, `apps/forecasting-app/src/components/petyr/PetyrAiForecastCompanyAction.tsx`, `DEVLOG.md`.
+- **Follow-up:** Verify a near-expiry Access Layer refresh and an AI Forecast chart render in the deployed environment.
+
 ## 2026-08-17
 
 - **Area:** Petyr / Forecast Entry / CSM dropdown layering
-- **Change:** Elevated the Monthly and Annual Forecast Entry CSM filter stacking context only while its multi-select menu is open.
-- **Reason:** Sticky table headers and other workspace controls could overlap the CSM option list, making selections unavailable.
-- **Impact:** The CSM option list now renders above adjacent sticky elements; selection behavior, loading flow, APIs and forecast data are unchanged.
+- **Change:** Rendered the Monthly and Annual Forecast Entry CSM multi-select menu in a viewport-level overlay, aligned to the trigger and repositioned on scroll or resize.
+- **Reason:** Sticky table headers and rows create isolated stacking contexts that can overlap an in-table option list despite a higher local `z-index`.
+- **Impact:** The CSM option list is outside the table stacking contexts and remains selectable above sticky elements; selection behavior, loading flow, APIs and forecast data are unchanged.
 - **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `DEVLOG.md`.
 - **Follow-up:** None.
 
