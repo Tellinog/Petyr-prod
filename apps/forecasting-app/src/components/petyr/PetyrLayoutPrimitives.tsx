@@ -121,13 +121,12 @@ export function PetyrWorkspaceShell({
 
   return (
     <PetyrPageShell {...props}>
-      <div className="relative overflow-hidden rounded-b-[28px] border border-t-0 border-slate-200 bg-white shadow-sm">
-        <div className="relative p-5 md:p-6">
-          <h1 className={cn("text-2xl font-semibold tracking-tight md:text-3xl", authenticatedUserEmail || canRefreshSourceData ? "md:pr-[440px]" : helpHref ? "md:pr-24" : undefined)}>
+      <div className="overflow-hidden rounded-b-[28px] border border-t-0 border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center gap-4 p-5 md:p-6">
+          <h1 className="mr-auto text-2xl font-semibold tracking-tight md:text-3xl">
             Petyr Forecasting Tool
           </h1>
-        </div>
-        <div className="flex flex-col items-end gap-2 px-5 pb-4 md:absolute md:right-6 md:top-6 md:px-0 md:pb-0">
+          <div className="flex flex-wrap items-center justify-end gap-2">
           {authenticatedUserEmail ? (
             <div className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right shadow-sm md:w-auto">
               <div className="flex items-center justify-end gap-3">
@@ -162,6 +161,7 @@ export function PetyrWorkspaceShell({
                 <span>FAQ</span>
               </a>
             ) : null}
+          </div>
           </div>
         </div>
         <nav

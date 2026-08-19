@@ -20,6 +20,13 @@ Each entry must include:
 
 ## 2026-08-19
 
+- **Area:** Petyr / Management workspace / Header responsive layout
+- **Change:** Removed the redundant Management View title and description from the Management body. Reflowed the shared title, signed-in status, Refresh data and FAQ controls into one flex row above the integrated section navigation, with safe wrapping at narrow widths so controls cannot overlap the menu.
+- **Reason:** The compact header still allowed its absolutely positioned controls to overlap the navigation at the observed viewport size.
+- **Impact:** UI layout/copy only. Management data, navigation targets, permissions and refresh behavior are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/PetyrLayoutPrimitives.tsx`, `apps/forecasting-app/src/components/petyr/PetyrMVPRendering.tsx`, `DEVLOG.md`.
+- **Follow-up:** Verify the header at the deployed desktop and narrow responsive breakpoints.
+
 - **Area:** Petyr / Shared workspace shell / Forecast Entry density
 - **Change:** Reworked the shared workspace shell into a compact, top-aligned section with the fixed `Petyr Forecasting Tool` title and navigation integrated at its bottom. Removed section-specific header titles/descriptions, translated the signed-in status and sign-out action to English, retained FAQ and Refresh data controls, shortened the Forecast Entry tabs to `Monthly` and `Annual`, and removed redundant Monthly/Annual batch and Company Detail introductory copy.
 - **Reason:** Product requested a denser, consistent workspace with less vertical whitespace while preserving the existing actions and navigation.

@@ -703,11 +703,6 @@ function ManagementView({
 
   return (
     <div className="space-y-6">
-      <SectionTitle
-        title="Management View"
-        description="Visual rendering of the aggregated Petyr dashboard: Monthly Aggregate and Yearly View selection, branches, Business Units, CSMs, trends and insights."
-      />
-
       <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
           <div>
