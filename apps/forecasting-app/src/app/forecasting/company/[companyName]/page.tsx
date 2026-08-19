@@ -10,6 +10,7 @@ import { requirePetyrPagePermission } from "@/lib/petyr/auth";
 import { canRefreshPetyrSourceData, hasPetyrPermission, PETYR_PERMISSIONS } from "@/lib/petyr/authCore";
 import { resolvePreferredCsmName } from "@/lib/petyr/csmIdentity";
 import { formatPetyrCurrencyValue, formatPetyrNumber, formatPetyrPercent } from "@/lib/petyr/formatters";
+import { calculateCompanyForecastPace } from "@/lib/forecasting/companyForecastPace";
 import { saveCompanyLogNote } from "@/services/companyLogNoteService";
 import { getCompanyDetail, getCompanyDetailNavigationCompanies, type PetyrCompanyDetail } from "@/services/petyrDataService";
 import { buildPetyrCompanyAlertsFromDetail, type PetyrAlert, type PetyrAlertSeverity, type PetyrAlertType } from "@/services/petyrAlertService";
@@ -184,6 +185,60 @@ function resolveCompanyForecastStatus(...values: Array<boolean | null | undefine
   return values.find((value): value is boolean => typeof value === "boolean") ?? true;
 }
 
+function CompanyForecastPaceIndicator({
+  data,
+  selectedYear
+}: {
+  data: PetyrCompanyDetail;
+  selectedYear: number;
+}) {
+  const annualForecast = data.businessUnitSummary.reduce((sum, row) => sum + row.annualForecast, 0);
+  const plannedRevenue = data.businessUnitSummary.reduce((sum, row) => sum + row.plannedFuture, 0);
+  const pace = calculateCompanyForecastPace({
+    closedRevenueYtd: data.overview?.currentYearRevenue,
+    plannedRevenue,
+    annualForecast,
+    selectedYear
+  });
+
+  if (pace.status === "unavailable") return null;
+
+  const tone = {
+    green: {
+      label: "On track",
+      dot: "bg-emerald-500",
+      text: "text-emerald-800",
+      surface: "border-emerald-200 bg-emerald-50"
+    },
+    orange: {
+      label: "Slightly behind",
+      dot: "bg-amber-500",
+      text: "text-amber-800",
+      surface: "border-amber-200 bg-amber-50"
+    },
+    red: {
+      label: "Behind pace",
+      dot: "bg-rose-500",
+      text: "text-rose-800",
+      surface: "border-rose-200 bg-rose-50"
+    }
+  }[pace.status];
+  const detail = `Revenue + planned: ${formatMoney(pace.closedRevenueAndPlanned)}. Expected by this month: ${formatMoney(pace.expectedValue)} (${pace.expectedPacePercent}% of annual forecast).`;
+
+  return (
+    <div
+      className={`flex flex-col gap-1 rounded-xl border px-3 py-2 shadow-sm ${tone.surface}`}
+      title={detail}
+    >
+      <div className={`flex items-center gap-2 text-sm font-medium ${tone.text}`}>
+        <span className={`h-3 w-3 rounded-full ${tone.dot}`} aria-hidden="true" />
+        <span>Forecast pace: {tone.label}</span>
+      </div>
+      <span className={`text-xs ${tone.text}`}>{detail}</span>
+    </div>
+  );
+}
+
 function alertBadgeVariant(severity: PetyrAlertSeverity): "default" | "secondary" | "outline" {
   if (severity === "critical") return "default";
   if (severity === "warning") return "secondary";
@@ -331,8 +386,8 @@ function PrimaryKpiSection({
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       <PetyrKpiCard
         label="Total agreement"
-        value={formatMoney(overview?.totalAgreementValue)}
-        helper="Agreement value from PostgreSQL-backed source data."
+        value={formatMoney(overview?.activeTotalAgreementValue)}
+        helper="Value of active agreements from PostgreSQL-backed source data."
       />
       <PetyrKpiCard
         label="Closed revenue YTD"
@@ -1011,6 +1066,7 @@ export default async function CompanyDetailPage({ params, searchParams }: Compan
           initialIsActive={activeStatus}
           canEdit={canAddCompanyNotes}
         />
+        <CompanyForecastPaceIndicator data={data} selectedYear={selectedYear} />
         <Link
           className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
           href={forecastEntryHref}

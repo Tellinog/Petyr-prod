@@ -20,6 +20,55 @@ Each entry must include:
 
 ## 2026-08-19
 
+- **Area:** Petyr / Company Detail / Agreement KPI
+- **Change:** Changed the Company Detail `Total agreement` KPI to display only the sum of active agreements, using the existing PostgreSQL-backed active-agreement aggregate.
+- **Reason:** Product requested excluding expired, closed and otherwise inactive agreements from the company total.
+- **Impact:** The Company Detail KPI and its helper text now explicitly represent active agreement value. Agreement lists, residual KPI, source data, API contracts, forecasts and persistence remain unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/app/forecasting/company/[companyName]/page.tsx`, `docs/05_forecasting_product_spec.md`, `DEVLOG.md`.
+- **Follow-up:** None.
+
+- **Area:** Petyr / Company Detail / Annual Forecast pace
+- **Change:** Added a read-only traffic-light indicator beside Forecast status. For the current selected year, it compares Closed revenue YTD plus valid planned future revenue with the Annual Forecast Ongoing expected by the current calendar month, using whole-percent monthly pacing (June 50%, August 66%): green at or above pace, orange 1-9 percentage points below, red 10 or more percentage points below.
+- **Reason:** Product requested a quick company-level signal showing whether revenue plus planned work is keeping pace with its annual forecast.
+- **Impact:** Display-only; it does not alter forecast values, status, source data, permissions, APIs or audit records. The indicator is omitted if no positive Annual Forecast Ongoing exists or the selected year is not the current year.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/forecasting/companyForecastPace.ts`, `apps/forecasting-app/src/app/forecasting/company/[companyName]/page.tsx`, `apps/forecasting-app/tests/annualForecastEntryRules.test.ts`, `apps/forecasting-app/tsconfig.annual-forecast-entry-test.json`, `docs/05_forecasting_product_spec.md`, `docs/petyr/03_petyr_business_rules.md`, `DEVLOG.md`.
+- **Follow-up:** Validate visual spacing beside Forecast status with representative company data.
+
+- **Area:** Petyr / Monthly Forecast Entry / Business Unit expand control
+- **Change:** Restyled the Business Unit Expand/Collapse control as a high-contrast sky-blue button with a stateful chevron, visible keyboard focus ring, accessible state label and contextual tooltip.
+- **Reason:** Product requested a more obviously clickable expand action and accessibility-friendly contrast.
+- **Impact:** UI affordance and accessibility only. The collapse state, Business Unit columns, sorting, forecast values, saves and APIs are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `PETYR_PRODUCT_AND_DATA_LOGIC.md`, `docs/05_forecasting_product_spec.md`, `DEVLOG.md`.
+- **Follow-up:** Verify the expanded/collapsed control in the browser at desktop and narrow table widths.
+
+- **Area:** Petyr / Monthly and Annual Forecast Entry / Keyboard navigation
+- **Change:** Added spreadsheet-style arrow-key navigation between editable numeric forecast cells. Up/Down moves within the same visible forecast column across company rows; Left/Right moves within a company row when the text cursor is at the matching value edge. Locked, read-only and hidden cells are skipped, and the next value is selected for rapid entry.
+- **Reason:** Product requested faster keyboard-only forecast entry in Monthly and Annual tables.
+- **Impact:** UI input navigation only. Existing text-caret behavior inside a value, Enter-to-save, save sessions, audit logs, permissions, calculations and API contracts are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/lib/forecasting/forecastEntryKeyboardNavigation.ts`, `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `docs/05_forecasting_product_spec.md`, `DEVLOG.md`.
+- **Follow-up:** Verify keyboard navigation with collapsed/expanded Business Units and a locked Initial Forecast period in the browser.
+
+- **Area:** Petyr / Monthly Forecast Entry / Sticky columns and company names
+- **Change:** Pinned the Monthly Total column alongside Active and Company during horizontal scrolling, compacted Company to 120px, and added an automatic marquee for names that exceed the compact cell width, respecting reduced-motion preferences.
+- **Reason:** Product requested a denser Monthly table while keeping the total and complete company names readable during horizontal navigation.
+- **Impact:** UI layout and display behavior only. Forecast calculations, save behavior, sorting and data contracts are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/app/globals.css`, `docs/05_forecasting_product_spec.md`, `DEVLOG.md`.
+- **Follow-up:** Verify sticky alignment and marquee behavior at desktop and narrow widths.
+
+- **Area:** Petyr / Monthly Forecast Entry / Portfolio total row
+- **Change:** Removed the duplicated numeric total from the Company cell of the Monthly portfolio-total row; the value remains in the dedicated Monthly Total column.
+- **Reason:** Product requested that the total appear only in the dedicated total column.
+- **Impact:** UI layout only. Portfolio total calculations and Business Unit totals are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `DEVLOG.md`.
+- **Follow-up:** Verify the Monthly portfolio-total row at desktop and narrow widths.
+
+- **Area:** Petyr / Monthly and Annual Forecast Entry / Active column
+- **Change:** Compacted the Active column from 150px to 80px in both batch tables, placed the All/Active/Inactive selector below the Active heading, and replaced Monthly's explanatory sentence with an accessible info indicator tooltip.
+- **Reason:** Product requested a denser Forecast Entry table while preserving the existing active-status filter and autosave interaction.
+- **Impact:** UI layout only. Active status persistence, filtering semantics, row checkboxes and save behavior are unchanged.
+- **Files/documents involved:** `apps/forecasting-app/src/components/petyr/ForecastEntryMonthlyBatchWorkspace.tsx`, `apps/forecasting-app/src/components/petyr/AnnualForecastEntryBatchWorkspace.tsx`, `DEVLOG.md`.
+- **Follow-up:** Visually verify sticky-column alignment at desktop and narrow widths.
+
 - **Area:** Petyr / Management workspace / Header responsive layout
 - **Change:** Removed the redundant Management View title and description from the Management body. Reflowed the shared title, signed-in status, Refresh data and FAQ controls into one flex row above the integrated section navigation, with safe wrapping at narrow widths so controls cannot overlap the menu.
 - **Reason:** The compact header still allowed its absolutely positioned controls to overlap the navigation at the observed viewport size.

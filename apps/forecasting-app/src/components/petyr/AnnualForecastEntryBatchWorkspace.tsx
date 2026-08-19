@@ -12,6 +12,7 @@ import { PetyrCard, PetyrInlineNotice } from "@/components/petyr/PetyrLayoutPrim
 import { PetyrSelectChevron, PetyrSelectField } from "@/components/petyr/PetyrForecastNavigation";
 import { formatBusinessUnitDisplayName } from "@/lib/petyr/businessUnitDisplay";
 import { formatPetyrInteger, formatPetyrIntegerCurrencyValue, formatPetyrIntegerInputDraft, formatPetyrPercent } from "@/lib/petyr/formatters";
+import { focusForecastEntryNavigationTarget, forecastEntryNavigationTarget } from "@/lib/forecasting/forecastEntryKeyboardNavigation";
 import { calculateAnnualForecastPercentages } from "@/lib/petyr/annualForecastEntryRules";
 import type {
   AnnualForecastEntryBatchCell,
@@ -247,7 +248,7 @@ function initialExpandedStateFromBatch(batch: AnnualForecastEntryBatchDataResult
 }
 
 const COMPANY_COLUMN_WIDTH = 220;
-const ACTIVE_COLUMN_WIDTH = 150;
+const ACTIVE_COLUMN_WIDTH = 80;
 const INITIAL_COLUMN_WIDTH = 128;
 const ONGOING_COLUMN_WIDTH = 150;
 const CONFIDENCE_COLUMN_WIDTH = 150;
@@ -259,9 +260,9 @@ const REVENUE_RATIO_COLUMN_WIDTH = 170;
 const PLANNED_RATIO_COLUMN_WIDTH = 170;
 const UNCOVERED_RATIO_COLUMN_WIDTH = 180;
 const LOGS_COLUMN_WIDTH = 220;
-const ACTIVE_STICKY_CLASS = "sticky left-0 min-w-[150px]";
-const COMPANY_STICKY_CLASS = "sticky left-[150px] min-w-[220px] shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]";
-const CONFIDENCE_STICKY_CLASS = "sticky left-[370px] min-w-[150px] shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]";
+const ACTIVE_STICKY_CLASS = "sticky left-0 w-[80px] min-w-[80px] max-w-[80px]";
+const COMPANY_STICKY_CLASS = "sticky left-[80px] min-w-[220px] shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]";
+const CONFIDENCE_STICKY_CLASS = "sticky left-[300px] min-w-[150px] shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]";
 const PINNED_BODY_STICKY_CLASS = "z-20";
 const PINNED_HEADER_STICKY_CLASS = "z-[60]";
 const HEADER_STICKY_CLASS = "sticky top-16 z-40 shadow-[0_1px_0_0_rgba(226,232,240,1)]";
@@ -785,6 +786,17 @@ export default function AnnualForecastEntryBatchWorkspace({
     void saveBatch();
   }
 
+  function handleForecastCellKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    const target = forecastEntryNavigationTarget(event.currentTarget, event.key);
+    if (target) {
+      event.preventDefault();
+      focusForecastEntryNavigationTarget(target);
+      return;
+    }
+
+    handleSaveKeyDown(event);
+  }
+
   const showBusinessUnitInitialForecast = batch.data.initialMode.editable;
   const visibleInitialBusinessUnits = batch.data.businessUnits.filter(
     (businessUnit) => showBusinessUnitInitialForecast && (batch.data.initialMode.showInitialBusinessUnitsByDefault || expandedInitialBusinessUnits[businessUnit])
@@ -955,13 +967,23 @@ export default function AnnualForecastEntryBatchWorkspace({
                 <TableHead
                   className={`${ACTIVE_STICKY_CLASS} ${HEADER_STICKY_CLASS} ${PINNED_HEADER_STICKY_CLASS} ${MANUAL_HEADER_CLASS}`}
                 >
-                  <div className="flex min-h-9 items-center gap-2 rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-semibold text-slate-800 shadow-sm">
-                    <span className="shrink-0">Active</span>
+                  <div className="flex min-h-9 flex-col gap-1 rounded-lg border border-amber-200 bg-white px-1.5 py-1 text-xs font-semibold text-slate-800 shadow-sm">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="shrink-0">Active</span>
+                      <span
+                        role="img"
+                        aria-label="Company status is global for the forecast entry"
+                        title="Company status is global for the forecast entry"
+                        className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-300 text-[10px] font-bold text-amber-700"
+                      >
+                        i
+                      </span>
+                    </div>
                     <select
                       value={activeVisibilityFilter}
                       disabled={isLoading || isSaving}
                       onChange={(event) => setActiveVisibilityFilter(event.target.value as ActiveVisibilityFilter)}
-                      className="h-7 min-w-0 flex-1 rounded-lg border border-amber-200 bg-white px-2 text-xs font-medium text-slate-700"
+                      className="h-7 w-full min-w-0 rounded-lg border border-amber-200 bg-white px-1 text-[11px] font-medium text-slate-700"
                       aria-label="Filter companies by active status"
                     >
                       <option value="all">All</option>
@@ -1165,7 +1187,7 @@ export default function AnnualForecastEntryBatchWorkspace({
                   return (
                     <TableRow key={company.companyName} className={inactiveClass}>
                       <TableCell className={`${ACTIVE_STICKY_CLASS} ${PINNED_BODY_STICKY_CLASS} ${isActive ? MANUAL_CELL_CLASS : "bg-slate-50"}`}>
-                        <label className="inline-flex items-center gap-2 text-sm">
+                        <label className="inline-flex items-center gap-1 text-xs">
                           <input
                             type="checkbox"
                             checked={isActive}
@@ -1218,7 +1240,9 @@ export default function AnnualForecastEntryBatchWorkspace({
                             readOnly={!batch.data.initialMode.editable}
                             value={initialValues[company.companyName] ?? ""}
                             onChange={(event) => updateInitial(company.companyName, event.target.value)}
-                            onKeyDown={handleSaveKeyDown}
+                            onKeyDown={handleForecastCellKeyDown}
+                            data-forecast-entry-row={company.companyName}
+                            data-forecast-entry-column="company-initial"
                             placeholder="n/a"
                             className={`h-8 min-w-[112px] rounded-xl text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(initialValues[company.companyName] ?? ""))} ${
                               touchedInitial.has(company.companyName)
@@ -1263,7 +1287,9 @@ export default function AnnualForecastEntryBatchWorkspace({
                                 onFocus={() => acceptAiPlaceholder(company, cell)}
                                 onClick={() => acceptAiPlaceholder(company, cell)}
                                 onChange={(event) => updateValue(company, cell, event.target.value)}
-                                onKeyDown={handleSaveKeyDown}
+                                onKeyDown={handleForecastCellKeyDown}
+                                data-forecast-entry-row={company.companyName}
+                                data-forecast-entry-column={`ongoing:${cell.businessUnit}`}
                                 className={`h-8 min-w-[112px] rounded-xl text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(currentInputValue || aiPlaceholder))} ${inputClass}`}
                               />
                               {sourceState ? (
@@ -1287,7 +1313,9 @@ export default function AnnualForecastEntryBatchWorkspace({
                                   placeholder="n/a"
                                   value={currentInitialInputValue}
                                   onChange={(event) => updateBusinessUnitInitial(company, cell, event.target.value)}
-                                  onKeyDown={handleSaveKeyDown}
+                                  onKeyDown={handleForecastCellKeyDown}
+                                  data-forecast-entry-row={company.companyName}
+                                  data-forecast-entry-column={`initial:${cell.businessUnit}`}
                                   className={`h-8 min-w-[112px] rounded-xl text-right font-semibold ${mutedNumericClass(isEmptyOrZeroDisplay(currentInitialInputValue))} ${
                                     touchedBusinessUnitInitial.has(key)
                                       ? "border-emerald-300 bg-emerald-50"

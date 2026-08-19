@@ -20,6 +20,7 @@ import { getMissingAnnualForecastImportCustomers } from "../src/lib/petyr/annual
 import { buildInactiveCompaniesAnnualForecastRows } from "../src/lib/petyr/inactiveCompaniesAnnualExportRows";
 import { PETYR_FORECAST_ENTRY_BUSINESS_UNITS } from "../src/lib/petyr/constants";
 import { getPetyrCachedRead } from "../src/services/forecastEntryReadCache";
+import { calculateCompanyForecastPace } from "../src/lib/forecasting/companyForecastPace";
 
 function dateFor(year: number, month: number, day: number) {
   return new Date(year, month - 1, day, 12, 0, 0);
@@ -195,6 +196,29 @@ test("Annual Forecast Entry percentages derive revenue, planned and uncovered sh
     plannedPct: 0.5,
     uncoveredPct: 0.25
   });
+});
+
+test("Company Detail forecast pace is green when revenue plus planned meets the month-adjusted annual forecast", () => {
+  const june = dateFor(2026, 6, 15);
+  const august = dateFor(2026, 8, 15);
+
+  assert.equal(calculateCompanyForecastPace({ closedRevenueYtd: 50, plannedRevenue: 0, annualForecast: 100, selectedYear: 2026, now: june }).status, "green");
+  assert.equal(calculateCompanyForecastPace({ closedRevenueYtd: 66, plannedRevenue: 0, annualForecast: 100, selectedYear: 2026, now: august }).status, "green");
+});
+
+test("Company Detail forecast pace is orange from one to nine percentage points below expected pace and red otherwise", () => {
+  const april = dateFor(2026, 4, 15);
+  const june = dateFor(2026, 6, 15);
+
+  assert.equal(calculateCompanyForecastPace({ closedRevenueYtd: 30, plannedRevenue: 0, annualForecast: 100, selectedYear: 2026, now: april }).status, "orange");
+  assert.equal(calculateCompanyForecastPace({ closedRevenueYtd: 41, plannedRevenue: 0, annualForecast: 100, selectedYear: 2026, now: june }).status, "orange");
+  assert.equal(calculateCompanyForecastPace({ closedRevenueYtd: 40.99, plannedRevenue: 0, annualForecast: 100, selectedYear: 2026, now: june }).status, "red");
+});
+
+test("Company Detail forecast pace is unavailable without a positive current-year annual forecast", () => {
+  const result = calculateCompanyForecastPace({ closedRevenueYtd: 50, plannedRevenue: 0, annualForecast: 0, selectedYear: 2026, now: dateFor(2026, 6, 15) });
+
+  assert.equal(result.status, "unavailable");
 });
 
 test("Annual forecast import parser reads only the Forecast Ongoing BU block", () => {

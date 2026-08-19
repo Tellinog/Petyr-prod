@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import { PetyrSelectChevron, PetyrSelectField } from "@/components/petyr/PetyrFo
 import AnnualForecastEntryBatchWorkspace from "@/components/petyr/AnnualForecastEntryBatchWorkspace";
 import { formatBusinessUnitDisplayName } from "@/lib/petyr/businessUnitDisplay";
 import { formatPetyrInteger, formatPetyrIntegerCurrencyValue, formatPetyrIntegerInputDraft } from "@/lib/petyr/formatters";
+import { focusForecastEntryNavigationTarget, forecastEntryNavigationTarget } from "@/lib/forecasting/forecastEntryKeyboardNavigation";
 import type { AnnualForecastEntryBatchDataResult } from "@/services/annualForecastEntryBatchService";
 import type {
   ForecastEntryBatchCell,
@@ -148,6 +149,41 @@ function mutedNumericClass(isMuted: boolean) {
 
 function monthlyTotalCellClass(value: number) {
   return `border-l border-cyan-200 bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(value))}`;
+}
+
+function CompanyNameMarquee({ companyName }: { companyName: string }) {
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [marqueeDistance, setMarqueeDistance] = useState(0);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const text = textRef.current;
+    if (!container || !text) return;
+
+    const measure = () => {
+      setMarqueeDistance(Math.max(0, text.scrollWidth - container.clientWidth));
+    };
+
+    measure();
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    resizeObserver?.observe(container);
+
+    return () => resizeObserver?.disconnect();
+  }, [companyName]);
+
+  const marqueeStyle = {
+    "--petyr-company-marquee-distance": `-${marqueeDistance}px`,
+    animationDuration: `${Math.max(8, Math.min(18, 7 + marqueeDistance / 18))}s`
+  } as CSSProperties;
+
+  return (
+    <span ref={containerRef} className="block max-w-full overflow-hidden whitespace-nowrap" title={companyName}>
+      <span ref={textRef} className={marqueeDistance > 0 ? "petyr-company-marquee inline-flex" : "inline-flex"} style={marqueeStyle}>
+        {companyName}
+      </span>
+    </span>
+  );
 }
 
 function monthlyCompanySortLabel(direction: MonthlyCompanySortDirection) {
@@ -681,6 +717,17 @@ export default function ForecastEntryMonthlyBatchWorkspace({
     void saveBatch();
   }
 
+  function handleForecastCellKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    const target = forecastEntryNavigationTarget(event.currentTarget, event.key);
+    if (target) {
+      event.preventDefault();
+      focusForecastEntryNavigationTarget(target);
+      return;
+    }
+
+    handleSaveKeyDown(event);
+  }
+
   const tableColumnCount = useMemo(() => {
     return 4 + batch.data.businessUnits.reduce((sum, businessUnit) => sum + (expandedBusinessUnits.has(businessUnit) ? 3 : 1), 0);
   }, [batch.data.businessUnits, expandedBusinessUnits]);
@@ -855,17 +902,27 @@ export default function ForecastEntryMonthlyBatchWorkspace({
               <TableHeader>
                 <TableRow className="h-20 hover:bg-transparent">
                   <TableHead
-                    className="sticky left-0 top-0 z-[60] min-w-[150px] bg-amber-50 align-top shadow-[0_1px_0_0_rgba(226,232,240,1)]"
+                    className="sticky left-0 top-0 z-[60] w-[80px] min-w-[80px] max-w-[80px] bg-amber-50 align-top shadow-[0_1px_0_0_rgba(226,232,240,1)]"
                     rowSpan={2}
                   >
-                    <div className="space-y-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-semibold text-slate-800 shadow-sm">
-                      <div className="flex min-h-8 items-center gap-2">
+                    <div className="flex flex-col gap-1 rounded-lg border border-amber-200 bg-white px-1.5 py-1 text-xs font-semibold text-slate-800 shadow-sm">
+                      <div className="flex min-h-8 items-center justify-between gap-1">
                         <span className="shrink-0">Active</span>
+                        <span
+                          role="img"
+                          aria-label="Company status is global, not monthly"
+                          title="Company status is global, not monthly"
+                          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-300 text-[10px] font-bold text-amber-700"
+                        >
+                          i
+                        </span>
+                      </div>
+                      <div>
                         <select
                           value={activeVisibilityFilter}
                           disabled={isLoading || isSaving}
                           onChange={(event) => setActiveVisibilityFilter(event.target.value as ActiveVisibilityFilter)}
-                          className="h-7 min-w-0 flex-1 rounded-lg border border-amber-200 bg-white px-2 text-xs font-medium text-slate-700"
+                          className="h-7 w-full min-w-0 rounded-lg border border-amber-200 bg-white px-1 text-[11px] font-medium text-slate-700"
                           aria-label="Filter companies by active status"
                         >
                           <option value="all">All</option>
@@ -873,13 +930,10 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                           <option value="inactive">Inactive</option>
                         </select>
                       </div>
-                      <p className="max-w-[150px] text-[11px] font-medium leading-snug text-amber-800">
-                        Company status is global, not monthly.
-                      </p>
                     </div>
                   </TableHead>
                   <TableHead
-                    className="sticky left-[150px] top-0 z-[60] min-w-[240px] bg-white align-top shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]"
+                    className="sticky left-[80px] top-0 z-[60] w-[120px] min-w-[120px] max-w-[120px] bg-white align-top shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]"
                     rowSpan={2}
                     aria-sort={monthlySort.key === "company" ? (monthlySort.direction === "asc" ? "ascending" : "descending") : "none"}
                   >
@@ -900,7 +954,7 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                     </button>
                   </TableHead>
                   <TableHead
-                    className="sticky top-0 z-50 min-w-[190px] border-l border-cyan-200 bg-cyan-50 text-right text-xs font-semibold text-cyan-950 shadow-[0_1px_0_0_rgba(226,232,240,1)]"
+                    className="sticky left-[200px] top-0 z-[60] min-w-[190px] border-l border-cyan-200 bg-cyan-50 text-right text-xs font-semibold text-cyan-950 shadow-[0_1px_0_0_rgba(226,232,240,1)]"
                     rowSpan={2}
                   >
                     Monthly Total
@@ -916,13 +970,25 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                         <div className="flex w-full items-center gap-2">
                           <button
                             type="button"
-                            className="flex min-h-9 flex-1 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+                            className="flex min-h-9 flex-1 items-center justify-between gap-3 rounded-lg border-2 border-sky-800 bg-sky-800 px-2 py-1.5 text-sm font-bold text-white shadow-sm transition-colors hover:border-sky-900 hover:bg-sky-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-950 focus-visible:ring-offset-2"
                             onClick={() => toggleBusinessUnit(businessUnit)}
                             aria-expanded={expanded}
+                            aria-label={`${expanded ? "Collapse" : "Expand"} ${formatBusinessUnitDisplayName(businessUnit)} Business Unit columns`}
+                            title={`${expanded ? "Collapse" : "Expand"} ${formatBusinessUnitDisplayName(businessUnit)} columns`}
                           >
                             <span>{formatBusinessUnitDisplayName(businessUnit)}</span>
-                            <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-white/15 px-2 py-0.5 text-xs font-bold">
                               {expanded ? "Collapse" : "Expand"}
+                              <svg
+                                aria-hidden="true"
+                                className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`}
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+                              </svg>
                             </span>
                           </button>
                           <button
@@ -971,17 +1037,14 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                 {monthlyCompanies.length > 0 ? (
                   <>
                     <TableRow className="sticky top-32 z-30 border-b-2 border-cyan-200 bg-cyan-50 shadow-[0_1px_0_0_rgba(165,243,252,1)] hover:bg-cyan-50">
-                      <TableCell className="sticky left-0 z-40 min-w-[150px] border-r border-cyan-200 bg-cyan-50" aria-label="No active status for total row" />
-                      <TableCell className="sticky left-[150px] z-40 min-w-[240px] border-r border-cyan-200 bg-cyan-50 shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]">
+                      <TableCell className="sticky left-0 z-40 w-[80px] min-w-[80px] max-w-[80px] border-r border-cyan-200 bg-cyan-50" aria-label="No active status for total row" />
+                      <TableCell className="sticky left-[80px] z-40 w-[120px] min-w-[120px] max-w-[120px] border-r border-cyan-200 bg-cyan-50 shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)]">
                         <div className="text-[11px] font-semibold uppercase tracking-wide text-cyan-800">
                           {selectedMonthLabel} {isPastSelectedPeriod ? "Closed Revenue" : "CSM Forecast"}
                         </div>
                         <div className="mt-1 text-xs font-medium text-cyan-700">Portfolio total</div>
-                        <div className={`mt-1 text-sm font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(compactPortfolioTotal))}`}>
-                          {formatPetyrIntegerCurrencyValue(compactPortfolioTotal)}
-                        </div>
                       </TableCell>
-                      <TableCell className={`min-w-[190px] ${monthlyTotalCellClass(compactPortfolioTotal)}`}>
+                      <TableCell className={`sticky left-[200px] z-40 min-w-[190px] ${monthlyTotalCellClass(compactPortfolioTotal)}`}>
                         {formatPetyrIntegerCurrencyValue(compactPortfolioTotal)}
                       </TableCell>
                       {batch.data.businessUnits.flatMap((businessUnit) => {
@@ -1021,8 +1084,8 @@ export default function ForecastEntryMonthlyBatchWorkspace({
 
                       return (
                       <TableRow key={company.companyName} className={isActive ? "" : "bg-slate-50 text-slate-500 opacity-75"}>
-                      <TableCell className={`sticky left-0 z-20 min-w-[150px] border-r border-slate-200 ${isActive ? "bg-amber-50" : "bg-slate-50"}`}>
-                        <label className="inline-flex items-center gap-2 text-sm">
+                      <TableCell className={`sticky left-0 z-20 w-[80px] min-w-[80px] max-w-[80px] border-r border-slate-200 ${isActive ? "bg-amber-50" : "bg-slate-50"}`}>
+                        <label className="inline-flex items-center gap-1 text-xs">
                           <input
                             type="checkbox"
                             checked={isActive}
@@ -1032,15 +1095,15 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                           {isActive ? "ON" : "OFF"}
                         </label>
                       </TableCell>
-                      <TableCell className={`sticky left-[150px] z-20 min-w-[240px] bg-white shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)] ${isActive ? "bg-white" : "bg-slate-50"}`}>
+                      <TableCell className={`sticky left-[80px] z-20 w-[120px] min-w-[120px] max-w-[120px] bg-white shadow-[8px_0_12px_-12px_rgba(15,23,42,0.45)] ${isActive ? "bg-white" : "bg-slate-50"}`}>
                         <Link
                           href={buildCompanyDetailPageUrl(company.companyName, batch.data.year, company.csmName)}
-                          className="font-semibold text-slate-900 underline-offset-4 hover:underline"
+                          className="block min-w-0 max-w-full font-semibold text-slate-900 underline-offset-4 hover:underline"
                         >
-                          {company.companyName}
+                          <CompanyNameMarquee companyName={company.companyName} />
                         </Link>
                       </TableCell>
-                      <TableCell className={`min-w-[190px] border-l border-cyan-200 bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(currentCompanyForecastTotal(company)))}`}>
+                      <TableCell className={`sticky left-[200px] z-20 min-w-[190px] border-l border-cyan-200 bg-cyan-50 text-right font-bold ${mutedNumericClass(isEmptyOrZeroDisplay(currentCompanyForecastTotal(company)))}`}>
                         {formatPetyrIntegerCurrencyValue(currentCompanyForecastTotal(company))}
                       </TableCell>
                       {company.businessUnits.flatMap((cell) => {
@@ -1073,7 +1136,9 @@ export default function ForecastEntryMonthlyBatchWorkspace({
                                 onFocus={() => acceptMonthlyPlaceholder(company, cell)}
                                 onClick={() => acceptMonthlyPlaceholder(company, cell)}
                                 onChange={(event) => updateValue(company, cell, event.target.value)}
-                                onKeyDown={handleSaveKeyDown}
+                                onKeyDown={handleForecastCellKeyDown}
+                                data-forecast-entry-row={company.companyName}
+                                data-forecast-entry-column={`${cell.businessUnit}:${cellKeySuffix}`}
                                 className={`h-8 w-full min-w-[158px] rounded-xl text-right font-semibold ${mutedNumericClass(mutedInput)} ${isLocked ? "bg-slate-100" : activeInputClass}`}
                               />
                               {sourceState ? (

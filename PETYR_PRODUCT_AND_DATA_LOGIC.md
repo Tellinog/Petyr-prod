@@ -417,8 +417,10 @@ Monthly Forecast Entry table rules:
   placeholder into the editable field, using the same save/approval interaction
   as AI Forecast placeholders, and the user can still edit the value manually
   before saving;
-- Expand/Collapse must look like an actionable button and sit at the far right
-  of the Business Unit group header;
+- Expand/Collapse must look like a high-contrast actionable button and sit at
+  the far right of the Business Unit group header. It includes a stateful
+  chevron, a visible keyboard focus indicator and the expanded state for
+  assistive technology;
 - the Monthly table uses its own vertical scroll area; the CSM, Month, Year and
   Load control row plus the legend stay sticky above it, while the Monthly
   section title, period summary and editability notice scroll away. Monthly

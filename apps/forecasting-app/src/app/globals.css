@@ -14,3 +14,26 @@ body {
   margin: 0;
   background: #f1f5f9;
 }
+
+@keyframes petyr-company-marquee {
+  0%,
+  16% {
+    transform: translateX(0);
+  }
+
+  84%,
+  100% {
+    transform: translateX(var(--petyr-company-marquee-distance));
+  }
+}
+
+.petyr-company-marquee {
+  animation: petyr-company-marquee linear infinite alternate;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .petyr-company-marquee {
+    animation: none;
+  }
+}

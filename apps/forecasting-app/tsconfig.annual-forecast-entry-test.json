@@ -13,6 +13,7 @@
   },
   "include": [
     "src/lib/petyr/annualForecastEntryRules.ts",
+    "src/lib/forecasting/companyForecastPace.ts",
     "src/lib/petyr/constants.ts",
     "src/lib/petyr/annualForecastImportParser.ts",
     "src/lib/petyr/inactiveCompaniesAnnualExportRows.ts",

@@ -341,11 +341,14 @@ Normal batch table rules:
 - each Monthly company row shows the company-level total of the currently
   active Business Unit forecast values in a highlighted `Monthly Total` column
   between Company and the Business Unit columns;
+- Active, Company and Monthly Total remain pinned during horizontal scrolling;
+  Company uses a compact column and overlong company names auto-scroll within
+  the cell so the complete name remains readable;
 - columns are grouped by the 10 official Petyr Business Units only;
 - Business Unit columns are ordered for fast CSM checks as QA, UX/Experience,
   Accessibility, Security, FTE, TA, AI, OTHER/Other, Express, Community;
 - each Business Unit starts collapsed and shows only the active editable field;
-- the Business Unit Expand/Collapse control must look actionable as a button and sit at the far right of the Business Unit group header;
+- the Business Unit Expand/Collapse control must look actionable as a high-contrast button and sit at the far right of the Business Unit group header. It shows a stateful chevron, has a visible keyboard focus indicator, and exposes the expanded state to assistive technology;
 - the Monthly table must use its own vertical scroll area; the CSM, Month, Year
   and Load control row plus the legend stay sticky above it, while the Monthly
   section title, period summary and editability notice scroll away. Monthly
@@ -386,6 +389,11 @@ Normal batch table rules:
 - numeric Monthly Forecast Entry cells display integer monetary values without
   decimal cents, keep Italian thousands separators and stay wide enough for
   values up to eight digits plus separators;
+- editable Monthly and Annual numeric forecast cells support spreadsheet-style
+  keyboard navigation: Up/Down moves to the same visible forecast column in
+  the previous/next company row; Left/Right moves within the same company row
+  once the text cursor reaches the respective edge. Navigation skips locked,
+  read-only and hidden cells, and focuses/selects the destination value;
 - zero or empty Monthly Forecast Entry numeric cells use a softer grey treatment
   so populated cells stand out;
 - clearing an editable Monthly or Annual Forecast Ongoing Business Unit field
@@ -696,12 +704,12 @@ Validation:
 Company detail.
 
 Company Detail uses the shared Petyr workspace shell and remains read-only for forecast value edits. It must expose the Forecast Entry-style navigator for CSM filter, company selection, previous/next company and year load, using the same Forecast Entry company ordering and canonical current Company Ownership mapping used by Forecast Entry Monthly and Annual. Company Detail links and navigator actions may preserve the selected `csmName` filter only when it matches the selected company’s canonical current CSM; stale or mismatched URL values must not override the canonical owner. The year/load control appears to the left of previous/next company navigation; the previous/next helper must not repeat the CSM name. It must not expose the manual AI Forecast apply action, numeric AI Forecast generation or the CSM-facing `Intelligence` section. Company Detail must not load or render the Forecast Intelligence sentinel row for the selected company/year. Any future company-level intelligence experience belongs to separate documented scope.
-The Company Detail Forecast status control is connected to `company_forecast_status`. Users with `petyr:forecast:write` can change it between Active and Inactive from the header; the change autosaves, creates a save session/change log row and clears numeric AI Forecast cache rows when the company becomes inactive. This is the only Company Detail write control besides company notes and does not allow editing forecast values.
+The Company Detail Forecast status control is connected to `company_forecast_status`. Users with `petyr:forecast:write` can change it between Active and Inactive from the header; the change autosaves, creates a save session/change-log row and clears numeric AI Forecast cache rows when the company becomes inactive. This is the only Company Detail write control besides company notes and does not allow editing forecast values. Next to it, for the current selected year and only when a positive Annual Forecast Ongoing exists, Company Detail shows a read-only traffic-light pace indicator. It compares Closed revenue YTD plus valid planned future revenue with the Annual Forecast Ongoing expected by the current calendar month, rounding the expected month pace down to a whole percent (June 50%, August 66%). Green means at or above pace, orange means 1 to 9 percentage points below it, and red means 10 or more percentage points below it.
 
 Sections:
 - Forecast Entry-style navigator with CSM filter, company selection, year/load on the left, and previous/next company navigation without repeating the CSM name;
-- company summary with company name, assigned CSM context and an explicitly labelled Forecast status control next to the Forecast Entry link;
-- primary KPI cards for Total agreement, Closed revenue YTD, Agreement residual and total Initial Forecast for the selected year;
+- company summary with company name, assigned CSM context, an explicitly labelled Forecast status control, and the read-only current-year Annual Forecast pace traffic light next to the Forecast Entry link;
+- primary KPI cards for Total agreement (the sum of active agreements only), Closed revenue YTD, Agreement residual and total Initial Forecast for the selected year;
 - active agreements, agreement value, agreement residual and agreement expiry date;
 - monthly revenue trend, visible only to users with `petyr:admin`;
 - revenue by Business Unit, visible only to users with `petyr:admin`, including closed-revenue bars, gray Initial Forecast markers and Previous-month forecast markers colored green when above Initial Forecast, yellow when below it and neutral when aligned;
