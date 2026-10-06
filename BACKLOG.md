@@ -31,6 +31,14 @@ Project-specific backlog items should be placed in the most specific backlog ava
 - **Status:** Resolved on 2026-08-19.
 - **Proposal / next action:** Product confirmed removal of the recent-six-month multi-association rule. Petyr portfolio, navigation and save paths now consume the canonical latest-owner mapping; validate representative reassigned companies after deployment.
 
+## Align legacy single-company Forecast Entry saves with canonical Company Ownership
+
+- **Area:** Petyr / Forecast Entry / Company Ownership / Legacy route
+- **Problem/question:** The accepted 2026-08-19 rule requires every save to use the canonical Company Ownership CSM, but the legacy single-company save service still prefers the request `csmName` when writing forecast rows and audit sessions after loading the company context.
+- **Impact:** A stale URL or client payload can persist a non-canonical CSM in legacy forecast rows, save sessions and change logs even when the current Company Ownership mapping is correct. The current batch UI uses the canonical mapping for portfolio membership and validation, so the scope and impact of this discrepancy need explicit validation before changing the legacy path.
+- **Status:** Open.
+- **Proposal / next action:** Make the legacy save derive `resolvedCsmName` only from the selected company’s canonical ownership context, add a regression test for a stale requested CSM, and reconcile the remaining legacy documentation references to the superseded six-month association rule.
+
 ## Reconcile Monthly Forecast Entry Active-column documentation
 
 - **Area:** Petyr / Monthly Forecast Entry / Table layout
